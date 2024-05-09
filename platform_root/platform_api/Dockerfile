@@ -31,6 +31,10 @@ ENV APACHE_USERNAME         $USERNAME
 ENV APACHE_GROUPNAME        $GROUPNAME
 
 RUN --mount=type=secret,id=host_certificate_file,dst=/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem \
+    rpm -ivh https://dev.mysql.com/get/mysql80-community-release-el8-8.noarch.rpm \
+&&  dnf install -y mysql-community-client
+
+RUN --mount=type=secret,id=host_certificate_file,dst=/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem \
     dnf install -y \
     langpacks-en \
     wget \
@@ -61,10 +65,6 @@ RUN --mount=type=secret,id=host_certificate_file,dst=/etc/pki/ca-trust/extracted
 
 RUN --mount=type=secret,id=host_certificate_file,dst=/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem \
     poetry install --without develop_build
-
-RUN --mount=type=secret,id=host_certificate_file,dst=/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem \
-    rpm -ivh https://dev.mysql.com/get/mysql80-community-release-el8-8.noarch.rpm \
-&&  dnf install -y mysql-community-client
 
 #
 # Build for development
