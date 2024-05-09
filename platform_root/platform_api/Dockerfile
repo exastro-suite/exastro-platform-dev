@@ -35,6 +35,8 @@ RUN --mount=type=secret,id=host_certificate_file,dst=/etc/pki/ca-trust/extracted
     rpm -ivh https://dev.mysql.com/get/mysql80-community-release-el8-8.noarch.rpm \
 &&  dnf install -y mysql-community-client
 
+COPY ./platform_root/platform_api/config/centos8.repo /etc/yum.repos.d/centos8.repo
+
 RUN --mount=type=secret,id=host_certificate_file,dst=/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem \
     dnf install -y --enablerepo=baseos expect
 
