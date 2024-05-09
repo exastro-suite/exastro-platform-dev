@@ -30,9 +30,30 @@ ENV APACHE_TIMEOUT          360
 ENV APACHE_USERNAME         $USERNAME
 ENV APACHE_GROUPNAME        $GROUPNAME
 
+# TEST INSTALL
 RUN --mount=type=secret,id=host_certificate_file,dst=/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem \
     rpm -ivh https://dev.mysql.com/get/mysql80-community-release-el8-8.noarch.rpm \
 &&  dnf install -y mysql-community-client
+
+RUN --mount=type=secret,id=host_certificate_file,dst=/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem \
+    dnf install -y --enablerepo=baseos expect
+
+RUN --mount=type=secret,id=host_certificate_file,dst=/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem \
+    dnf config-manager --add-repo https://rpm.releases.hashicorp.com/RHEL/hashicorp.repo
+
+RUN --mount=type=secret,id=host_certificate_file,dst=/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem \
+    dnf install -y \
+        sudo \
+        git \
+        vim \
+        diffutils \
+        bind-utils \
+        iputils \
+        terraform \
+    &&  usermod -G wheel $USERNAME \
+    &&  echo '%wheel ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
+    
+# TEST INSTALL
 
 RUN --mount=type=secret,id=host_certificate_file,dst=/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem \
     dnf install -y \
@@ -93,10 +114,6 @@ RUN --mount=type=secret,id=host_certificate_file,dst=/etc/pki/ca-trust/extracted
 &&  usermod -G wheel $USERNAME \
 &&  echo '%wheel ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers \
 &&  echo "%${GROUPNAME} ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
-
-RUN --mount=type=secret,id=host_certificate_file,dst=/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem \
-    rpm -ivh https://dev.mysql.com/get/mysql80-community-release-el8-8.noarch.rpm \
-&&  dnf install -y mysql-community-client
 
 RUN poetry install --with develop_build
 
