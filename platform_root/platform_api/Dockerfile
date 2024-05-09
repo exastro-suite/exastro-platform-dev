@@ -51,10 +51,8 @@ RUN --mount=type=secret,id=host_certificate_file,dst=/etc/pki/ca-trust/extracted
         diffutils \
         bind-utils \
         iputils \
-        terraform \
-    &&  usermod -G wheel $USERNAME \
-    &&  echo '%wheel ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
-    
+        terraform
+
 # TEST INSTALL
 
 RUN --mount=type=secret,id=host_certificate_file,dst=/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem \
