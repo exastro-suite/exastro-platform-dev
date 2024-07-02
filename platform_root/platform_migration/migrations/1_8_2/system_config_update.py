@@ -123,7 +123,7 @@ class system_config_update:
             },
             {
                 "key": common_const.CONFIG_KEY_CHUNK_SIZE,
-                "value": 102400,
+                "value": 10485760,  # 10MByte
                 "description": "chunk size for upload/download",
             },
         ]
