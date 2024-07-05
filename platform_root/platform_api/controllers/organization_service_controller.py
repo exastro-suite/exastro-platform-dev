@@ -1683,7 +1683,14 @@ def __ita_create(organization_id, user_id, options_ita):
     api_url = "{}://{}:{}".format(os.environ['ITA_API_ADMIN_PROTOCOL'], os.environ['ITA_API_ADMIN_HOST'], os.environ['ITA_API_ADMIN_PORT'])
     response = requests.post(f"{api_url}/api/organizations/{organization_id}/ita/", headers=header_para, json=json_para)
 
-    if response.status_code not in [200, 409]:
+    if response.status_code not in [200, 409, 500]:
+        globals.logger.info(f"response.status_code:{response.status_code}")
+        globals.logger.info(f"response.text:{response.text}")
+        return_json = json.loads(response.text)
+
+        raise common.CallException(status_code=response.status_code, data=return_json.get("data"), message_id=return_json.get("result"), message=return_json.get("message"))
+
+    elif response.status_code == 500:
         globals.logger.error(f"response.status_code:{response.status_code}")
         globals.logger.error(f"response.text:{response.text}")
         return_json = json.loads(response.text)
@@ -1727,7 +1734,14 @@ def __ita_update(organization_id, user_id, options_ita):
     api_url = "{}://{}:{}".format(os.environ['ITA_API_ADMIN_PROTOCOL'], os.environ['ITA_API_ADMIN_HOST'], os.environ['ITA_API_ADMIN_PORT'])
     response = requests.patch(f"{api_url}/api/organizations/{organization_id}/ita/", headers=header_para, json=json_para)
 
-    if response.status_code not in [200, 409]:
+    if response.status_code not in [200, 409, 500]:
+        globals.logger.info(f"response.status_code:{response.status_code}")
+        globals.logger.info(f"response.text:{response.text}")
+        return_json = json.loads(response.text)
+
+        raise common.CallException(status_code=response.status_code, data=return_json.get("data"), message_id=return_json.get("result"), message=return_json.get("message"))
+
+    elif response.status_code == 500:
         globals.logger.error(f"response.status_code:{response.status_code}")
         globals.logger.error(f"response.text:{response.text}")
         return_json = json.loads(response.text)
@@ -1762,34 +1776,29 @@ def __ita_delete(organization_id):
     api_url = "{}://{}:{}".format(os.environ['ITA_API_ADMIN_PROTOCOL'], os.environ['ITA_API_ADMIN_HOST'], os.environ['ITA_API_ADMIN_PORT'])
     response = requests.delete(f"{api_url}/api/organizations/{organization_id}/ita/", headers=header_para)
 
-    if response.status_code not in [200, 404, 499]:
+    if response.status_code not in [200, 404, 499, 500]:
+        globals.logger.info(f"response.status_code:{response.status_code}")
+        globals.logger.info(f"response.text:{response.text}")
+        return_json = json.loads(response.text)
+
+        raise common.CallException(status_code=response.status_code, data=return_json.get("data"), message_id=return_json.get("result"), message=return_json.get("message"))
+
+    elif response.status_code == 499:
+        return_json = json.loads(response.text)
+        # すでに削除されていますの場合は無視する
+        # Ignore if already deleted
+        if return_json.get("result") != "499-00002":
+            globals.logger.info(f"response.status_code:{response.status_code}")
+            globals.logger.info(f"response.text:{response.text}")
+
+            raise common.CallException(status_code=response.status_code, data=return_json.get("data"), message_id=return_json.get("result"), message=return_json.get("message"))
+
+    elif response.status_code == 500:
         globals.logger.error(f"response.status_code:{response.status_code}")
         globals.logger.error(f"response.text:{response.text}")
-        message_id = f"500-{MSG_FUNCTION_ID}013"
-        message = multi_lang.get_text(
-            message_id,
-            "Exastro IT Automationのorganization削除に失敗しました。(対象ID:{0})",
-            organization_id
-        )
-        raise common.InternalErrorException(message_id=message_id, message=message)
+        return_json = json.loads(response.text)
 
-    if response.status_code == 499:
-        try:
-            r_delete_ita_body = json.loads(response.text)
-        except Exception:
-            r_delete_ita_body = {}
-
-        if r_delete_ita_body.get("result", "") != '499-00002':  # Alredy Deleted
-            globals.logger.error(f"response.status_code:{response.status_code}")
-            globals.logger.error(f"response.text:{response.text}")
-
-            message_id = f"500-{MSG_FUNCTION_ID}013"
-            message = multi_lang.get_text(
-                message_id,
-                "Exastro IT Automationのorganization削除に失敗しました。(対象ID:{0})",
-                organization_id
-            )
-            raise common.InternalErrorException(message_id=message_id, message=message)
+        raise common.CallException(status_code=response.status_code, data=return_json.get("data"), message_id=return_json.get("result"), message=return_json.get("message"))
 
     globals.logger.debug(f"response.status_code:{response.status_code}")
 

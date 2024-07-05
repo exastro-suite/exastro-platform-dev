@@ -35,7 +35,7 @@ MSG_FUNCTION_ID = "22"
 
 
 @common.platform_exception_handler
-def workspace_create(body, organization_id):
+def workspace_create(body, organization_id):  # noqa C901
     """Create creates an workspace
 
     :param body:
@@ -285,16 +285,20 @@ def workspace_create(body, organization_id):
             r_create_ita_workspace = api_ita_admin_call.ita_workspace_create(
                 organization_id, workspace_id, role_name_wsadmin, user_id, encode_roles, language,
             )
-            if r_create_ita_workspace.status_code != 200:
+
+            if r_create_ita_workspace.status_code not in [200, 500]:
+                globals.logger.info(f"response.status_code:{r_create_ita_workspace.status_code}")
+                globals.logger.info(f"response.text:{r_create_ita_workspace.text}")
+                return_json = json.loads(r_create_ita_workspace.text)
+
+                raise common.CallException(status_code=r_create_ita_workspace.status_code, data=return_json.get("data"), message_id=return_json.get("result"), message=return_json.get("message"))
+
+            elif r_create_ita_workspace.status_code == 500:
                 globals.logger.error(f"response.status_code:{r_create_ita_workspace.status_code}")
                 globals.logger.error(f"response.text:{r_create_ita_workspace.text}")
-                message_id = f"500-{MSG_FUNCTION_ID}007"
-                message = multi_lang.get_text(
-                    message_id,
-                    "IT Automationのワークスペース作成に失敗しました(対象ID:{0})",
-                    workspace_id,
-                )
-                raise common.InternalErrorException(message_id=message_id, message=message)
+                return_json = json.loads(r_create_ita_workspace.text)
+
+                raise common.CallException(status_code=r_create_ita_workspace.status_code, data=return_json.get("data"), message_id=return_json.get("result"), message=return_json.get("message"))
 
             conn.commit()
 
@@ -425,34 +429,29 @@ def workspace_delete(organization_id, workspace_id):  # noqa: E501
             # Delete ITA workspace
             globals.logger.info(f"Delete ITA Workspace : organization_id={organization_id} / workspace_id={workspace_id}")
             r_delete_ita_workspace = api_ita_admin_call.ita_workspace_delete(organization_id, workspace_id, user_id, encode_roles, language)
-            if r_delete_ita_workspace.status_code not in [200, 404, 499]:
+
+            if r_delete_ita_workspace.status_code not in [200, 404, 499, 500]:
+                globals.logger.info(f"response.status_code:{r_delete_ita_workspace.status_code}")
+                globals.logger.info(f"response.text:{r_delete_ita_workspace.text}")
+                return_json = json.loads(r_delete_ita_workspace.text)
+
+                raise common.CallException(status_code=r_delete_ita_workspace.status_code, data=return_json.get("data"), message_id=return_json.get("result"), message=return_json.get("message"))
+
+            elif r_delete_ita_workspace.status_code == 499:
+                return_json = json.loads(r_delete_ita_workspace.text)
+                # すでに削除されていますの場合は無視する
+                # Ignore if already deleted
+                if return_json.get("result") != "499-00002":
+                    globals.logger.info(f"response.status_code:{r_delete_ita_workspace.status_code}")
+                    globals.logger.info(f"response.text:{r_delete_ita_workspace.text}")
+                    raise common.CallException(status_code=r_delete_ita_workspace.status_code, data=return_json.get("data"), message_id=return_json.get("result"), message=return_json.get("message"))
+
+            elif r_delete_ita_workspace.status_code == 500:
                 globals.logger.error(f"response.status_code:{r_delete_ita_workspace.status_code}")
                 globals.logger.error(f"response.text:{r_delete_ita_workspace.text}")
-                message_id = f"500-{MSG_FUNCTION_ID}008"
-                message = multi_lang.get_text(
-                    message_id,
-                    "IT Automationのワークスペース削除に失敗しました(対象ID:{0})",
-                    workspace_id,
-                )
-                raise common.InternalErrorException(message_id=message_id, message=message)
+                return_json = json.loads(r_delete_ita_workspace.text)
 
-            # Alredy Deleted : status_code = 499 and response body result = '499-00002'
-            if r_delete_ita_workspace.status_code == 499:
-                try:
-                    r_delete_ita_workspace_body = json.loads(r_delete_ita_workspace.text)
-                except Exception:
-                    r_delete_ita_workspace_body = {}
-
-                if r_delete_ita_workspace_body.get("result", "") != '499-00002':  # Alredy Deleted
-                    globals.logger.error(f"response.status_code:{r_delete_ita_workspace.status_code}")
-                    globals.logger.error(f"response.text:{r_delete_ita_workspace.text}")
-                    message_id = f"500-{MSG_FUNCTION_ID}008"
-                    message = multi_lang.get_text(
-                        message_id,
-                        "IT Automationのワークスペース削除に失敗しました(対象ID:{0})",
-                        workspace_id,
-                    )
-                    raise common.InternalErrorException(message_id=message_id, message=message)
+                raise common.CallException(status_code=r_delete_ita_workspace.status_code, data=return_json.get("data"), message_id=return_json.get("result"), message=return_json.get("message"))
 
             # サービスアカウントのTOKEN取得
             # Get a service account token
