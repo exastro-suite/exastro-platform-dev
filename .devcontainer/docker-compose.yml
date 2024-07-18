@@ -60,6 +60,10 @@ services:
       - PLATFORM_API_PROTOCOL=http
       - PLATFORM_API_HOST=platform-api
       - PLATFORM_API_PORT=8000
+      - EPOCH_SERVER_PROTOCOL=http
+      - EPOCH_SERVER_HOST=epoch-server
+      - EPOCH_SERVER_WEB_PORT=8000
+      - EPOCH_SERVER_API_PORT=8001
       - DB_HOST=${PLATFORM_DB_HOST:-platform-db}
       - DB_DATABASE=platform
       - DB_USER=app_user
@@ -173,6 +177,9 @@ services:
       - ITA_API_ADMIN_PROTOCOL=http
       - ITA_API_ADMIN_HOST=ita-api
       - ITA_API_ADMIN_PORT=8000
+      - EPOCH_SERVER_PROTOCOL=http
+      - EPOCH_SERVER_HOST=epoch-server
+      - EPOCH_SERVER_API_PORT=8001
       - DB_HOST=${PLATFORM_DB_HOST:-platform-db}
       - DB_DATABASE=platform
       - DB_USER=app_user

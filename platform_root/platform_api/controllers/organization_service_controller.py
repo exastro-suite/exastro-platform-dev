@@ -162,6 +162,7 @@ def organization_create(body, retry=None):  # noqa: C901
     is_DB_CREATE = True
     is_DB_UPDATE = True
     is_ITA_CREATE = True
+    is_EPOCH_CREATE = True
     is_PLAN_CREATE = True
     is_REALM_ENABLED = True
     is_CREATE_COMPLETE = True
@@ -256,6 +257,18 @@ def organization_create(body, retry=None):  # noqa: C901
             is_DB_CREATE = False
             is_DB_UPDATE = False
             is_ITA_CREATE = False
+        elif status == const.ORG_STATUS_EPOCH_CREATE:
+            is_CREATE_START = False
+            is_REALM_CREATE = False
+            is_CLIENT_CREATE = False
+            is_ROLE_SETTING = False
+            is_SA_SETTING = False
+            is_USER_CREATE = False
+            is_USER_ROLE = False
+            is_DB_CREATE = False
+            is_DB_UPDATE = False
+            is_ITA_CREATE = False
+            is_EPOCH_CREATE = False
         elif status == const.ORG_STATUS_PLAN_CREATE:
             is_CREATE_START = False
             is_REALM_CREATE = False
@@ -267,6 +280,7 @@ def organization_create(body, retry=None):  # noqa: C901
             is_DB_CREATE = False
             is_DB_UPDATE = False
             is_ITA_CREATE = False
+            is_EPOCH_CREATE = False
             is_PLAN_CREATE = False
         elif status == const.ORG_STATUS_REALM_ENABLED:
             is_CREATE_START = False
@@ -279,6 +293,7 @@ def organization_create(body, retry=None):  # noqa: C901
             is_DB_CREATE = False
             is_DB_UPDATE = False
             is_ITA_CREATE = False
+            is_EPOCH_CREATE = False
             is_PLAN_CREATE = False
             is_REALM_ENABLED = False
         elif status == const.ORG_STATUS_CREATE_COMPLETE:
@@ -337,6 +352,11 @@ def organization_create(body, retry=None):  # noqa: C901
         # Organization Database 作成
         # Organization Database creation
         __ita_create(organization_id, user_id, options_ita)
+
+    if is_EPOCH_CREATE:
+        # Organization Database 作成
+        # Organization Database creation
+        __epoch_create(organization_id, user_id)
 
     if is_PLAN_CREATE:
         # Organization Plan 作成
@@ -1695,6 +1715,46 @@ def __ita_create(organization_id, user_id, options_ita):
     # ステータス更新
     # update status
     __update_status(const.ORG_STATUS_ITA_CREATE, organization_id, user_id)
+
+    return
+
+def __epoch_create(organization_id, user_id):
+    """Exastro EPOCH initialize call
+
+    Args:
+        organization_id (str): organization id
+        user_id (str): user id
+        options_ita (dict): ita option
+    """
+
+    globals.logger.info(f"### func:{inspect.currentframe().f_code.co_name}")
+
+    header_para = {
+        "Content-Type": "application/json",
+        "User-Id": request.headers.get("User-Id"),
+        "Roles": request.headers.get("Roles"),
+        "Language": request.headers.get("Language"),
+    }
+
+    body_json={}
+
+    # 呼び出し先設定
+    # Call destination setting
+    api_url = "{}://{}:{}".format(os.environ['EPOCH_SERVER_PROTOCOL'], os.environ['EPOCH_SERVER_HOST'], os.environ['EPOCH_SERVER_API_PORT'])
+    response = requests.post(f"{api_url}/internal-api/{organization_id}/epoch/", headers=header_para, json=body_json)
+
+    if response.status_code not in [200, 409]:
+        globals.logger.error(f"response.status_code:{response.status_code}")
+        globals.logger.error(f"response.text:{response.text}")
+        return_json = json.loads(response.text)
+
+        raise common.CallException(status_code=response.status_code, data=return_json.get("data"), message_id=return_json.get("result"), message=return_json.get("message"))
+
+    globals.logger.debug(response.text)
+
+    # ステータス更新
+    # update status
+    __update_status(const.ORG_STATUS_EPOCH_CREATE, organization_id, user_id)
 
     return
 

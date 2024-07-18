@@ -21,7 +21,7 @@ import pymysql
 import base64
 
 from common_library.common import common, validation, multi_lang, maintenancemode
-from common_library.common import api_keycloak_tokens, api_keycloak_roles, api_ita_admin_call
+from common_library.common import api_keycloak_tokens, api_keycloak_roles, api_ita_admin_call, api_epoch_call
 from common_library.common.db_init import DBinit
 from common_library.common import resources
 from common_library.common import bl_plan_service
@@ -292,6 +292,21 @@ def workspace_create(body, organization_id):
                 message = multi_lang.get_text(
                     message_id,
                     "IT Automationのワークスペース作成に失敗しました(対象ID:{0})",
+                    workspace_id,
+                )
+                raise common.InternalErrorException(message_id=message_id, message=message)
+
+            # EPOCH call
+            r_create_epoch_workspace = api_epoch_call.epoch_workspace_create(
+                organization_id, workspace_id, role_name_wsadmin, user_id, encode_roles, language,
+            )
+            if r_create_epoch_workspace.status_code != 200:
+                globals.logger.error(f"response.status_code:{r_create_epoch_workspace.status_code}")
+                globals.logger.error(f"response.text:{r_create_epoch_workspace.text}")
+                message_id = f"500-{MSG_FUNCTION_ID}007"
+                message = multi_lang.get_text(
+                    message_id,
+                    "EPOCHのワークスペース作成に失敗しました(対象ID:{0})",
                     workspace_id,
                 )
                 raise common.InternalErrorException(message_id=message_id, message=message)
