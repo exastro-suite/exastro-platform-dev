@@ -121,6 +121,7 @@ services:
       - exastro
     command:
       - start
+      - --features=scripts
     depends_on:
       platform-migration-1:
         condition: service_completed_successfully

@@ -1,0 +1,14 @@
+{
+    "saml-mappers": [
+        {
+            "name": "custom mapper concat username realm-id",
+            "description": "custom mapper concat username realm-id",
+            "fileName": "concat-username-realm-id.js"
+        },
+        {
+            "name": "custom mapper workspace roles",
+            "description": "custom mapper workspace roles",
+            "fileName": "workspace-role-mapper.js"
+        }
+    ]
+}

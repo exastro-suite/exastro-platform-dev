@@ -12,8 +12,34 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-# FROM jboss/keycloak:16.1.1 as common_build
+#
+# keycloak custom-mappers archive
+#
+FROM    registry.access.redhat.com/ubi8/ubi-init as custom_mapper_archiver
+
+RUN --mount=type=secret,id=host_certificate_file,dst=/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem \
+    dnf install -y zip
+
+WORKDIR /tmp/custom-mappers
+COPY ./platform_root/keycloak/custom-mappers /tmp/custom-mappers
+
+RUN cd /tmp/custom-mappers \
+&&  zip -r /tmp/custom-mappers.jar *
+
+#
+# keycloak build
+#
+FROM quay.io/keycloak/keycloak:24.0 as custom_mapper_builder
+COPY --from=custom_mapper_archiver /tmp/custom-mappers.jar /opt/keycloak/providers/custom-mappers.jar
+
+WORKDIR /opt/keycloak
+RUN /opt/keycloak/bin/kc.sh build --features=scripts
+
+#
+# keycloak container image build
+#
 FROM quay.io/keycloak/keycloak:24.0 as common_build
+COPY --from=custom_mapper_builder /opt/keycloak/ /opt/keycloak/ 
 
 # Keycloakのtagを変更した場合は、platform-migrationのDockerfileにあるENV KEYCLOAK_VERSIONも合わせて変更する必要があります
 # If you change Keycloak tag, you need to change ENV KEYCLOAK_VERSION in platform-migration Dockerfile as well
