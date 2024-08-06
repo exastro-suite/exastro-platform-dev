@@ -21,7 +21,7 @@ RUN --mount=type=secret,id=host_certificate_file,dst=/etc/pki/ca-trust/extracted
     dnf install -y zip
 
 WORKDIR /tmp/custom-mappers
-COPY ./platform_root/keycloak/custom-mappers /tmp/custom-mappers
+COPY ./platform_root/keycloak/custom-mappers/source /tmp/custom-mappers
 
 RUN cd /tmp/custom-mappers \
 &&  zip -r /tmp/custom-mappers.jar *
