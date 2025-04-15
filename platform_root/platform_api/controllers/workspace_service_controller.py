@@ -35,7 +35,7 @@ import globals
 
 MSG_FUNCTION_ID = "22"
 
-# test6
+# test7
 
 
 @common.platform_exception_handler
