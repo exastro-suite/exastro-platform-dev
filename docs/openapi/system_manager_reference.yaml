@@ -18,6 +18,9 @@ info:
   title: Exastro Platform API (System Management)
   description: Exastro Platform API for System Manager
   version: 1.10.0
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
 
 servers:
   - url: "https://{host}"
@@ -56,6 +59,8 @@ tags:
   description: システム管理者共通
 - name: MaintenanceModeService
   description: メンテナンスモードに関する操作
+- name: GenerativeAIService
+  description: 生成AIサービスに関する操作
 
 paths:
   "/auth/realms/master/protocol/openid-connect/token":
@@ -79,6 +84,9 @@ paths:
 
   "/api/platform/usages":
       $ref: './paths/usages.yaml'
+
+  "/api/platform/generative-ai":
+      $ref: './paths/generative_ai.yaml'
 
   "/api/platform/settings/common":
       $ref: './paths/common.settings.common.yaml'

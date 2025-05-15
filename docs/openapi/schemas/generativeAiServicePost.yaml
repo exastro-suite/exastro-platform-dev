@@ -1,0 +1,29 @@
+title: generative ai settings id resources.
+allOf:
+  - $ref: './generativeAiServiceBase.yaml'
+  - type: object
+    properties:
+      external_account_definition:
+        type: array
+        items:
+          type: object
+          properties:
+            description:
+              type: object
+              required:
+                - ja
+                - en
+          required:
+            - item_id
+            - item_name
+            - description
+            - format
+    required:
+      - id
+      - service
+      - model
+      - display_name
+      - endpoint_url
+      - external_account_definition
+      - enabled
+      - display_sort_no

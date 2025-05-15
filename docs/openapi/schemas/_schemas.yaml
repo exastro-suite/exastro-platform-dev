@@ -72,6 +72,10 @@ userCredentials:
   $ref: "./userCredentials.yaml"
 userRequiredActions:
   $ref: "./userRequiredActions.yaml"
+userExternalAccountsBase:
+  $ref: "./user.externalAccountsBase.yaml"
+userExternalAccountsPost:
+  $ref: "./user.externalAccountsPost.yaml"
 member:
   $ref: "./member.yaml"
 memberList:
@@ -180,3 +184,9 @@ agentUserUpdate:
   $ref: "./agentUserUpdate.yaml"
 agentUserTokenList:
   $ref: "./agentUserTokenList.yaml"
+generativeAiServiceBase:
+  $ref: "./generativeAiServiceBase.yaml"
+generativeAiServicePost:
+  $ref: "./generativeAiServicePost.yaml"
+generativeAiServiceList:
+  $ref: "./generativeAiServiceList.yaml"

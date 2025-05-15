@@ -18,6 +18,9 @@ info:
   title: Exastro Platform API
   description: Exastro Platform API
   version: 1.10.0
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
 
 servers:
   - url: "https://{host}"
@@ -72,6 +75,8 @@ tags:
   description: 監査ログに関する操作
 - name: CommonService
   description: システム設定に関する操作
+- name: GenerativeAIService
+  description: 生成AIサービスに関する操作
 
 paths:
   "/auth/realms/{organization_id}/protocol/openid-connect/token":
@@ -105,6 +110,9 @@ paths:
       $ref: './paths/users.yaml'
   "/api/{organization_id}/platform/users/{user_id}":
       $ref: './paths/users.user_id.yaml'
+
+  "/api/{organization_id}/platform/users/_current/external-accounts":
+      $ref: './paths/user.current.external_accounts.yaml'
 
   "/api/{organization_id}/platform/roles":
       $ref: './paths/roles.yaml'
@@ -160,6 +168,9 @@ paths:
 
   "/api/{organization_id}/platform/settings/common/{config_key}":
       $ref: './paths/common.settings.organizations.common.config.yaml'
+
+  "/api/{organization_id}/platform/generative-ai":
+      $ref: './paths/organizations.organizatuin_id.generative_ai.yaml'
 
 components:
   schemas:

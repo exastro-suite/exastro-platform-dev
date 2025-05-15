@@ -34,3 +34,9 @@ properties:
         type: array
         items:
           $ref: './workspace_administrator.yaml'
+      generative_ai:
+        type: array
+        items:
+          type: string
+          description: Generative AI service id
+        example: [ "Gemini-gemini-1.5-flash", "Gemini-gemini-1.5-pro" ]

@@ -3,6 +3,9 @@ info:
   title: Exastro Platform API
   description: Exastro Platform API
   version: 1.10.0
+  license:
+    name: Apache 2.0
+    url: 'https://www.apache.org/licenses/LICENSE-2.0'
 servers:
   - url: 'https://{host}'
     description: API endpoint
@@ -55,6 +58,8 @@ tags:
     description: 監査ログに関する操作
   - name: CommonService
     description: システム設定に関する操作
+  - name: GenerativeAIService
+    description: 生成AIサービスに関する操作
 paths:
   '/auth/realms/{organization_id}/protocol/openid-connect/token':
     post:
@@ -879,6 +884,74 @@ paths:
           schema:
             type: string
             format: uuid
+      responses:
+        '200':
+          description: A successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/responseOk'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        example: null
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/runtimeError'
+  '/api/{organization_id}/platform/users/_current/external-accounts':
+    get:
+      tags:
+        - UsersService
+      summary: Get external-accouns settings
+      x-openapi-router-controller: controllers.users_service_controller
+      operationId: user_external_accounts_get
+      parameters:
+        - name: organization_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/responseOk'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/userExternalAccountsBase'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/runtimeError'
+    post:
+      tags:
+        - UsersService
+      summary: Set external-accouns settings
+      x-openapi-router-controller: controllers.users_service_controller
+      operationId: user_external_accounts_set
+      parameters:
+        - name: organization_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/userExternalAccountsPost'
+        required: true
       responses:
         '200':
           description: A successful response.
@@ -1970,6 +2043,37 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/runtimeError'
+  '/api/{organization_id}/platform/generative-ai':
+    get:
+      tags:
+        - GenerativeAIService
+      summary: Get generated AI service
+      x-openapi-router-controller: controllers.generative_ai_service_controller
+      operationId: organization_generative_ai_service_get
+      parameters:
+        - name: organization_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/responseOk'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/generativeAiServiceBase'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/runtimeError'
 components:
   schemas:
     responseOk:
@@ -2513,6 +2617,45 @@ components:
         type: string
         example: UPDATE_PROFILE
         description: \"UPDATE_PROFILE\" or \"UPDATE_PASSWORD\" or \"VERIFY EMAIL\" or \"UPDATE USER LOCAL\" or \"CONFIGURE OTP\"
+    userExternalAccountsBase:
+      title: user external accouns is a definition of User resource.
+      type: object
+      properties:
+        category:
+          type: string
+          discription: The category of the external account.
+          example: generative-ai
+        type:
+          type: string
+          description: The type of the external account.
+          example: Gemini-gemini1.5-flash
+        display_name:
+          type: string
+          description: The display name of the external account.
+          example: gemini service
+        details:
+          type: object
+          description: The details of the external account.
+          example:
+            api_key: XXXXXXXXXX
+        workspaces:
+          type: array
+          description: The workspaces associated with the external account.
+          items:
+            type: string
+            discription: The ID of the workspace.
+            example: ws1
+    userExternalAccountsPost:
+      title: user external accouns is a definition of User resource.
+      allOf:
+        - $ref: '#/components/schemas/userExternalAccountsBase'
+        - type: object
+          required:
+            - category
+            - type
+            - display_name
+            - details
+            - workspaces
     member:
       title: member is a definition of Member resource.
       type: object
@@ -2575,6 +2718,14 @@ components:
               type: array
               items:
                 $ref: '#/components/schemas/workspace_administrator'
+            generative_ai:
+              type: array
+              items:
+                type: string
+                description: Generative AI service id
+              example:
+                - Gemini-gemini-1.5-flash
+                - Gemini-gemini-1.5-pro
     workspaceList:
       title: workspaceList is list of Workspace resources.
       type: object
@@ -3445,6 +3596,106 @@ components:
                 format: uuid
               create_user_name:
                 type: string
+    generativeAiServiceBase:
+      title: generative ai settings id resources.
+      type: object
+      properties:
+        id:
+          type: string
+          description: Generative AI service id
+          example: Gemini-gemini-1.5-flash
+        service:
+          type: string
+          description: Generative AI service name
+          example: Gemini
+        model:
+          type: string
+          description: Generative AI model name
+          example: gemini-1.5-flash
+        display_name:
+          type: string
+          description: Generative AI service display name
+          example: Gemini 1.5 Flash
+        endpoint_url:
+          type: string
+          description: Generative AI service endpoint URL
+          example: 'https://xxxxxx/xxxx/xxxx?{api_key}'
+        external_account_definition:
+          type: array
+          items:
+            type: object
+            properties:
+              item_id:
+                type: string
+                description: External account item id
+                example: api_key
+              item_name:
+                type: string
+                description: External account item name
+                example: API KEY
+              description:
+                type: object
+                properties:
+                  ja:
+                    type: string
+                    description: Description in Japanese
+                    example: API KEYを指定
+                  en:
+                    type: string
+                    description: Description in English
+                    example: Input API KEY
+              format:
+                type: object
+                example:
+                  type: string
+                  required: true
+                  max_length: 32
+        enabled:
+          type: boolean
+          description: Whether the generative AI service is enabled or not
+          example: true
+        display_sort_no:
+          type: integer
+          description: Display sort number of the generative AI service
+          example: 0
+    generativeAiServicePost:
+      title: generative ai settings id resources.
+      allOf:
+        - $ref: '#/components/schemas/generativeAiServiceBase'
+        - type: object
+          properties:
+            external_account_definition:
+              type: array
+              items:
+                type: object
+                properties:
+                  description:
+                    type: object
+                    required:
+                      - ja
+                      - en
+                required:
+                  - item_id
+                  - item_name
+                  - description
+                  - format
+          required:
+            - id
+            - service
+            - model
+            - display_name
+            - endpoint_url
+            - external_account_definition
+            - enabled
+            - display_sort_no
+    generativeAiServiceList:
+      title: generative ai service list.
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/generativeAiServiceBase'
   securitySchemes:
     BearerAuth:
       description: Credentials or access token for API
