@@ -14,9 +14,9 @@
 
 get:
   tags:
-  - GenerativeAIService
+  - GenerativeAISettings
   summary: For system administrators to obtain generated AI service list
-  x-openapi-router-controller: controllers.generative_ai_service_controller
+  x-openapi-router-controller: controllers.generative_ai_settings_controller
   operationId: generative_ai_service_list
   responses:
     200:

@@ -16,6 +16,12 @@ title: user external accouns is a definition of User resource.
 allOf:
   - $ref: './user.externalAccountsBase.yaml'
   - type: object
+    properties:
+      details:
+        type: object
+        description: The details of the external account.
+        example:
+          api_key: XXXXXXXXXX
     required:
       - category
       - type

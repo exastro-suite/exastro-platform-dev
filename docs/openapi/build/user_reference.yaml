@@ -31,35 +31,35 @@ servers:
         default: '30080'
 tags:
   - name: TokenService
-    description: tokenに関する操作
+    description: tokenに関する操作 / Token operations
   - name: OrganizationService
-    description: オーガナイゼーションに関する操作
+    description: オーガナイゼーションに関する操作 / Organization operations
   - name: PlanService
-    description: プランに関する操作
+    description: プランに関する操作 / Plan operations
   - name: UsageService
-    description: リソース使用量に関する操作
+    description: リソース使用量に関する操作 / Resource usage operations
   - name: WorkspaceService
-    description: ワークスペースに関する操作
+    description: ワークスペースに関する操作 / Workspace operations
   - name: UsersService
-    description: ユーザーに関する操作
+    description: ユーザーに関する操作 / User operations
   - name: RoleService
-    description: ロールに関する操作
+    description: ロールに関する操作 / Role operations
   - name: RoleMappingsService
-    description: ロール・マッピングに関する操作
+    description: ロール・マッピングに関する操作 / Role Mappings operations
   - name: AgentUsersService
-    description: エージェントユーザーに関する操作
+    description: エージェントユーザーに関する操作 / Agent User operations
   - name: JobsService
-    description: ジョブに関する操作
+    description: ジョブに関する操作 / Job operations
   - name: MaintenanceModeService
-    description: メンテナンスモードに関する操作
+    description: メンテナンスモードに関する操作 / Maintenance mode operations
   - name: NotificationService
-    description: 通知機能に関する操作
+    description: 通知機能に関する操作 / Notification operations
   - name: AuditLogService
-    description: 監査ログに関する操作
+    description: 監査ログに関する操作 / Audit log operations
   - name: CommonService
-    description: システム設定に関する操作
-  - name: GenerativeAIService
-    description: 生成AIサービスに関する操作
+    description: システム設定に関する操作 / Common settings operations
+  - name: GenerativeAISettings
+    description: 生成AIサービス連携に関する設定 / Generative AI service integration settings
 paths:
   '/auth/realms/{organization_id}/protocol/openid-connect/token':
     post:
@@ -2046,9 +2046,9 @@ paths:
   '/api/{organization_id}/platform/generative-ai':
     get:
       tags:
-        - GenerativeAIService
+        - GenerativeAISettings
       summary: Get generated AI service
-      x-openapi-router-controller: controllers.generative_ai_service_controller
+      x-openapi-router-controller: controllers.generative_ai_settings_controller
       operationId: organization_generative_ai_service_get
       parameters:
         - name: organization_id
@@ -2623,7 +2623,6 @@ components:
       properties:
         category:
           type: string
-          discription: The category of the external account.
           example: generative-ai
         type:
           type: string
@@ -2633,23 +2632,23 @@ components:
           type: string
           description: The display name of the external account.
           example: gemini service
-        details:
-          type: object
-          description: The details of the external account.
-          example:
-            api_key: XXXXXXXXXX
         workspaces:
           type: array
           description: The workspaces associated with the external account.
           items:
             type: string
-            discription: The ID of the workspace.
             example: ws1
     userExternalAccountsPost:
       title: user external accouns is a definition of User resource.
       allOf:
         - $ref: '#/components/schemas/userExternalAccountsBase'
         - type: object
+          properties:
+            details:
+              type: object
+              description: The details of the external account.
+              example:
+                api_key: XXXXXXXXXX
           required:
             - category
             - type
@@ -2752,6 +2751,14 @@ components:
               type: array
               items:
                 $ref: '#/components/schemas/environment'
+            generative_ai:
+              type: array
+              items:
+                type: string
+                description: Generative AI service id
+              example:
+                - Gemini-gemini-1.5-flash
+                - Gemini-gemini-1.5-pro
     userWorkspace:
       title: workspace is a definition of Workspace resource.
       type: object
@@ -3616,6 +3623,10 @@ components:
           type: string
           description: Generative AI service display name
           example: Gemini 1.5 Flash
+        ai_external_url:
+          type: string
+          description: Generative AI service external URL
+          example: '/xxxx/xxxx?{api_key}'
         endpoint_url:
           type: string
           description: Generative AI service endpoint URL
@@ -3654,7 +3665,7 @@ components:
           type: boolean
           description: Whether the generative AI service is enabled or not
           example: true
-        display_sort_no:
+        display_order:
           type: integer
           description: Display sort number of the generative AI service
           example: 0
@@ -3684,10 +3695,11 @@ components:
             - service
             - model
             - display_name
+            - ai_external_url
             - endpoint_url
             - external_account_definition
             - enabled
-            - display_sort_no
+            - display_order
     generativeAiServiceList:
       title: generative ai service list.
       type: object

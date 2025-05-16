@@ -48,19 +48,19 @@ servers:
 
 tags:
 - name: TokenService
-  description: tokenに関する操作
+  description: tokenに関する操作 / Token operations
 - name: OrganizationService
-  description: オーガナイゼーションに関する操作
+  description: オーガナイゼーションに関する操作 / Organization operations
 - name: PlanService
-  description: プランに関する操作
+  description: プランに関する操作 / Plan operations
 - name: UsageService
-  description: リソース使用量に関する操作
+  description: リソース使用量に関する操作 / Resource usage operations
 - name: CommonService
-  description: システム管理者共通
+  description: システム管理者共通 / Common to system administrators
 - name: MaintenanceModeService
-  description: メンテナンスモードに関する操作
+  description: メンテナンスモードに関する操作 / Maintenance mode operations
 - name: GenerativeAIService
-  description: 生成AIサービスに関する操作
+  description: 生成AIサービスに関する操作 / Generative AI operations
 
 paths:
   "/auth/realms/master/protocol/openid-connect/token":

@@ -17,6 +17,10 @@ properties:
     type: string
     description: Generative AI service display name
     example: Gemini 1.5 Flash
+  ai_external_url:
+    type: string
+    description: Generative AI service external URL
+    example: /xxxx/xxxx?{api_key}
   endpoint_url:
     type: string
     description: Generative AI service endpoint URL
@@ -55,7 +59,7 @@ properties:
     type: boolean
     description: Whether the generative AI service is enabled or not
     example: true
-  display_sort_no:
+  display_order:
     type: integer
     description: Display sort number of the generative AI service
     example: 0

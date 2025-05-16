@@ -14,9 +14,9 @@
 
 get:
   tags:
-  - GenerativeAIService
+  - GenerativeAISettings
   summary: Get generated AI service
-  x-openapi-router-controller: controllers.generative_ai_service_controller
+  x-openapi-router-controller: controllers.generative_ai_settings_controller
   operationId: organization_generative_ai_service_get
   parameters:
   - name: organization_id

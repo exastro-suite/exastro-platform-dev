@@ -17,7 +17,6 @@ type: object
 properties:
   category:
     type: string
-    discription: The category of the external account.
     example: generative-ai
   type:
     type: string
@@ -27,17 +26,11 @@ properties:
     type: string
     description: The display name of the external account.
     example: gemini service
-  details:
-    type: object
-    description: The details of the external account.
-    example:
-      api_key: XXXXXXXXXX
   workspaces:
     type: array
     description: The workspaces associated with the external account.
     items:
       type: string
-      discription: The ID of the workspace.
       example: ws1
 
 

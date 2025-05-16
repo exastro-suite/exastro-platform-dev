@@ -23,7 +23,8 @@ allOf:
       - service
       - model
       - display_name
+      - ai_external_url
       - endpoint_url
       - external_account_definition
       - enabled
-      - display_sort_no
+      - display_order
