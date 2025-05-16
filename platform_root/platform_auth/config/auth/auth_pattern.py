@@ -127,6 +127,11 @@ AUTH_PATTERN = [
         "auth": []
     },
     {
+        "url": r"^/api/(?P<org_id>[^/][^/]*)/platform/users/_current/external-accounts$",
+        # do not regulate - 規制しない
+        "auth": []
+    },
+    {
         "url": r"^/api/(?P<org_id>[^/][^/]*)/platform/roles($|/.*$)",
         "auth": [
             {
@@ -246,6 +251,11 @@ AUTH_PATTERN = [
                 "roles": []
             }
         ]
+    },
+    {
+        "url": r"^/api/(?P<org_id>[^/][^/]*)/platform/generative-ai$",
+        # do not regulate - 規制しない
+        "auth": []
     },
     {
         "url": r"^/api/(?P<org_id>[^/][^/]*)/platform/settings/common/platform.system.audit_log.(download_exp_days|download_file_limit|retention_days)$",
