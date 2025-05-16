@@ -21,7 +21,6 @@ CREATE_TABLES_PLATFORM_DB = [
         AI_SERVICE		                VARCHAR(255),                               -- 生成AIサービス
         AI_MODEL		                VARCHAR(255),                               -- 生成AIモデル
         AI_DISPLAY_NAME	                VARCHAR(255),                               -- 生成AI表示名
-        AI_EXTERNAL_URL	                VARCHAR(4000),	                            -- 生成AI用URL
         ENDPOINT_URL	                VARCHAR(4000),	                            -- エンドポイントURL
         HTTP_HEADERS	                JSON,       	                            -- HTTP-HEADERS
         EXTERNAL_ACCOUNT_DEFINITION     JSON,	                                    -- 外部アカウント項目定義

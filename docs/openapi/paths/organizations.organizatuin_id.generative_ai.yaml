@@ -35,7 +35,7 @@ get:
               - type: object
                 properties:
                   data:
-                    $ref: '../schemas/generativeAiServiceBase.yaml'
+                    $ref: '../schemas/organizations.generativeAiServiceList.yaml'
     default:
       description: An unexpected error response.
       content:
