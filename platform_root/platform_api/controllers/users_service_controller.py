@@ -584,3 +584,32 @@ def user_delete(organization_id, user_id):
         raise common.InternalErrorException(message_id=message_id, message=message)
 
     return common.response_200_ok(None)
+
+
+@common.platform_exception_handler
+def user_external_accounts_get(organization_id):
+    """外部アカウント情報取得 / Get external account information
+
+    Args:
+        organization_id (str): organization id
+
+    Returns:
+        Response: HTTP Response
+    """
+
+    return common.response_200_ok(None)
+
+
+@common.platform_exception_handler
+def user_external_accounts_set(body, organization_id):
+    """外部アカウント情報設定 / Set external account information
+
+    Args:
+        body (dict): body
+        organization_id (str): organization id
+
+    Returns:
+        Response: HTTP Response
+    """
+
+    return common.response_200_ok(None)
