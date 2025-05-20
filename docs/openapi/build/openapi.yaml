@@ -2838,9 +2838,9 @@ paths:
     get:
       tags:
         - GenerativeAISettings
-      summary: Get generated AI service
+      summary: List of Generative AI Services for Organizations
       x-openapi-router-controller: controllers.generative_ai_settings_controller
-      operationId: organization_generative_ai_service_get
+      operationId: organization_generative_ai_service_list
       parameters:
         - name: organization_id
           in: path
@@ -2858,65 +2858,7 @@ paths:
                   - type: object
                     properties:
                       data:
-                        title: generative ai service list.
-                        type: object
-                        properties:
-                          data:
-                            type: array
-                            items:
-                              title: generative ai settings id resources.
-                              type: object
-                              properties:
-                                id:
-                                  type: string
-                                  description: Generative AI service id
-                                  example: Gemini-gemini-1.5-flash
-                                service:
-                                  type: string
-                                  description: Generative AI service name
-                                  example: Gemini
-                                model:
-                                  type: string
-                                  description: Generative AI model name
-                                  example: gemini-1.5-flash
-                                display_name:
-                                  type: string
-                                  description: Generative AI service display name
-                                  example: Gemini 1.5 Flash
-                                external_account_definition:
-                                  type: array
-                                  items:
-                                    type: object
-                                    properties:
-                                      item_id:
-                                        type: string
-                                        description: External account item id
-                                        example: api_key
-                                      item_name:
-                                        type: string
-                                        description: External account item name
-                                        example: API KEY
-                                      description:
-                                        type: object
-                                        properties:
-                                          ja:
-                                            type: string
-                                            description: Description in Japanese
-                                            example: API KEYを指定
-                                          en:
-                                            type: string
-                                            description: Description in English
-                                            example: Input API KEY
-                                      format:
-                                        type: object
-                                        example:
-                                          type: string
-                                          required: true
-                                          max_length: 32
-                                display_order:
-                                  type: integer
-                                  description: Display sort number of the generative AI service
-                                  example: 0
+                        $ref: '#/components/schemas/organizationsGenerativeAiServiceList'
         default:
           description: An unexpected error response.
           content:
@@ -5625,6 +5567,68 @@ components:
                 format: uuid
               create_user_name:
                 type: string
+    organizationsGenerativeAiServiceBase:
+      title: generative ai settings id resources.
+      type: object
+      properties:
+        id:
+          type: string
+          description: Generative AI service id
+          example: Gemini-gemini-1.5-flash
+        service:
+          type: string
+          description: Generative AI service name
+          example: Gemini
+        model:
+          type: string
+          description: Generative AI model name
+          example: gemini-1.5-flash
+        display_name:
+          type: string
+          description: Generative AI service display name
+          example: Gemini 1.5 Flash
+        external_account_definition:
+          type: array
+          items:
+            type: object
+            properties:
+              item_id:
+                type: string
+                description: External account item id
+                example: api_key
+              item_name:
+                type: string
+                description: External account item name
+                example: API KEY
+              description:
+                type: object
+                properties:
+                  ja:
+                    type: string
+                    description: Description in Japanese
+                    example: API KEYを指定
+                  en:
+                    type: string
+                    description: Description in English
+                    example: Input API KEY
+              format:
+                type: object
+                example:
+                  type: string
+                  required: true
+                  max_length: 32
+        display_order:
+          type: integer
+          description: Display sort number of the generative AI service
+          example: 0
+    organizationsGenerativeAiServiceList:
+      title: generative ai service list.
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/organizationsGenerativeAiServiceBase'
     generativeAiServiceBase:
       title: generative ai settings id resources.
       type: object

@@ -184,6 +184,10 @@ agentUserUpdate:
   $ref: "./agentUserUpdate.yaml"
 agentUserTokenList:
   $ref: "./agentUserTokenList.yaml"
+organizationsGenerativeAiServiceBase:
+  $ref: "./organizations.generativeAiServiceBase.yaml"
+organizationsGenerativeAiServiceList:
+  $ref: "./organizations.generativeAiServiceList.yaml"
 generativeAiServiceBase:
   $ref: "./generativeAiServiceBase.yaml"
 generativeAiServicePost:
