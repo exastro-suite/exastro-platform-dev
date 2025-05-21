@@ -14,9 +14,7 @@
 # import connexion
 import inspect
 import globals
-from contextlib import closing
 
-from common_library.common.db import DBconnector
 from common_library.common import common
 from common_library.common import bl_generative_ai_settings
 
@@ -33,10 +31,9 @@ def generative_ai_service_list():
     """
     globals.logger.debug(f"### func:{inspect.currentframe().f_code.co_name}")
 
-    with closing(DBconnector().connect_platformdb()) as conn:
-        # 生成AI情報を取得して返却する
-        # Obtain and return generated AI information
-        data = bl_generative_ai_settings.generative_ai_settings_list(conn)
+    # 生成AI情報を取得して返却する
+    # Obtain and return generated AI information
+    data = bl_generative_ai_settings.generative_ai_settings_list()
     
     return common.response_200_ok(data)
 
@@ -51,5 +48,10 @@ def organization_generative_ai_service_list(organization_id):
     Returns:
         Response: HTTP Response
     """
+    globals.logger.debug(f"### func:{inspect.currentframe().f_code.co_name}")
 
-    return common.response_200_ok(None)
+    # オーガナイゼーション用の生成AI情報を取得して返却する
+    # Obtain and return generated AI information for ogranization
+    data = bl_generative_ai_settings.organization_generative_ai_settings_list(organization_id)
+
+    return common.response_200_ok(data)
