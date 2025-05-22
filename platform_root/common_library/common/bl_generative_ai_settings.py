@@ -100,4 +100,3 @@ def organization_generative_ai_settings_list(organization_id):
         list_data.append(data)
 
     return list_data
-
