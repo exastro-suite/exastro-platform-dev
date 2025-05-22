@@ -50,7 +50,7 @@ def generative_ai_settings_list():
             "display_name": row.get("AI_DISPLAY_NAME"),
             "endpoint_url": row.get("ENDPOINT_URL"),
             "external_account_definition": json.loads(row.get("EXTERNAL_ACCOUNT_DEFINITION")) if row.get("EXTERNAL_ACCOUNT_DEFINITION") is not None else [],
-            "enabled": True if row.get("ENABLED") == 1 else False,
+            "enabled": True if row.get("ENABLED") == common_const.ITEMS_ENABLED_TRUE else False,
             "display_order": row.get("DISPLAY_ORDER")
         }
 
@@ -69,49 +69,35 @@ def organization_generative_ai_settings_list(organization_id):
         dict: data item for response
     """
 
-    with closing(DBconnector().connect_orgdb(organization_id)) as conn:
-        with conn.cursor() as cursor:
-            # 生成AI情報の取得
-            # Get generated AI information
-            sql_stmt = queries_bl_generative_ai_settings.SQL_QUERY_SELECT_ORG_DB_GENERATIVE_AI_USAGE
-
-            cursor.execute(sql_stmt)
-            rows = cursor.fetchall()
-
     list_data = []
     with closing(DBconnector().connect_platformdb()) as conn:
         with conn.cursor() as cursor:
 
-            # 結果数分処理する
-            # Process the results
-            for usage_row in rows:
+            # 有効の情報のみ取得
+            # Get only enabled information
+            str_where = " WHERE ENABLED = %(enabled)s"
+            parameters = {
+                "enabled": common_const.ITEMS_ENABLED_TRUE
+            }
 
-                str_where = " WHERE AI_ID = %(ai_id)s" + \
-                            " AND ENABLED = %(enabled)s"
+            # 生成AI情報の取得
+            # Get generated AI information
+            sql_stmt = queries_bl_generative_ai_settings.SQL_QUERY_SELECT_GENERATIVE_AI_SERVICES
 
-                parameters = {
-                    "ai_id": usage_row.get("AI_ID"),
-                    "enabled": common_const.ITEMS_ENABLED_TRUE
-                }
+            cursor.execute(sql_stmt + str_where, parameters)
+            row = cursor.fetchone()
+            
+    if row is not None:
+        data = {
+            "id": row.get("AI_ID"),
+            "service": row.get("AI_SERVICE"),
+            "model": row.get("AI_MODEL"),
+            "display_name": row.get("AI_DISPLAY_NAME"),
+            "external_account_definition": json.loads(row.get("EXTERNAL_ACCOUNT_DEFINITION")) if row.get("EXTERNAL_ACCOUNT_DEFINITION") is not None else [],
+            "display_order": row.get("DISPLAY_ORDER")
+        }
 
-                # 生成AI情報の取得
-                # Get generated AI information
-                sql_stmt = queries_bl_generative_ai_settings.SQL_QUERY_SELECT_GENERATIVE_AI_SERVICES
-
-                cursor.execute(sql_stmt + str_where, parameters)
-                row = cursor.fetchone()
-                
-                if row is not None:
-                    data = {
-                        "id": row.get("AI_ID"),
-                        "service": row.get("AI_SERVICE"),
-                        "model": row.get("AI_MODEL"),
-                        "display_name": row.get("AI_DISPLAY_NAME"),
-                        "external_account_definition": json.loads(row.get("EXTERNAL_ACCOUNT_DEFINITION")) if row.get("EXTERNAL_ACCOUNT_DEFINITION") is not None else [],
-                        "display_order": row.get("DISPLAY_ORDER")
-                    }
-
-                    list_data.append(data)
+        list_data.append(data)
 
     return list_data
 
