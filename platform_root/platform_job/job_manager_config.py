@@ -74,7 +74,7 @@ JOB_STATUS_WATCH_INTERVAL_SECONDS = float(os.environ.get('JOB_STATUS_WATCH_INTER
 JOB_CANCEL_TIMEOUT_SECONDS = float(os.environ.get('JOB_CANCEL_TIMEOUT_SECONDS'))
 
 #
-# keycloakのtokenを再取得するインターバル 
+# keycloakのtokenを再取得するインターバル
 #
 KEYCLOAK_TOKEN_REFRESH_INTERVAL_SECONDS = int(os.environ.get('KEYCLOAK_TOKEN_REFRESH_INTERVAL_SECONDS'))
 
@@ -96,10 +96,18 @@ JOBS = {
         "job_trigger": "queue",
         "max_job_per_process": int(os.environ.get('JOB_NOTIFICATION_MAX_JOB_PER_PROCESS', str(SUB_PROCESS_MAX_JOBS))),
         "extra_config": {
+            # teams workflow webhookのhttp connection timeout時間 / teams workflow webhook http connection timeout time
+            "teams_wf_connection_timeout": float(os.environ.get('JOB_NOTIFICATION_TEAMS_WF_CONNECTION_TIMEOUT')),
+            # teams workflow webhookのhttp read timeout時間 / teams workflow webhook http read timeout time
+            "teams_wf_read_timeout": float(os.environ.get('JOB_NOTIFICATION_TEAMS_WF_READ_TIMEOUT')),
             # teams webhookのhttp connection timeout時間 / teams webhook http connection timeout time
             "teams_connection_timeout": float(os.environ.get('JOB_NOTIFICATION_TEAMS_CONNECTION_TIMEOUT')),
             # teams webhookのhttp read timeout時間 / teams webhook http read timeout time
             "teams_read_timeout": float(os.environ.get('JOB_NOTIFICATION_TEAMS_READ_TIMEOUT')),
+            # webhookのhttp connection timeout時間 / webhook http connection timeout time
+            "webhook_connection_timeout": float(os.environ.get('JOB_NOTIFICATION_WEBHOOK_CONNECTION_TIMEOUT')),
+            # webhookのhttp read timeout時間 / webhook http read timeout time
+            "webhook_read_timeout": float(os.environ.get('JOB_NOTIFICATION_WEBHOOK_READ_TIMEOUT')),
             # smtpのtimeout時間 / smtp timeout time
             "smtp_timeout": float(os.environ.get('JOB_NOTIFICATION_SMTP_TIMEOUT')),
             # smtpsのssl verify(TRUE/FALSE) / smtps ssl verify(TRUE/FALSE)
@@ -125,6 +133,38 @@ JOBS = {
             "xl_buffered_rows": int(os.environ.get('JOB_USER_IMPORT_XL_BUFFERED_ROWS')),
         }
     },
+    const.PROCESS_KIND_AUDIT_LOG: {
+        "timeout_seconds": int(os.environ.get('JOB_AUDITLOG_TIMEOUT_SECONDS')),
+        "module": "jobs.AuditLogJobExecutor",
+        "class": "AuditLogJobExecutor",
+        "job_trigger": "queue",
+        "max_job_per_process": int(os.environ.get('JOB_AUDITLOG_MAX_JOB_PER_PROCESS')),
+        "extra_config": {
+            # 最大ファイルサイズ（本パラメータを上げる場合はDBのmax_allowed_packetおよびconnection時のmax_allowed_packetの変更が必要です）
+            "max_file_size": int(os.environ.get('JOB_AUDITLOG_MAX_FILE_SIZE')),
+            # 処理中の件数を更新するインターバル / Interval for updating the number of items being processed
+            "status_update_interval": int(os.environ.get('JOB_AUDITLOG_UPDATE_COUNT_INTERVAL')),
+            # 1件処理毎にwaitする時間(ミリ秒) / Wait time for each process (milliseconds)
+            "output_interval_millisecond": float(os.environ.get('JOB_AUDIT_WAIT_MILLISECONDS')),
+        }
+    },
+    const.PROCESS_KIND_USER_EXPORT: {
+        "timeout_seconds": int(os.environ.get('JOB_USER_EXPORT_TIMEOUT_SECONDS')),
+        "module": "jobs.UserExportJobExecutor",
+        "class": "UserExportJobExecutor",
+        "job_trigger": "queue",
+        "max_job_per_process": int(os.environ.get('JOB_USER_EXPORT_MAX_JOB_PER_PROCESS')),
+        "extra_config": {
+            # 出力可能なExcelファイルの最大行数 / Maximum number of rows in an Excel file that can be read
+            "max_number_of_rows_allowd": int(os.environ.get('JOB_USER_EXPORT_MAX_ROWS_ALLOWD')),
+            # 1件処理毎にwaitする時間(ミリ秒) / Wait time for each process (milliseconds)
+            "user_export_interval_millisecond": float(os.environ.get('JOB_USER_EXPORT_WAIT_MILLISECONDS')),
+            # 処理中の件数を更新するインターバル / Interval for updating the number of items being processed
+            "status_update_interval": int(os.environ.get('JOB_USER_EXPORT_UPDATE_COUNT_INTERVAL')),
+            # Excelファイルバッファリング行数 / Excel file buffering row count
+            "xl_buffered_rows": int(os.environ.get('JOB_USER_EXPORT_XL_BUFFERED_ROWS')),
+        }
+    },
     job_manager_const.PROCESS_KIND_FORCE_UPDATE_STATUS: {
         "timeout_seconds": int(os.environ.get('JOB_FORCE_UPDATE_STATUS_TIMEOUT_SECONDS')),
         "module": "jobs.ForceUpdateStatusJobExecutor",
@@ -136,5 +176,21 @@ JOBS = {
             # Replaces it with failure when it does not exist in the queue and the status does not change for the following time
             "prograss_seconds": int(os.environ.get('JOB_FORCE_UPDATE_STATUS_PROGRASS_SECONDS'))
         }
+    },
+    job_manager_const.PROCESS_KIND_AUDIT_LOG_CLEANUP: {
+        "timeout_seconds": int(os.environ.get('JOB_AUDIT_LOG_CLEANUP_TIMEOUT_SECONDS')),
+        "module": "jobs.AuditLogCleanupJobExecutor",
+        "class": "AuditLogCleanupJobExecutor",
+        "job_trigger": "daily",
+        "job_exec_time_key": const.CONFIG_KEY_AUDIT_LOG_CLEANUP_TIME,
+        "extra_config": {}
+    },
+    job_manager_const.PROCESS_KIND_USER_EXPORT_IMPORT_CLEANUP: {
+        "timeout_seconds": int(os.environ.get('JOB_USER_EXPORT_IMPORT_CLEANUP_TIMEOUT_SECONDS')),
+        "module": "jobs.UserExportImportCleanupJobExecutor",
+        "class": "UserExportImportCleanupJobExecutor",
+        "job_trigger": "daily",
+        "job_exec_time_key": const.CONFIG_KEY_USER_EXPORT_IMPORT_CLEANUP_TIME,
+        "extra_config": {}
     }
 }

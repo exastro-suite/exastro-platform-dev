@@ -136,8 +136,12 @@ settingsDestinationPut:
   $ref: "./settings.destinations.put.yaml"
 settingsDestinationSubDestinationInformationsMail:
   $ref: "./settings.destinations.sub.destination_informations.mail.yaml"
+settingsDestinationSubDestinationInformationsTeamsWorkflow:
+  $ref: "./settings.destinations.sub.destination_informations.teamsworkflow.yaml"
 settingsDestinationSubDestinationInformationsTeams:
   $ref: "./settings.destinations.sub.destination_informations.teams.yaml"
+settingsDestinationSubDestinationInformationsWebhook:
+  $ref: "./settings.destinations.sub.destination_informations.webhook.yaml"
 settingsDestinationConditions:
   $ref: "./settings.destinations.sub.conditions.yaml"
 settingsMailserverCreate:
@@ -146,3 +150,33 @@ settingsMailserverList:
   $ref: "./settings.mailserverList.yaml"
 settingsMailserverGet:
   $ref: "./settings.mailserver.yaml"
+AuditLogDownload:
+  $ref: "./auditLogDownload.yaml"
+AuditLogDownloadList:
+  $ref: "./auditLogDownloadList.yaml"
+authorizationBody:
+  $ref: "./authorization.body.yaml"
+jobsUserBulkImport:
+  $ref: "./jobs.user.bulk.import.yaml"
+jobsUserBulkStatusList:
+  $ref: "./jobs.user.bulk.status.list.yaml"
+jobsUserBulkStatus:
+  $ref: "./jobs.user.bulk.status.yaml"
+jobsUserExport:
+  $ref: "./jobs.user.export.yaml"
+jobsUserExportStatusList:
+  $ref: "./jobs.user.export.status.list.yaml"
+jobsUserExportStatus:
+  $ref: "./jobs.user.export.status.yaml"
+serviceAccountUser:
+  $ref: "./serviceAccountUser.yaml"
+serviceAccountUserCreate:
+  $ref: "./serviceAccountUserCreate.yaml"
+serviceAccountUserId:
+  $ref: "./serviceAccountUserId.yaml"
+serviceAccountUserList:
+  $ref: "./serviceAccountUserList.yaml"
+serviceAccountUserUpdate:
+  $ref: "./serviceAccountUserUpdate.yaml"
+serviceAccountUserTokenList:
+  $ref: "./serviceAccountUserTokenList.yaml"

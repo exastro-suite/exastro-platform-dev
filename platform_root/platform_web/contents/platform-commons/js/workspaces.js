@@ -87,8 +87,8 @@ $(function(){
             //
             // sort workspace list
             //
-            const sortKey = 'last_update_timestamp';
-            const sortreverse = -1;
+            const sortKey = 'name'; // ワークスペース名
+            const sortreverse = 1;  // 昇順
             workspaces.sort(function(a, b){
                 const as = a[sortKey].toLowerCase(), bs = b[sortKey].toLowerCase();
                 if ( as < bs ) {
@@ -175,6 +175,7 @@ $(function(){
     function disabled_button() {
         $("#new_workspace").prop('disabled', true);
         $("#workspace_list button").prop('disabled', true);
+        $("#workspace_list .btn_ita").css('cursor', 'not-allowed');
     }
 
     function enabled_button() {
@@ -185,6 +186,7 @@ $(function(){
             let $element = $(element);
             if(accessibleWorkspaces.indexOf($element.attr('data-id')) !== -1) {
                 $element.prop('disabled', false);
+                $element.css('cursor', '');
             } else {
                 $element.prop('disabled', true);
                 $element.css('cursor', 'not-allowed');

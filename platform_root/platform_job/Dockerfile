@@ -15,7 +15,8 @@ ARG USERNAME=app_user
 ARG GROUPNAME=app_user
 ARG APP_PATH=/app
 
-FROM    registry.access.redhat.com/ubi8/ubi-init as common_build
+# FROM    registry.access.redhat.com/ubi8/ubi-init as common_build
+FROM    registry.access.redhat.com/ubi9/ubi-init:9.4 as common_build
 
 ARG USERNAME
 ARG GROUPNAME
@@ -23,6 +24,9 @@ ARG APP_PATH
 
 ENV PYTHONPATH              $APP_PATH/
 ENV PYTHONIOENCODING        utf-8
+ENV DB_CONNECT_TIMEOUT      10
+ENV DB_CONNECT_RETRY_SLEEP_TIME    0.5
+ENV DB_CONNECT_RETRY_LIMIT  3
 
 RUN --mount=type=secret,id=host_certificate_file,dst=/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem \
     dnf install -y \
@@ -30,8 +34,12 @@ RUN --mount=type=secret,id=host_certificate_file,dst=/etc/pki/ca-trust/extracted
     wget \
     unzip \
     httpd \
-    python39 \
-&&  pip3.9 install poetry==1.6.0 \
+    python3.11 \
+    python3.11-pip \
+&&  alternatives --install /usr/bin/python3 python3 /usr/bin/python3.9 1000000 \
+&&  alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 100 \
+&&  alternatives --set python3 /usr/bin/python3.11 \
+&&  pip3.11 install poetry==1.8.4 \
 &&  poetry config virtualenvs.create false \
 &&  groupadd $GROUPNAME \
 &&  useradd -m -s /bin/bash -g $GROUPNAME $USERNAME
@@ -48,6 +56,10 @@ RUN --mount=type=secret,id=host_certificate_file,dst=/etc/pki/ca-trust/extracted
 #
 # config default
 #
+ENV TEMPORARY_DIR=/tmp
+
+# ハングアップ監視用ファイル
+ENV FILE_PATH_LIVENESS=/tmp/liveness
 
 # SUB PROCESSを再起動するインターバル / Interval for restarting SUB PROCESS
 # ※各JOBのタイムアウト時間より大きい数字とするとこ / Set the number to be larger than the timeout time of each JOB
@@ -85,10 +97,18 @@ ENV KEYCLOAK_TOKEN_REFRESH_INTERVAL_SECONDS=30
 ENV JOB_NOTIFICATION_TIMEOUT_SECONDS=20
 #   プロセス毎に同時実行可能なJob数(未指定時はSUB_PROCESS_MAX_JOBSと同値) / Number of jobs that can be executed simultaneously per process (If not specified, the same value as SUB_PROCESS_MAX_JOBS)
 # ENV JOB_NOTIFICATION_MAX_JOB_PER_PROCESS=
+#   teams workflow webhook connection timeout
+ENV JOB_NOTIFICATION_TEAMS_WF_CONNECTION_TIMEOUT=3.0
+#   teams workflow webhook read timeout
+ENV JOB_NOTIFICATION_TEAMS_WF_READ_TIMEOUT=10.0
 #   teams webhook connection timeout
 ENV JOB_NOTIFICATION_TEAMS_CONNECTION_TIMEOUT=3.0
 #   teams webhook read timeout
 ENV JOB_NOTIFICATION_TEAMS_READ_TIMEOUT=10.0
+#   webhook connection timeout
+ENV JOB_NOTIFICATION_WEBHOOK_CONNECTION_TIMEOUT=3.0
+#   webhook read timeout
+ENV JOB_NOTIFICATION_WEBHOOK_READ_TIMEOUT=10.0
 #   smtp timeout
 ENV JOB_NOTIFICATION_SMTP_TIMEOUT=10.0
 #   smtps ssl verify TRUE/FALSE
@@ -118,6 +138,40 @@ ENV JOB_USER_IMPORT_WAIT_MILLISECONDS=10
 ENV JOB_USER_IMPORT_UPDATE_COUNT_INTERVAL=100
 #   Excelファイルバッファリング行数 / Excel file buffering row count
 ENV JOB_USER_IMPORT_XL_BUFFERED_ROWS=100
+
+# 監査ログファイル作成Jobの設定 / Audit log file creation job settings
+#   Jobタイムアウト / Job timeout
+ENV JOB_AUDITLOG_TIMEOUT_SECONDS=1800
+#   プロセス毎に同時実行可能なJob数 / Number of jobs that can be executed simultaneously per process
+ENV JOB_AUDITLOG_MAX_JOB_PER_PROCESS=1
+#   最大ファイルサイズ（本パラメータを上げる場合はDBのmax_allowed_packetおよびconnection時のmax_allowed_packetの変更が必要です）
+ENV JOB_AUDITLOG_MAX_FILE_SIZE=500000000
+#   処理中の件数を更新するインターバル / Interval for updating the number of items being processed
+ENV JOB_AUDITLOG_UPDATE_COUNT_INTERVAL=100
+#   処理毎にwaitする時間(ミリ秒) / Wait time for each process (milliseconds)
+ENV JOB_AUDIT_WAIT_MILLISECONDS=10
+
+# 監査ログ削除Jobの設定 / Audit log cleanup job settings
+#   Jobタイムアウト / Job timeout
+ENV JOB_AUDIT_LOG_CLEANUP_TIMEOUT_SECONDS=600
+
+# ユーザーエクスポートJobの設定 / User export job settings
+#   Jobタイムアウト / Job timeout
+ENV JOB_USER_EXPORT_TIMEOUT_SECONDS=3600
+#   プロセス毎に同時実行可能なJob数 / Number of jobs that can be executed simultaneously per process
+ENV JOB_USER_EXPORT_MAX_JOB_PER_PROCESS=2
+#   出力可能なExcelファイルの最大行数 / Maximum number of rows in an Excel file that can be read
+ENV JOB_USER_EXPORT_MAX_ROWS_ALLOWD=20000
+#   1件処理毎にwaitする時間(ミリ秒) / Wait time for each process (milliseconds)
+ENV JOB_USER_EXPORT_WAIT_MILLISECONDS=10
+#   処理中の件数を更新するインターバル / Interval for updating the number of items being processed
+ENV JOB_USER_EXPORT_UPDATE_COUNT_INTERVAL=100
+#   Excelファイルバッファリング行数 / Excel file buffering row count
+ENV JOB_USER_EXPORT_XL_BUFFERED_ROWS=100
+
+# ユーザーエクスポート・インポート削除Jobの設定 / User export import cleanup job settings
+#   Jobタイムアウト / Job timeout
+ENV JOB_USER_EXPORT_IMPORT_CLEANUP_TIMEOUT_SECONDS=600
 
 #
 # Build for development

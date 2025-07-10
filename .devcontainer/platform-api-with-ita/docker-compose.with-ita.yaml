@@ -14,16 +14,19 @@ services:
       - ITA_API_OASE_RECEIVER_PROTOCOL=http
       - ITA_API_OASE_RECEIVER_HOST=ita-api-oase-receiver
       - ITA_API_OASE_RECEIVER_PORT=8000
-      - NO_PROXY=localhost,127.0.0.1,keycloak,platform-auth,platform-api,platform-web,ita-web,ita-api,ita-api-organization,ita-api-admin,ita-api-oase-receiver
-      - no_proxy=localhost,127.0.0.1,keycloak,platform-auth,platform-api,platform-web,ita-web,ita-api,ita-api-organization,ita-api-admin,ita-api-oase-receiver
+      - ITA_API_ANSIBLE_EXECUTION_RECEIVER_PROTOCOL=http
+      - ITA_API_ANSIBLE_EXECUTION_RECEIVER_HOST=ita-api-ansible-execution-receiver
+      - ITA_API_ANSIBLE_EXECUTION_RECEIVER_PORT=8000
+      - NO_PROXY=localhost,127.0.0.1,keycloak,platform-auth,platform-api,platform-web,ita-web,ita-api,ita-api-organization,ita-api-admin,ita-api-oase-receiver,ita-api-ansible-execution-receiver
+      - no_proxy=localhost,127.0.0.1,keycloak,platform-auth,platform-api,platform-web,ita-web,ita-api,ita-api-organization,ita-api-admin,ita-api-oase-receiver,ita-api-ansible-execution-receiver
   platform-api:
     command: /bin/bash -c "httpd -D FOREGROUND; while(true) do sleep 600; done"
     environment:
       - ITA_API_ADMIN_PROTOCOL=http
       - ITA_API_ADMIN_HOST=ita-api-admin
       - ITA_API_ADMIN_PORT=8079
-      - NO_PROXY=localhost,127.0.0.1,keycloak,platform-auth,platform-api,platform-web,ita-web,ita-api,ita-api-organization,ita-api-admin,ita-api-oase-receiver
-      - no_proxy=localhost,127.0.0.1,keycloak,platform-auth,platform-api,platform-web,ita-web,ita-api,ita-api-organization,ita-api-admin,ita-api-oase-receiver
+      - NO_PROXY=localhost,127.0.0.1,keycloak,platform-auth,platform-api,platform-web,ita-web,ita-api,ita-api-organization,ita-api-admin,ita-api-oase-receiver,ita-api-ansible-execution-receiver
+      - no_proxy=localhost,127.0.0.1,keycloak,platform-auth,platform-api,platform-web,ita-web,ita-api,ita-api-organization,ita-api-admin,ita-api-oase-receiver,ita-api-ansible-execution-receiver
   ita-api:
     profiles:
       - exastro-it-automation-dummy
@@ -52,6 +55,19 @@ services:
       target: develop_build
     volumes:
       - ../.volumes/storage:/storage
+  ita-api-ansible-execution-receiver:
+    build:
+      context: ${ITA_REPO_ROOT}
+      target: develop_build
+    volumes:
+      - ../.volumes/storage:/storage
+  ita-api-oase-receiver:
+    build:
+      context: ${ITA_REPO_ROOT}
+      target: develop_build
+    volumes:
+      - ../.volumes/storage:/storage
+
   ita-web-server:
     build:
       context: ${ITA_REPO_ROOT}
@@ -151,6 +167,12 @@ services:
       context: ${ITA_REPO_ROOT}
     environment:
       - EXECUTE_INTERVAL=${ITA_BY_INTERVAL}
+  ita-by-oase-conclusion:
+    build:
+      context: ${ITA_REPO_ROOT}
+    environment:
+      - EXECUTE_INTERVAL=${ITA_BY_INTERVAL}
+
   ita-migration:
     build:
       context: ${ITA_REPO_ROOT}
@@ -158,16 +180,7 @@ services:
     volumes:
       - ../.volumes/storage:/storage
 
-  ita-api-oase-receiver:
-    build:
-      context: ${ITA_REPO_ROOT}
-      target: develop_build
+  ita-mongodb:
+    entrypoint: ["docker-entrypoint.sh","mongod","--config","/etc/mongo/mongod.conf"]
     volumes:
-      - ../.volumes/storage:/storage
-
-  ita-by-oase-conclusion:
-    build:
-      context: ${ITA_REPO_ROOT}
-    environment:
-      - EXECUTE_INTERVAL=${ITA_BY_INTERVAL}
-
+      - ${ITA_REPO_ROOT}/ita_root/ita_mongodb/conf/mongod.conf:/etc/mongo/mongod.conf

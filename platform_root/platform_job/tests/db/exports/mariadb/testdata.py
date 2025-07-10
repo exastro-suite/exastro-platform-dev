@@ -1,10 +1,10 @@
-ENCRYPT_KEY='CkrHRGHONk4RNdpdv8yYf1VceRM4OydHcwQSEL3Jwqs='
+ENCRYPT_KEY='uro59kyw0Q8vNZt+0q2Pi/ds4MjL/bBp/Bc9Lq6pv2E='
 KEYCLOAK_DB_NAME='keycloak'
 KEYCLOAK_ADMIN_USER='admin'
 KEYCLOAK_ADMIN_PASSWORD='password'
 ORGANIZATIONS={
     "org1": {
-        "user_id": "bdd29563-df03-42ff-bd2f-a6d81b11252d",
+        "user_id": "b89903b8-6be1-4bcc-a299-e42d1ea2df59",
         "workspace_id": [
             "ws1",
             "ws2",
@@ -12,7 +12,7 @@ ORGANIZATIONS={
         ]
     },
     "org2": {
-        "user_id": "69d2a0c0-ffa2-4511-8b31-4a6353e27d93",
+        "user_id": "2b219db7-1e7e-4e5d-b626-84ad347a42aa",
         "workspace_id": [
             "ws1",
             "ws2",
@@ -20,7 +20,7 @@ ORGANIZATIONS={
         ]
     },
     "org3": {
-        "user_id": "e99923b9-19e7-417e-bd97-a0bd3f8aaede",
+        "user_id": "b968718d-266b-483c-93cb-3626a5716807",
         "workspace_id": [
             "ws1",
             "ws2",
@@ -28,7 +28,7 @@ ORGANIZATIONS={
         ]
     },
     "org4": {
-        "user_id": "ae654cb4-02e0-41b2-8684-8e25c6f90d8f",
+        "user_id": "14c639ef-5fac-414a-945e-75fbd8574d24",
         "workspace_id": [
             "ws1",
             "ws2",
@@ -36,7 +36,7 @@ ORGANIZATIONS={
         ]
     },
     "org5": {
-        "user_id": "20ffde0d-3644-4204-acb3-03236a2dcc85",
+        "user_id": "72fcefea-cc7d-4e9b-99b9-892e87dd85da",
         "workspace_id": [
             "ws1",
             "ws2",
@@ -47,24 +47,24 @@ ORGANIZATIONS={
 DATABASES=[
     "keycloak",
     "platform",
-    "PF_ORG_YNES2VQR2I2YUGJF1D4F",
-    "PF_WS_R2919E58AIKEN3FFZIYJ",
-    "PF_WS_HN1RWU9EBUDBWEHLL8XS",
-    "PF_WS_4ZEWFJHAMR5DZBKLACUS",
-    "PF_ORG_800ARPU336CKKPU7M7YN",
-    "PF_WS_8SNMXVR0LXTZ97LOLWDH",
-    "PF_WS_F0E15CBGWVEPGK2J1PF8",
-    "PF_WS_QKSA2VKP8RUBCN715K2W",
-    "PF_ORG_YAR5QY25XD6BXMJ5SFDG",
-    "PF_WS_U8LUQV7XKY1A2TJOQ3SP",
-    "PF_WS_IGSPRCJOWJF2UJAKW6G3",
-    "PF_WS_7YJY2CCFW629AUJ4WTCZ",
-    "PF_ORG_2GAO78AP3Q1YABEMAVJZ",
-    "PF_WS_K4FJN1J126HHD2OMFTCH",
-    "PF_WS_AHU78SD8FMRXBZREAIAD",
-    "PF_WS_QG2K7UAQ4K8RX6P3K48Q",
-    "PF_ORG_IK3PUTG4FDW5XX5UPSAQ",
-    "PF_WS_QT48GKQ1L6K4K6CTJHHW",
-    "PF_WS_I4B7P2QJ308NA64Z3KWC",
-    "PF_WS_27NSYWDS4LDPHVL0QFTA"
+    "PF_ORG_JYF98D2PRVZ46INBPULO",
+    "PF_WS_KR32IBFFZMDBJRNPXCTJ",
+    "PF_WS_TGANT8JCVSUPIMPYP1CZ",
+    "PF_WS_O5HXKSL39Q6W9UB4LJ36",
+    "PF_ORG_P39120W24UUFK23TN3AX",
+    "PF_WS_NY081TH8PX5ASJFPUSLV",
+    "PF_WS_40R0X1N3CTMGW1KKTA1M",
+    "PF_WS_4G7JDD1OBFA18MIABHSZ",
+    "PF_ORG_NBSSK9XJF4AUMHC34KXN",
+    "PF_WS_ZGR7TJCBZY1JX7Y8G1C8",
+    "PF_WS_POWP5P8QNRX9MA7PHMLH",
+    "PF_WS_004T36U7HV1XVGEI9XKA",
+    "PF_ORG_Z8I4P6LDSR2C8F0KWQSJ",
+    "PF_WS_NHWLPAEPNAUHWKE79KLU",
+    "PF_WS_VIKSLYN89P5DR60SM8C6",
+    "PF_WS_PVDKI42SHL3D37AAES18",
+    "PF_ORG_ZD1BUSA31FCG7808JM0I",
+    "PF_WS_VLMW0OGTDEVAPCG0F91J",
+    "PF_WS_ER2P53LKQQJOGT7JTW61",
+    "PF_WS_JZ46LE7XW7LKWWRO00E1"
 ]
