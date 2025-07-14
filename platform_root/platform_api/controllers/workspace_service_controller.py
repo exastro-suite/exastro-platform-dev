@@ -65,11 +65,13 @@ def workspace_create(body, organization_id):
         description = info.get("description") if info.get("description") else ""
         environments = info.get("environments") if info.get("environments") else []
         wsadmin_users = info.get("workspace_administrators") if info.get("workspace_administrators") else []
+        generative_ai = info.get("generative_ai") if info.get("generative_ai") else []
     else:
         info = {}
         description = ""
         environments = []
         wsadmin_users = []
+        generative_ai = []
 
     # メンテナンスモード(data_update_stop)中は、エラー
     # error during maintenance mode (data_update_stop)
@@ -115,13 +117,48 @@ def workspace_create(body, organization_id):
             raise common.BadRequestException(message_id=message_id, message=message)
 
     db = DBconnector()
+    
+    # 生成AI情報の設定が含まれている際に存在チェックを実施する
+    # Perform existence check when generated AI information settings are include
+    if len(generative_ai) > 0:
+        with closing(db.connect_platformdb()) as conn:
+            with conn.cursor() as cursor:
+
+                # 引数で渡されたID分チェックする
+                for generative_ai_id in generative_ai:
+                    
+                    # 生成AI情報で有効の情報が取得できるかチェックする
+                    # Check whether valid information can be obtained from the generated AI information
+                    str_where = " WHERE AI_ID = %(ai_id)s" + \
+                                " AND ENABLED = %(enabled)s"
+                    parameters = {
+                        "ai_id": generative_ai_id,
+                        "enabled": common_const.ITEMS_ENABLED_TRUE
+                    }
+
+                    # 生成AI情報の取得
+                    # Get generated AI information
+                    sql_stmt = queries_workspaces.SQL_QUERY_SELECT_GENERATIVE_AI_SERVICES
+
+                    cursor.execute(sql_stmt + str_where, parameters)
+                    row = cursor.fetchone()
+
+                    if row is None:
+                        message_id = "400-22001"
+                        message = multi_lang.get_text(
+                            message_id,
+                            "指定された生成AIサービスは対応しておりません。(id:{0})",
+                            generative_ai_id
+                        )
+                        raise common.BadRequestException(message_id=message_id, message=message)
+
     private = db.get_organization_private(organization_id)
     with closing(db.connect_orgdb(organization_id)) as conn:
         with conn.cursor() as cursor:
 
             # DB登録
             # insert workspace
-            informations = {"environments": environments, "description": description, }
+            informations = {"environments": environments, "description": description, "generative_ai": generative_ai, }
             parameter = {
                 "workspace_id": workspace_id,
                 "workspace_name": workspace_name,

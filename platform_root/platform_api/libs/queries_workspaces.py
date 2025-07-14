@@ -31,3 +31,5 @@ SET WORKSPACE_NAME = %(workspace_name)s,
 INFORMATIONS = %(informations)s,
 LAST_UPDATE_USER = %(last_update_user)s
 WHERE WORKSPACE_ID = %(workspace_id)s"""
+
+SQL_QUERY_SELECT_GENERATIVE_AI_SERVICES = """SELECT * FROM T_GENERATIVE_AI_SERVICES"""
