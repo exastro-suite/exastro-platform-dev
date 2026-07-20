@@ -970,6 +970,15 @@ def __client_create(organization_id, user_id):
                 )
                 raise common.InternalErrorException(message_id=message_id, message=message)
 
+    # Add sub mapper to all created clients (Keycloak 25+ compatibility)
+    # 全クライアントにsubマッパーを追加（Keycloak 25+互換性）
+    try:
+        stats = api_keycloak_clients.add_sub_mapper_to_realm_clients(organization_id, token)
+        globals.logger.info(f"Added sub mapper to organization {organization_id}: {stats}")
+    except Exception as e:
+        globals.logger.warning(f"Failed to add sub mapper to clients: {e}")
+        # Continue even if sub mapper addition fails (non-critical)
+
     # ステータス更新
     # update status
     __update_status(const.ORG_STATUS_CLIENT_CREATE, organization_id, user_id)

@@ -181,3 +181,137 @@ def client_secret_get(realm_name, client_id, token):
                                     )
 
     return request_response
+
+
+def add_sub_mapper_to_client(realm_name, client_id, token):
+    """Add sub claim protocol mapper to a specific client
+
+    Keycloak 25+ no longer includes 'sub' claim by default in tokens.
+    This function adds the 'sub' protocol mapper to a client.
+
+    Args:
+        realm_name (str): realm name
+        client_id (str): client internal ID (not clientId)
+        token (str): keycloak admin access token
+
+    Returns:
+        bool: True if added or already exists, False if failed
+    """
+    globals.logger.debug(f'Adding sub mapper to client {client_id} in realm {realm_name}')
+
+    header_para = {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer {}".format(token),
+    }
+
+    # 呼び出し先設定 requests setting
+    api_url = "{}://{}:{}".format(os.environ['API_KEYCLOAK_PROTOCOL'], os.environ['API_KEYCLOAK_HOST'], os.environ['API_KEYCLOAK_PORT'])
+    mappers_url = f"{api_url}/auth/admin/realms/{realm_name}/clients/{client_id}/protocol-mappers/models"
+
+    # Check if sub mapper already exists
+    response = requests.get(mappers_url, headers=header_para, timeout=(12, 600))
+    
+    if response.status_code == 200:
+        existing_mappers = response.json()
+        has_sub_mapper = any(
+            mapper.get('name') == 'sub' or mapper.get('config', {}).get('claim.name') == 'sub'
+            for mapper in existing_mappers
+        )
+        
+        if has_sub_mapper:
+            globals.logger.debug(f'sub mapper already exists in client {client_id}')
+            return True
+
+    # Add sub mapper
+    mapper_config = {
+        "name": "sub",
+        "protocol": "openid-connect",
+        "protocolMapper": "oidc-usermodel-property-mapper",
+        "consentRequired": False,
+        "config": {
+            "userinfo.token.claim": "true",
+            "user.attribute": "id",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "sub",
+            "jsonType.label": "String"
+        }
+    }
+
+    response = requests.post(mappers_url, headers=header_para, json=mapper_config, timeout=(12, 600))
+
+    if response.status_code == 201:
+        globals.logger.info(f'Successfully added sub mapper to client {client_id}')
+        return True
+    else:
+        globals.logger.warning(f'Failed to add sub mapper to client {client_id}: {response.status_code} - {response.text}')
+        return False
+
+
+def add_sub_mapper_to_realm_clients(realm_name, token, exclude_builtin=True):
+    """Add sub claim protocol mapper to all openid-connect clients in a realm
+
+    Keycloak 25+ no longer includes 'sub' claim by default in tokens.
+    This function adds the 'sub' protocol mapper to all user-facing clients in a realm.
+
+    Args:
+        realm_name (str): realm name
+        token (str): keycloak admin access token
+        exclude_builtin (bool): exclude built-in system clients (default: True)
+
+    Returns:
+        dict: {"success": int, "failed": int, "skipped": int}
+    """
+    globals.logger.info(f'Adding sub mapper to all clients in realm {realm_name}')
+
+    header_para = {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer {}".format(token),
+    }
+
+    # 呼び出し先設定 requests setting
+    api_url = "{}://{}:{}".format(os.environ['API_KEYCLOAK_PROTOCOL'], os.environ['API_KEYCLOAK_HOST'], os.environ['API_KEYCLOAK_PORT'])
+
+    # Get all clients in the realm
+    response = requests.get(f"{api_url}/auth/admin/realms/{realm_name}/clients", headers=header_para, timeout=(12, 600))
+
+    if response.status_code != 200:
+        globals.logger.warning(f'Failed to get clients for realm {realm_name}: {response.status_code}')
+        return {"success": 0, "failed": 0, "skipped": 0}
+
+    clients = response.json()
+
+    # Filter openid-connect clients
+    if exclude_builtin:
+        target_clients = [
+            c for c in clients
+            if c.get('protocol') == 'openid-connect'
+            and not c['clientId'].startswith('account')
+            and not c['clientId'].startswith('admin')
+            and not c['clientId'].startswith('broker')
+            and not c['clientId'].startswith('realm-management')
+            and not c['clientId'].startswith('security-admin-console')
+        ]
+    else:
+        target_clients = [c for c in clients if c.get('protocol') == 'openid-connect']
+
+    globals.logger.info(f'Found {len(target_clients)} target clients in realm {realm_name}')
+
+    stats = {"success": 0, "failed": 0, "skipped": 0}
+
+    for client in target_clients:
+        client_id = client['clientId']
+        internal_id = client['id']
+
+        try:
+            result = add_sub_mapper_to_client(realm_name, internal_id, token)
+            if result:
+                stats["success"] += 1
+            else:
+                stats["failed"] += 1
+        except Exception as e:
+            globals.logger.warning(f'Error adding sub mapper to {client_id}: {e}')
+            stats["failed"] += 1
+
+    globals.logger.info(f'Completed adding sub mappers to {realm_name}: {stats}')
+    return stats
