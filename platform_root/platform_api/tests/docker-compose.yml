@@ -14,7 +14,7 @@
 
 services:
   unittest-platform-db:
-    image: mariadb:10.4.8
+    image: mariadb:10.11.4
     healthcheck:
       test: mysql -u keycloak -ppassword -e 'select 1;'
       interval: 3s

@@ -63,8 +63,35 @@ def __main():
                     None)) as conn:
 
             db_data_version = migration_common.get_db_data_version(conn)
+
+            # If database is already initialized, check and convert charset
             if db_data_version is not None:
                 globals.logger.info(f'SKIP : platform initialize_db_main : alredy initialized (db data version : {db_data_version})')
+
+                # Convert keycloak database charset from utf8 to utf8mb4 if needed
+                keycloak_db = os.environ.get("KEYCLOAK_DB_DATABASE", "keycloak")
+                with conn.cursor() as cursor:
+                    cursor.execute(f"SELECT DEFAULT_CHARACTER_SET_NAME FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = '{keycloak_db}'")
+                    result = cursor.fetchone()
+                    if result and result[0] != 'utf8mb4':
+                        globals.logger.info(f'Converting keycloak database charset from {result[0]} to utf8mb4')
+
+                        # Convert database charset
+                        cursor.execute(f"ALTER DATABASE `{keycloak_db}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
+
+                        # Get all tables and convert them
+                        cursor.execute(f"SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = '{keycloak_db}' AND TABLE_TYPE = 'BASE TABLE'")
+                        tables = cursor.fetchall()
+                        globals.logger.info(f'Converting {len(tables)} tables to utf8mb4')
+
+                        for (table_name,) in tables:
+                            cursor.execute(f"ALTER TABLE `{keycloak_db}`.`{table_name}` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
+
+                        conn.commit()
+                        globals.logger.info(f'Keycloak database charset conversion completed')
+                    else:
+                        globals.logger.info(f'Keycloak database is already utf8mb4, skipping conversion')
+
                 return 0
 
             with conn.cursor() as cursor:

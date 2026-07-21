@@ -12,12 +12,26 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 from . import update_keycloak
+from . import update_keycloak_audience
+from . import update_keycloak_realm_sso
 
 
 def main():
 
+    # Keycloak 26.5 compatibility: Add SSO session timeout settings to realms
+    api = update_keycloak_realm_sso.update_keycloak_realm_sso()
+    result = api.start()
+    if result != 0:
+        return result
+
     # Keycloak 25 compatibility: Add sub claim mapper to _platform-console client
     api = update_keycloak.update_keycloak()
+    result = api.start()
+    if result != 0:
+        return result
+
+    # Keycloak 26.6 compatibility: Add audience mapper to _platform-console client
+    api = update_keycloak_audience.update_keycloak_audience()
     result = api.start()
 
     return result

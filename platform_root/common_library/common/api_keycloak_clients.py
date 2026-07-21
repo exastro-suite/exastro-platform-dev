@@ -315,3 +315,130 @@ def add_sub_mapper_to_realm_clients(realm_name, token, exclude_builtin=True):
 
     globals.logger.info(f'Completed adding sub mappers to {realm_name}: {stats}')
     return stats
+
+
+def add_audience_mapper_to_client(realm_name, client_id, token, audience_client_id="_platform"):
+    """Add audience protocol mapper to a specific client
+
+    Keycloak 26+ requires explicit audience configuration for token introspection.
+    This function adds the audience mapper to a client.
+
+    Args:
+        realm_name (str): realm name
+        client_id (str): client internal ID (not clientId)
+        token (str): keycloak admin access token
+        audience_client_id (str): the audience to add (default: "_platform")
+
+    Returns:
+        bool: True if added or already exists, False if failed
+    """
+    globals.logger.debug(f'Adding audience mapper to client {client_id} in realm {realm_name}')
+
+    header_para = {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer {}".format(token),
+    }
+
+    # 呼び出し先設定 requests setting
+    api_url = "{}://{}:{}".format(os.environ['API_KEYCLOAK_PROTOCOL'], os.environ['API_KEYCLOAK_HOST'], os.environ['API_KEYCLOAK_PORT'])
+    mappers_url = f"{api_url}/auth/admin/realms/{realm_name}/clients/{client_id}/protocol-mappers/models"
+
+    # Check if audience mapper already exists
+    response = requests.get(mappers_url, headers=header_para, timeout=(12, 600))
+    
+    if response.status_code == 200:
+        existing_mappers = response.json()
+        has_audience_mapper = any(
+            mapper.get('name') == f'audience-{audience_client_id}'
+            for mapper in existing_mappers
+        )
+        
+        if has_audience_mapper:
+            globals.logger.debug(f'audience mapper already exists in client {client_id}')
+            return True
+
+    # Add audience mapper
+    mapper_config = {
+        "name": f"audience-{audience_client_id}",
+        "protocol": "openid-connect",
+        "protocolMapper": "oidc-audience-mapper",
+        "consentRequired": False,
+        "config": {
+            "included.client.audience": audience_client_id,
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+        }
+    }
+
+    response = requests.post(mappers_url, headers=header_para, json=mapper_config, timeout=(12, 600))
+
+    if response.status_code == 201:
+        globals.logger.info(f'Successfully added audience mapper to client {client_id}')
+        return True
+    else:
+        globals.logger.warning(f'Failed to add audience mapper to client {client_id}: {response.status_code} - {response.text}')
+        return False
+
+
+def add_audience_mapper_to_realm_clients(realm_name, token, audience_client_id="_platform", target_client_filter="_platform-console"):
+    """Add audience protocol mapper to specific clients in a realm
+
+    Keycloak 26+ requires explicit audience configuration for token introspection.
+    This function adds the audience mapper to clients matching the filter.
+
+    Args:
+        realm_name (str): realm name
+        token (str): keycloak admin access token
+        audience_client_id (str): the audience to add (default: "_platform")
+        target_client_filter (str): filter for client IDs (default: "_platform-console")
+
+    Returns:
+        dict: {"success": int, "failed": int, "skipped": int}
+    """
+    globals.logger.info(f'Adding audience mapper to clients matching "{target_client_filter}" in realm {realm_name}')
+
+    header_para = {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer {}".format(token),
+    }
+
+    # 呼び出し先設定 requests setting
+    api_url = "{}://{}:{}".format(os.environ['API_KEYCLOAK_PROTOCOL'], os.environ['API_KEYCLOAK_HOST'], os.environ['API_KEYCLOAK_PORT'])
+
+    # Get all clients in the realm
+    response = requests.get(f"{api_url}/auth/admin/realms/{realm_name}/clients", headers=header_para, timeout=(12, 600))
+
+    if response.status_code != 200:
+        globals.logger.warning(f'Failed to get clients for realm {realm_name}: {response.status_code}')
+        return {"success": 0, "failed": 0, "skipped": 0}
+
+    clients = response.json()
+
+    # Filter target clients (by default, only _platform-console)
+    target_clients = [
+        c for c in clients
+        if c.get('protocol') == 'openid-connect'
+        and c['clientId'] == target_client_filter
+    ]
+
+    globals.logger.info(f'Found {len(target_clients)} target clients in realm {realm_name}')
+
+    stats = {"success": 0, "failed": 0, "skipped": 0}
+
+    for client in target_clients:
+        client_id = client['clientId']
+        internal_id = client['id']
+
+        try:
+            result = add_audience_mapper_to_client(realm_name, internal_id, token, audience_client_id)
+            if result:
+                stats["success"] += 1
+            else:
+                stats["failed"] += 1
+        except Exception as e:
+            globals.logger.warning(f'Error adding audience mapper to {client_id}: {e}')
+            stats["failed"] += 1
+
+    globals.logger.info(f'Completed adding audience mappers to {realm_name}: {stats}')
+    return stats
