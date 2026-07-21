@@ -73,24 +73,28 @@ def __main():
                 with conn.cursor() as cursor:
                     cursor.execute(f"SELECT DEFAULT_CHARACTER_SET_NAME FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = '{keycloak_db}'")
                     result = cursor.fetchone()
-                    if result and result[0] != 'utf8mb4':
-                        globals.logger.info(f'Converting keycloak database charset from {result[0]} to utf8mb4')
+                    if result:
+                        # Handle both tuple and dict cursor results
+                        current_charset = result[0] if isinstance(result, tuple) else result.get('DEFAULT_CHARACTER_SET_NAME')
+                        if current_charset and current_charset != 'utf8mb4':
+                            globals.logger.info(f'Converting keycloak database charset from {current_charset} to utf8mb4')
 
-                        # Convert database charset
-                        cursor.execute(f"ALTER DATABASE `{keycloak_db}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
+                            # Convert database charset
+                            cursor.execute(f"ALTER DATABASE `{keycloak_db}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
 
-                        # Get all tables and convert them
-                        cursor.execute(f"SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = '{keycloak_db}' AND TABLE_TYPE = 'BASE TABLE'")
-                        tables = cursor.fetchall()
-                        globals.logger.info(f'Converting {len(tables)} tables to utf8mb4')
+                            # Get all tables and convert them
+                            cursor.execute(f"SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = '{keycloak_db}' AND TABLE_TYPE = 'BASE TABLE'")
+                            tables = cursor.fetchall()
+                            globals.logger.info(f'Converting {len(tables)} tables to utf8mb4')
 
-                        for (table_name,) in tables:
-                            cursor.execute(f"ALTER TABLE `{keycloak_db}`.`{table_name}` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
+                            for table_row in tables:
+                                table_name = table_row[0] if isinstance(table_row, tuple) else table_row.get('TABLE_NAME')
+                                cursor.execute(f"ALTER TABLE `{keycloak_db}`.`{table_name}` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
 
-                        conn.commit()
-                        globals.logger.info(f'Keycloak database charset conversion completed')
-                    else:
-                        globals.logger.info(f'Keycloak database is already utf8mb4, skipping conversion')
+                            conn.commit()
+                            globals.logger.info(f'Keycloak database charset conversion completed')
+                        else:
+                            globals.logger.info(f'Keycloak database is already utf8mb4, skipping conversion')
 
                 return 0
 
