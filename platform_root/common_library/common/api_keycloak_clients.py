@@ -427,3 +427,5 @@ def add_basic_scope_to_realm_clients(realm_name, token):
     except Exception as e:
         globals.logger.error(f"Exception while processing realm {realm_name}: {e}")
         return stats
+
+
