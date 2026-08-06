@@ -60,7 +60,7 @@ def test_token_api_system_manager(connexion_client):
                 "scope": "openid offline_access",
             })
 
-        assert response.status_code == 401
+        assert response.status_code in [400, 401]  # Keycloak returns 400 or 401 for invalid credentials depending on version
 
         #
         # token取得成功
@@ -189,7 +189,7 @@ def test_token_api_organization_user(connexion_client):
                 "scope": "openid offline_access",
             })
 
-        assert response.status_code == 401
+        assert response.status_code in [400, 401]  # Keycloak returns 400 or 401 for invalid credentials depending on version
 
         #
         # token取得成功
@@ -218,9 +218,10 @@ def test_token_api_organization_user(connexion_client):
         assert 'sub' in decoded, "Token missing 'sub' claim - ensure 'basic' scope is in defaultClientScopes"
         assert decoded['sub'] is not None, "'sub' claim is None"
 
-        # Keycloak 26+: 'aud' claim must include 'system-{org}-auth'
+        # Keycloak 26+: 'aud' claim must include '_platform' and 'system-{org}-auth'
         assert 'aud' in decoded, "Token missing 'aud' claim - ensure audience mappers are configured"
         aud = decoded['aud'] if isinstance(decoded['aud'], list) else [decoded['aud']]
+        assert '_platform' in aud, f"'_platform' not in audience claim. Got: {aud}"
         expected_auth_client = f"system-{organization['organization_id']}-auth"
         assert expected_auth_client in aud, f"'{expected_auth_client}' not in audience claim. Got: {aud}"
 
