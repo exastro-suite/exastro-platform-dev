@@ -27,7 +27,7 @@ from services.ai_assistant.ai_credential_service import (
     CredentialNotFound,
 )
 from services.ai_assistant.aws_session_manager import (
-    AwsSessionFromToken,
+    create_bedrock_session_from_credential_data,
 )
 
 import globals
@@ -65,9 +65,12 @@ class ModelService:
                 ai_service_id=ai_service_id,
             )
 
+            # 変数を外側で定義
+            aws_session = None
+
             # Bedrock clientを作成
             if ai_service_id == "aws-cache":
-                # AWS Login Cache使用
+                # AWS Login Cache使用（DBから取得したCredentialデータ）
                 globals.logger.debug(
                     f"credential_data keys: {list(credential.credential_data.keys())}"
                 )
@@ -83,9 +86,11 @@ class ModelService:
                         "Please re-register with the full cache file content."
                     )
 
-                aws_session = AwsSessionFromToken(
-                    token=credential.credential_data,
-                    region="ap-northeast-1"
+                credential_data = credential.credential_data
+                region = credential_data.get("region", "ap-northeast-1")
+                aws_session = create_bedrock_session_from_credential_data(
+                    credential_data=credential_data,
+                    region=region,
                 )
                 bedrock_client = aws_session._session.client("bedrock")
             else:
@@ -138,10 +143,27 @@ class ModelService:
                         "models": models,
                     })
 
-            globals.logger.info(
+            globals.logger.debug(
                 f"Retrieved {len(model_list)} Bedrock models for "
                 f"service={ai_service_id}, org={organization_id}, user={user_id}"
             )
+
+            # 最終使用日時とトークン更新（Bedrock呼び出し後）
+            if ai_service_id == "aws-cache" and aws_session:
+                # aws-cacheの場合、トークンが自動更新されている可能性がある
+                latest_token = aws_session.get_current_token()
+                if latest_token:
+                    # トークンが更新された場合、Credentialデータも一緒に保存
+                    credential_service.update_last_used(
+                        credential.credential_id,
+                        credential_data=latest_token
+                    )
+                else:
+                    # トークンは更新されていないが、LAST_USED_ATは更新
+                    credential_service.update_last_used(credential.credential_id)
+            else:
+                # bedrock（固定トークン）の場合、LAST_USED_ATのみ更新
+                credential_service.update_last_used(credential.credential_id)
 
             return model_list
 

@@ -28,7 +28,7 @@ from services.ai_assistant.ai_credential_service import (
     CredentialNotFound,
 )
 from services.ai_assistant.aws_session_manager import (
-    create_bedrock_session_from_cache,
+    create_bedrock_session_from_credential_data,
 )
 
 import globals
@@ -96,7 +96,7 @@ class ConversationService:
                 )
                 conn.commit()
 
-        globals.logger.info(
+        globals.logger.debug(
             f"Conversation created: id={conversation_id}, "
             f"org={organization_id}, workspace={workspace_id}, user={user_id}, title={title}"
         )
@@ -162,7 +162,7 @@ class ConversationService:
 
                 conversations = cursor.fetchall()
 
-                globals.logger.info(
+                globals.logger.debug(
                     f"Listed {len(conversations)} conversations: "
                     f"org={organization_id}, user={user_id}"
                 )
@@ -231,7 +231,7 @@ class ConversationService:
 
                 messages = cursor.fetchall()
 
-                globals.logger.info(
+                globals.logger.debug(
                     f"Listed {len(messages)} messages: "
                     f"conv={conversation_id}"
                 )
@@ -340,16 +340,35 @@ class ConversationService:
         # Bedrockを呼び出し
         try:
             # ai_service_idで認証方式を判定
-            if ai_service_id == "aws-cache":
-                # AWS Login Cacheからセッションを作成（自動トークン更新）
-                globals.logger.info("Using AWS login cache for Bedrock authentication")
+            # 変数を外側で定義
+            credential_service = None
+            credential = None
+            aws_session = None
 
-                aws_session = create_bedrock_session_from_cache()
+            if ai_service_id == "aws-cache":
+                # AWS Login Cache方式（DBから取得、自動トークン更新）
+                globals.logger.debug("Using AWS login cache credential for Bedrock authentication")
+
+                # Credentialを取得
+                credential_service = get_ai_credential_service()
+                credential = credential_service.get_credential(
+                    organization_id=organization_id,
+                    user_id=user_id,
+                    ai_service_id=ai_service_id,
+                )
+
+                # DBから取得したCredentialデータでセッションを作成
+                credential_data = credential.credential_data
+                region = credential_data.get("region", "ap-northeast-1")
+                aws_session = create_bedrock_session_from_credential_data(
+                    credential_data=credential_data,
+                    region=region,
+                )
                 bedrock_client = aws_session.get_bedrock_client()
 
             elif ai_service_id == "bedrock":
-                # 手動Credential方式（新しいAI Credential Service）
-                globals.logger.info("Using manual credential for Bedrock authentication")
+                # 手動Credential方式（固定トークン）
+                globals.logger.debug("Using manual credential for Bedrock authentication")
 
                 # Credentialを取得
                 credential_service = get_ai_credential_service()
@@ -379,9 +398,6 @@ class ConversationService:
                         retries={"max_attempts": 3, "mode": "standard"},
                     ),
                 )
-
-                # 最終使用日時を更新
-                credential_service.update_last_used(credential.credential_id)
 
             else:
                 raise ValueError(f"Unsupported ai_service_id for Bedrock: {ai_service_id}")
@@ -461,13 +477,31 @@ class ConversationService:
 
                     conn.commit()
 
-            globals.logger.info(
+            globals.logger.debug(
                 f"Message sent and response received: "
                 f"conv={conversation_id}, "
                 f"user_msg={user_message_id}, "
                 f"assistant_msg={assistant_message_id}, "
                 f"tokens={input_tokens}+{output_tokens}"
             )
+
+            # 最終使用日時とトークン更新（Bedrock呼び出し後）
+            if credential_service and credential:
+                if ai_service_id == "aws-cache" and aws_session:
+                    # aws-cacheの場合、トークンが自動更新されている可能性がある
+                    latest_token = aws_session.get_current_token()
+                    if latest_token:
+                        # トークンが更新された場合、Credentialデータも一緒に保存
+                        credential_service.update_last_used(
+                            credential.credential_id,
+                            credential_data=latest_token
+                        )
+                    else:
+                        # トークンは更新されていないが、LAST_USED_ATは更新
+                        credential_service.update_last_used(credential.credential_id)
+                else:
+                    # bedrock（固定トークン）の場合、LAST_USED_ATのみ更新
+                    credential_service.update_last_used(credential.credential_id)
 
             return {
                 "conversation_id": conversation_id,

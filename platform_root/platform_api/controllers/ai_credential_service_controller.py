@@ -97,7 +97,7 @@ def register_credential(body, organization_id, ai_service_id):
             notes=notes,
         )
 
-        globals.logger.info(
+        globals.logger.debug(
             f"AI Credential registered: id={credential_id}, "
             f"service={ai_service_id}, org={organization_id}, user={user_id}"
         )
@@ -300,7 +300,7 @@ def delete_credential(organization_id, ai_service_id, credential_id):
             message = multi_lang.get_text(message_id, "Credentialが見つかりません")
             raise common.NotFoundException(message_id=message_id, message=message)
 
-        globals.logger.info(
+        globals.logger.debug(
             f"AI Credential deleted: id={credential_id}, "
             f"service={ai_service_id}, org={organization_id}, user={user_id}"
         )
@@ -396,7 +396,7 @@ def update_credential(body, organization_id, ai_service_id, credential_id):
             message = multi_lang.get_text(message_id, "Credentialが見つかりません")
             raise common.NotFoundException(message_id=message_id, message=message)
 
-        globals.logger.info(
+        globals.logger.debug(
             f"AI Credential updated: id={credential_id}, "
             f"service={ai_service_id}, org={organization_id}, user={user_id}"
         )

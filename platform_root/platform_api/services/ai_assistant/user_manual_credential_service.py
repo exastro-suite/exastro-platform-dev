@@ -158,7 +158,7 @@ class UserManualCredentialService:
                 )
                 conn.commit()
 
-        globals.logger.info(
+        globals.logger.debug(
             f"AWS Credential registered: id={credential_id}, "
             f"org={organization_id}, user={user_id}, name={credential_name}"
         )
@@ -213,7 +213,7 @@ class UserManualCredentialService:
 
                 credentials = cursor.fetchall()
 
-                globals.logger.info(
+                globals.logger.debug(
                     f"Listed {len(credentials)} credentials: "
                     f"org={organization_id}, user={user_id}"
                 )

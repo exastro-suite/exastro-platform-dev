@@ -43,22 +43,32 @@ class AwsSessionFromToken:
     AWS Login Token からセッションを作成し、自動更新するクラス
     """
 
-    def __init__(self, token: dict, region: str = "ap-northeast-1"):
+    def __init__(
+        self,
+        token: dict,
+        region: str = "ap-northeast-1",
+    ):
         """
         Args:
-            token: aws loginのキャッシュファイルから読み込んだトークン
+            token: DBから取得したトークン情報
             region: リージョン（省略時はトークンから自動取得）
         """
         self.token: dict = {}
+        self._login_session_arn = None
+        self._original_token = token.copy()  # 元のトークンを保持
+        self._token_updated = False  # トークンが更新されたかのフラグ
+        self._token_loader = None  # TokenLoader を保持
 
-        login_session_arn = self._login_session_arn(token)
-        token_region = self._login_region(token)
+        login_session_arn = self._extract_login_session_arn(token)
+        token_region = self._extract_login_region(token)
+        self._login_session_arn = login_session_arn
 
         # regionパラメータが指定されていない場合はトークンから取得
         self.region = region if region else token_region
 
         token_loader = LoginTokenLoader(cache=self.token)
         token_loader.save_token(login_session_arn, token)
+        self._token_loader = token_loader  # 後で使うために保持
 
         botocore_session = botocore.session.Session()
 
@@ -70,6 +80,13 @@ class AwsSessionFromToken:
 
         cached = fetcher.load_cached_credentials()
 
+        # トークン更新を検知するラッパー
+        def refresh_and_mark():
+            result = fetcher.refresh_credentials()
+            self._token_updated = True  # フラグを立てる
+            globals.logger.debug("AWS token refreshed")
+            return result
+
         credentials = RefreshableCredentials(
             access_key=cached["access_key"],
             secret_key=cached["secret_key"],
@@ -78,7 +95,7 @@ class AwsSessionFromToken:
             if not isinstance(cached["expiry_time"], str)
             else botocore.credentials._parse_if_needed(cached["expiry_time"]),
             method="login-auto-refresh",
-            refresh_using=fetcher.refresh_credentials,
+            refresh_using=refresh_and_mark,
             account_id=cached["account_id"],
         )
 
@@ -88,7 +105,7 @@ class AwsSessionFromToken:
         self._session = boto3.Session(botocore_session=botocore_session)
         self._refresh_client = None
 
-        globals.logger.info(
+        globals.logger.debug(
             f"AWS Session initialized: region={self.region}, "
             f"session_arn={login_session_arn}"
         )
@@ -110,6 +127,36 @@ class AwsSessionFromToken:
                 retries={"max_attempts": 3, "mode": "standard"},
             ),
         )
+
+    def get_current_token(self) -> Optional[dict]:
+        """
+        メモリ内の最新トークンを取得（トークンが更新された場合のみ）
+
+        Returns:
+            dict: 最新のトークン情報（トークンが更新されていない場合はNone）
+
+        Note:
+            この関数を呼ぶと、内部の更新フラグがリセットされます。
+            次回の refresh_credentials() が呼ばれるまで None を返します。
+        """
+        if not self._login_session_arn or not self._token_loader:
+            return None
+
+        # トークンが更新されていない場合は None を返す
+        if not self._token_updated:
+            return None
+
+        # LoginTokenLoader を使ってトークンを取得
+        try:
+            token = self._token_loader.load_token(self._login_session_arn)
+        except Exception as e:
+            globals.logger.error(f"Failed to load refreshed token: {e}")
+            token = None
+
+        # フラグをリセット（次回の更新まで None を返す）
+        self._token_updated = False
+
+        return token
 
     def refresh_token(self) -> bool:
         """
@@ -139,16 +186,16 @@ class AwsSessionFromToken:
         refreshed = (before_token_str != after_token_str)
 
         if refreshed:
-            globals.logger.info("AWS token refreshed successfully")
+            globals.logger.debug("AWS token refreshed successfully")
 
         return refreshed
 
-    def _login_session_arn(self, token: dict) -> str:
+    def _extract_login_session_arn(self, token: dict) -> str:
         """idTokenのsubクレームからlogin_session ARNを取り出す"""
         claims = self._decode_id_token(token["idToken"])
         return claims["sub"]
 
-    def _login_region(self, token: dict) -> str:
+    def _extract_login_region(self, token: dict) -> str:
         """idTokenのissクレーム(https://<region>.signin.aws.amazon.com/signin)からregionを取り出す"""
         claims = self._decode_id_token(token["idToken"])
         match = re.match(r"https://([a-z0-9-]+)\.signin\.aws\.amazon\.com", claims["iss"])
@@ -190,7 +237,7 @@ def load_latest_login_cache(cache_dir: Optional[str] = None) -> dict:
     # 最新のファイルを取得
     latest_cache = max(cache_files, key=os.path.getmtime)
 
-    globals.logger.info(f"Loading AWS login cache from: {latest_cache}")
+    globals.logger.debug(f"Loading AWS login cache from: {latest_cache}")
 
     with open(latest_cache, "r") as f:
         token = json.load(f)
@@ -205,6 +252,8 @@ def create_bedrock_session_from_cache(
     """
     キャッシュファイルからBedrockセッションを作成
 
+    非推奨: create_bedrock_session_from_credential_data() を使用してください
+
     Args:
         cache_dir: キャッシュディレクトリパス
         region: リージョン
@@ -214,3 +263,38 @@ def create_bedrock_session_from_cache(
     """
     token = load_latest_login_cache(cache_dir)
     return AwsSessionFromToken(token, region)
+
+
+def create_bedrock_session_from_credential_data(
+    credential_data: dict,
+    region: str = "ap-northeast-1",
+) -> AwsSessionFromToken:
+    """
+    DBから取得したCredentialデータからBedrockセッションを作成
+
+    Args:
+        credential_data: T_USER_AWS_CREDENTIALから取得したトークン情報
+                        （ENCRYPTED_CREDENTIAL_DATAを復号化したもの）
+        region: リージョン
+
+    Returns:
+        AwsSessionFromToken: セッションオブジェクト
+
+    Raises:
+        ValueError: credential_dataにidTokenが含まれていない場合
+
+    Note:
+        トークンが自動更新された場合、メモリ内（aws_session.token）に保存されます。
+        呼び出し側で aws_session.get_current_token() を使って最新トークンを取得し、
+        update_last_used(credential_data=latest_token) でDBに保存してください。
+    """
+    if "idToken" not in credential_data:
+        raise ValueError(
+            "credential_data must contain 'idToken'. "
+            "Make sure the data is from AWS Login Cache."
+        )
+
+    return AwsSessionFromToken(
+        token=credential_data,
+        region=region,
+    )

@@ -71,7 +71,7 @@ def create_conversation(body, organization_id, workspace_id):
             title=title,
         )
 
-        globals.logger.info(
+        globals.logger.debug(
             f"Conversation created: id={conversation_id}, "
             f"org={organization_id}, workspace={workspace_id}, user={user_id}"
         )
@@ -287,7 +287,7 @@ def send_message(body, conversation_id, organization_id, workspace_id):
             ai_service_id=ai_service_id,
         )
 
-        globals.logger.info(
+        globals.logger.debug(
             f"Message sent: conv={conversation_id}, "
             f"workspace={workspace_id}, "
             f"user_msg={result['user_message_id']}, "

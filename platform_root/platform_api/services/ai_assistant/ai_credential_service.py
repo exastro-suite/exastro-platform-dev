@@ -132,7 +132,7 @@ class AiCredentialService:
                 )
                 conn.commit()
 
-        globals.logger.info(
+        globals.logger.debug(
             f"AI Credential registered: id={credential_id}, "
             f"service={ai_service_id}, org={organization_id}, user={user_id}"
         )
@@ -302,7 +302,7 @@ class AiCredentialService:
                 conn.commit()
 
         if deleted:
-            globals.logger.info(
+            globals.logger.debug(
                 f"AI Credential deleted: id={credential_id}, "
                 f"service={ai_service_id}, org={organization_id}, user={user_id}"
             )
@@ -377,7 +377,7 @@ class AiCredentialService:
                 conn.commit()
 
         if updated:
-            globals.logger.info(
+            globals.logger.debug(
                 f"AI Credential updated: id={credential_id}, "
                 f"service={ai_service_id}, org={organization_id}, user={user_id}, "
                 f"fields={[k.split('=')[0].strip() for k in update_fields if '=' in k]}"
@@ -388,23 +388,51 @@ class AiCredentialService:
     def update_last_used(
         self,
         credential_id: str,
+        credential_data: Optional[dict] = None,
     ) -> None:
         """
-        最終使用日時を更新
+        最終使用日時を更新（オプションでCredentialデータも更新）
 
         Args:
             credential_id: Credential ID
+            credential_data: 更新するCredentialデータ（Noneの場合は最終使用日時のみ更新）
+                           aws-cacheの場合、トークン自動更新後の最新データを渡す
         """
         with closing(DBconnector().connect_platformdb()) as conn:
             with closing(conn.cursor()) as cursor:
-                cursor.execute(
-                    """
-                    UPDATE T_USER_AI_CREDENTIAL
-                    SET LAST_USED_AT = NOW()
-                    WHERE CREDENTIAL_ID = %s
-                    """,
-                    (credential_id,),
-                )
+                if credential_data:
+                    # Credentialデータと最終使用日時を更新
+                    encrypted_data = encrypt.encrypt_str(json.dumps(credential_data))
+
+                    cursor.execute(
+                        """
+                        UPDATE T_USER_AI_CREDENTIAL
+                        SET ENCRYPTED_CREDENTIAL_DATA = %s,
+                            LAST_USED_AT = NOW(),
+                            LAST_UPDATE_TIMESTAMP = NOW()
+                        WHERE CREDENTIAL_ID = %s
+                        """,
+                        (encrypted_data, credential_id),
+                    )
+
+                    globals.logger.debug(
+                        f"Updated credential data and last_used: credential_id={credential_id}"
+                    )
+                else:
+                    # 最終使用日時のみ更新
+                    cursor.execute(
+                        """
+                        UPDATE T_USER_AI_CREDENTIAL
+                        SET LAST_USED_AT = NOW()
+                        WHERE CREDENTIAL_ID = %s
+                        """,
+                        (credential_id,),
+                    )
+
+                    globals.logger.debug(
+                        f"Updated last_used only: credential_id={credential_id}"
+                    )
+
                 conn.commit()
 
 

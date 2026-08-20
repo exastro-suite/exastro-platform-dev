@@ -20,7 +20,6 @@ AIモデル利用許可判定とプロバイダー選択
 
 from typing import Optional, Dict, Any
 from contextlib import closing
-from datetime import datetime, timezone
 
 from common_library.common.db import DBconnector
 from libs import queries_ai_permissions as queries
@@ -100,7 +99,7 @@ class AIRouter:
                         f"with capability {capability}"
                     )
 
-                globals.logger.info(
+                globals.logger.debug(
                     f"AI model permission validated: "
                     f"org={organization_id}, user={user_id}, "
                     f"model={model_id}, capability={capability}"
@@ -132,7 +131,7 @@ class AIRouter:
                 )
                 models = cursor.fetchall()
 
-                globals.logger.info(
+                globals.logger.debug(
                     f"Retrieved allowed models: "
                     f"org={organization_id}, user={user_id}, "
                     f"service={ai_service_id}, count={len(models)}"

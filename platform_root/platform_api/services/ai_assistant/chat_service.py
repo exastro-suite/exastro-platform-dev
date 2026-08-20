@@ -209,7 +209,7 @@ class ChatService:
 
                     conn.commit()
 
-                    globals.logger.info(
+                    globals.logger.debug(
                         f"Chat message processed successfully: "
                         f"conversation={conversation_id}, "
                         f"request={request_id}, "
@@ -297,7 +297,7 @@ class ChatService:
             )
         )
 
-        globals.logger.info(
+        globals.logger.debug(
             f"Created new conversation: id={conversation_id}, "
             f"org={organization_id}, user={user_id}"
         )
