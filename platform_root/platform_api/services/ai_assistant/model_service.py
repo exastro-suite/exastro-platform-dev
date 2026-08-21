@@ -18,10 +18,13 @@ Model Service
 AIサービスの使用可能なモデル一覧を取得
 """
 
+import os
 from typing import List, Dict
 import boto3
 from botocore.config import Config
+from botocore.exceptions import ReadTimeoutError
 
+from common_library.common import common
 from services.ai_assistant.ai_credential_service import (
     get_ai_credential_service,
     CredentialNotFound,
@@ -39,6 +42,85 @@ class ModelService:
 
     AIサービスの使用可能なモデル一覧を取得
     """
+
+    def _get_active_foundation_model_ids(self, bedrock_client) -> set | None:
+        """
+        ACTIVE な基礎モデル ID を取得（EOL フィルタリング用）
+
+        Args:
+            bedrock_client: Bedrock client
+
+        Returns:
+            set | None: ACTIVE なモデル ID の集合（取得失敗時は None）
+        """
+        try:
+            response = bedrock_client.list_foundation_models()
+        except Exception as e:
+            globals.logger.warning(
+                f"list_foundation_models failed; skip EOL filtering: {e}"
+            )
+            return None
+
+        active = set()
+        for m in response.get("modelSummaries", []):
+            lifecycle = (m.get("modelLifecycle") or {}).get("status")
+            if lifecycle and lifecycle != "ACTIVE":
+                continue
+            model_id = m.get("modelId")
+            if model_id:
+                active.add(model_id)
+
+        globals.logger.debug(f"Found {len(active)} ACTIVE foundation models")
+        return active
+
+    def _model_id_from_arn(self, arn: str) -> str | None:
+        """
+        ARN から modelId を抽出
+
+        Args:
+            arn: モデル ARN
+
+        Returns:
+            str | None: モデル ID
+        """
+        if not arn:
+            return None
+        return arn.rsplit("/", 1)[-1]
+
+    def _is_profile_usable(
+        self, profile: dict, active_model_ids: set | None
+    ) -> bool:
+        """
+        推論プロファイルが利用可能か判定
+
+        Args:
+            profile: 推論プロファイル
+            active_model_ids: ACTIVE なモデル ID の集合（None の場合はチェックスキップ）
+
+        Returns:
+            bool: 利用可能なら True
+        """
+        # ステータスチェック
+        if profile.get("status") != "ACTIVE":
+            return False
+
+        # EOL チェック不可の場合は許可
+        if active_model_ids is None:
+            return True
+
+        # 参照先モデルが全て ACTIVE か確認
+        for model in profile.get("models", []):
+            arn = model.get("modelArn")
+            if arn:
+                model_id = self._model_id_from_arn(arn)
+                if model_id not in active_model_ids:
+                    globals.logger.info(
+                        f"Exclude inference profile {profile.get('inferenceProfileId')} "
+                        f"(EOL model: {model_id})"
+                    )
+                    return False
+
+        return True
 
     def get_bedrock_models(
         self,
@@ -95,6 +177,11 @@ class ModelService:
                 bedrock_client = aws_session._session.client("bedrock")
             else:
                 # 手動Credential使用
+                # 環境変数からタイムアウト・リトライ設定を読み取り
+                read_timeout = int(os.getenv("AI_ASSISTANT_READ_TIMEOUT", "120"))
+                connect_timeout = int(os.getenv("AI_ASSISTANT_CONNECT_TIMEOUT", "30"))
+                max_attempts = int(os.getenv("AI_ASSISTANT_MAX_ATTEMPTS", "1"))
+
                 credential_data = credential.credential_data
                 session = boto3.Session(
                     aws_access_key_id=credential_data.get("access_key_id"),
@@ -105,11 +192,14 @@ class ModelService:
                 bedrock_client = session.client(
                     "bedrock",
                     config=Config(
-                        connect_timeout=5,
-                        read_timeout=120,
-                        retries={"max_attempts": 3, "mode": "standard"},
+                        read_timeout=read_timeout,
+                        connect_timeout=connect_timeout,
+                        retries={"max_attempts": max_attempts, "mode": "standard"},
                     ),
                 )
+
+            # EOL フィルタリング用に基礎モデル一覧を取得
+            active_model_ids = self._get_active_foundation_model_ids(bedrock_client)
 
             # list_inference_profiles を呼び出し
             response = bedrock_client.list_inference_profiles()
@@ -118,6 +208,10 @@ class ModelService:
             model_list = []
             if "inferenceProfileSummaries" in response:
                 for item in response["inferenceProfileSummaries"]:
+                    # EOL チェック
+                    if not self._is_profile_usable(item, active_model_ids):
+                        continue
+
                     # Anthropicのモデルのみフィルタリング
                     models = item.get("models", [])
                     is_anthropic = any(
@@ -166,6 +260,15 @@ class ModelService:
                 credential_service.update_last_used(credential.credential_id)
 
             return model_list
+
+        except ReadTimeoutError as e:
+            # タイムアウト → 408
+            globals.logger.error(f"Bedrock request timeout: {e}")
+            message_id = "408-94107"
+            message = f"モデル一覧取得がタイムアウトしました: {str(e)}"
+            raise common.RequestTimeoutException(
+                message_id=message_id, message=message
+            ) from e
 
         except CredentialNotFound as e:
             globals.logger.error(f"Credential not found: {e}")

@@ -24,10 +24,19 @@ from typing import List, Optional, Dict, Any
 
 
 @dataclass
+class ContentBlock:
+    """コンテンツブロック（テキスト、画像、ドキュメント）"""
+    type: str  # text, image, document
+    data: Any  # テキストの場合はstr、画像/ドキュメントの場合はdict
+
+
+@dataclass
 class AIMessage:
     """チャットメッセージ"""
     role: str  # user, assistant, system
     content: str
+    cache_control: Optional[Dict[str, Any]] = None  # Prompt Caching用
+    content_blocks: Optional[List[ContentBlock]] = None  # マルチモーダル用
 
 
 @dataclass

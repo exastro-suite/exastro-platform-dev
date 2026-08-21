@@ -304,6 +304,14 @@ def send_message(body, conversation_id, organization_id, workspace_id):
         )
         raise common.NotFoundException(message_id=message_id, message=message)
 
+    except common.RequestTimeoutException:
+        # 408 タイムアウト（service層で生成済み）
+        raise
+
+    except common.PayloadTooLargeException:
+        # 413 ペイロード超過（service層で生成済み）
+        raise
+
     except Exception as e:
         globals.logger.error(f"Failed to send message: {e}", exc_info=True)
         message_id = "500-94104"

@@ -80,6 +80,34 @@ class NotFoundException(Exception):
         self.message = message
 
 
+class RequestTimeoutException(Exception):
+    """リクエストタイムアウト例外 - Request Timeout Exception
+
+    Args:
+        Exception (Exception): Exception
+    """
+
+    def __init__(self, data=None, message_id=None, message=None):
+        self.status_code = 408
+        self.data = data
+        self.message_id = message_id
+        self.message = message
+
+
+class PayloadTooLargeException(Exception):
+    """ペイロードサイズ超過例外 - Payload Too Large Exception
+
+    Args:
+        Exception (Exception): Exception
+    """
+
+    def __init__(self, data=None, message_id=None, message=None):
+        self.status_code = 413
+        self.data = data
+        self.message_id = message_id
+        self.message = message
+
+
 class MaintenanceException(Exception):
     """メンテナンス中 - Maintenance Exception
 

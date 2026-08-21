@@ -119,12 +119,17 @@ class AwsSessionFromToken:
         """
         from botocore.config import Config
 
+        # 環境変数からタイムアウト・リトライ設定を読み取り
+        read_timeout = int(os.getenv("AI_ASSISTANT_READ_TIMEOUT", "120"))
+        connect_timeout = int(os.getenv("AI_ASSISTANT_CONNECT_TIMEOUT", "30"))
+        max_attempts = int(os.getenv("AI_ASSISTANT_MAX_ATTEMPTS", "1"))
+
         return self._session.client(
             "bedrock-runtime",
             config=Config(
-                connect_timeout=5,
-                read_timeout=120,
-                retries={"max_attempts": 3, "mode": "standard"},
+                read_timeout=read_timeout,
+                connect_timeout=connect_timeout,
+                retries={"max_attempts": max_attempts, "mode": "standard"},
             ),
         )
 

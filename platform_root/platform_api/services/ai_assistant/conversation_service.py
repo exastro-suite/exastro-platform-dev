@@ -18,17 +18,23 @@ Conversation Service
 チャット会話・メッセージ管理サービス
 """
 
+import os
 from typing import Optional, List, Dict
 from contextlib import closing
 import ulid
 
 from common_library.common.db import DBconnector
+from common_library.common import common
 from services.ai_assistant.ai_credential_service import (
     get_ai_credential_service,
     CredentialNotFound,
 )
 from services.ai_assistant.aws_session_manager import (
     create_bedrock_session_from_credential_data,
+)
+from ai_providers.base import (
+    AIProviderTimeoutError,
+    AIProviderValidationError,
 )
 
 import globals
@@ -382,6 +388,11 @@ class ConversationService:
                 import boto3
                 from botocore.config import Config
 
+                # 環境変数からタイムアウト・リトライ設定を読み取り
+                read_timeout = int(os.getenv("AI_ASSISTANT_READ_TIMEOUT", "120"))
+                connect_timeout = int(os.getenv("AI_ASSISTANT_CONNECT_TIMEOUT", "30"))
+                max_attempts = int(os.getenv("AI_ASSISTANT_MAX_ATTEMPTS", "1"))
+
                 credential_data = credential.credential_data
                 session = boto3.Session(
                     aws_access_key_id=credential_data.get("access_key_id"),
@@ -393,9 +404,9 @@ class ConversationService:
                 bedrock_client = session.client(
                     "bedrock-runtime",
                     config=Config(
-                        connect_timeout=5,
-                        read_timeout=120,
-                        retries={"max_attempts": 3, "mode": "standard"},
+                        read_timeout=read_timeout,
+                        connect_timeout=connect_timeout,
+                        retries={"max_attempts": max_attempts, "mode": "standard"},
                     ),
                 )
 
@@ -515,9 +526,34 @@ class ConversationService:
                 },
             }
 
+        except AIProviderTimeoutError as e:
+            # タイムアウト → 408
+            globals.logger.error(f"Bedrock request timeout: {e}")
+            message_id = "408-94105"
+            message = f"AI サービスへのリクエストがタイムアウトしました: {str(e)}"
+            raise common.RequestTimeoutException(
+                message_id=message_id, message=message
+            ) from e
+
+        except AIProviderValidationError as e:
+            # maxTokens 超過などのバリデーションエラー → 413
+            error_message = str(e)
+            if "maxTokens" in error_message or "token" in error_message.lower():
+                globals.logger.error(f"Bedrock payload too large: {e}")
+                message_id = "413-94106"
+                message = f"リクエストのペイロードが大きすぎます: {str(e)}"
+                raise common.PayloadTooLargeException(
+                    message_id=message_id, message=message
+                ) from e
+            else:
+                # その他のバリデーションエラーは 400
+                globals.logger.error(f"Bedrock validation error: {e}")
+                raise
+
         except CredentialNotFound as e:
             globals.logger.error(f"Credential not found: {e}")
             raise Exception("AWS Credentialが登録されていません。先にCredentialを登録してください。")
+
         except Exception as e:
             globals.logger.error(f"Failed to call Bedrock: {e}", exc_info=True)
             raise

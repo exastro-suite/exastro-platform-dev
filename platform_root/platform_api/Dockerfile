@@ -33,6 +33,10 @@ ENV APACHE_GROUPNAME        $GROUPNAME
 ENV DB_CONNECT_TIMEOUT      10
 ENV DB_CONNECT_RETRY_SLEEP_TIME    0.5
 ENV DB_CONNECT_RETRY_LIMIT  3
+# AI_ASSISTANT呼び出しのタイムアウト・リトライ設定
+ENV AI_ASSISTANT_READ_TIMEOUT=120
+ENV AI_ASSISTANT_CONNECT_TIMEOUT=30
+ENV AI_ASSISTANT_MAX_ATTEMPTS=1
 
 RUN --mount=type=secret,id=host_certificate_file,dst=/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem \
     dnf install -y \

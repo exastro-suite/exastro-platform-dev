@@ -22,3 +22,9 @@ def init(app):
 
     config = app.config
     logger = app.logger
+
+    # boto3/botocore のログレベルを調整（冗長なログを抑制）
+    import logging
+    logging.getLogger("boto3").setLevel(logging.INFO)
+    logging.getLogger("botocore").setLevel(logging.INFO)
+    logging.getLogger("urllib3").setLevel(logging.WARNING)

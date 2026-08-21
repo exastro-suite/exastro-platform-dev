@@ -18,6 +18,7 @@ AI Credential Service Controller
 汎用AIサービスのCredential管理API
 """
 
+import os
 import connexion
 import inspect
 
@@ -493,15 +494,28 @@ def _validate_by_service(ai_service_id: str, credential_data: dict) -> dict:
     if ai_service_id == "bedrock":
         # AWS Bedrock検証
         import boto3
+        from botocore.config import Config
 
         try:
+            # 環境変数からタイムアウト・リトライ設定を読み取り
+            read_timeout = int(os.getenv("AI_ASSISTANT_READ_TIMEOUT", "120"))
+            connect_timeout = int(os.getenv("AI_ASSISTANT_CONNECT_TIMEOUT", "30"))
+            max_attempts = int(os.getenv("AI_ASSISTANT_MAX_ATTEMPTS", "1"))
+
             session = boto3.Session(
                 aws_access_key_id=credential_data.get("access_key_id"),
                 aws_secret_access_key=credential_data.get("secret_access_key"),
                 aws_session_token=credential_data.get("session_token"),
                 region_name=credential_data.get("region", "ap-northeast-1"),
             )
-            sts = session.client("sts")
+            sts = session.client(
+                "sts",
+                config=Config(
+                    read_timeout=read_timeout,
+                    connect_timeout=connect_timeout,
+                    retries={"max_attempts": max_attempts, "mode": "standard"},
+                ),
+            )
             identity = sts.get_caller_identity()
 
             return {
@@ -587,6 +601,10 @@ def list_models(organization_id, ai_service_id):
         message_id = "404-94012"
         message = multi_lang.get_text(message_id, "Credentialが見つかりません")
         raise common.NotFoundException(message_id=message_id, message=message)
+
+    except common.RequestTimeoutException:
+        # 408 タイムアウト（service層で生成済み）
+        raise
 
     except Exception as e:
         globals.logger.error(f"Failed to list models: {e}", exc_info=True)
