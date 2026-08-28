@@ -249,6 +249,33 @@ SQL_ORGANIZATION_CREATE_TABLES = [
         INDEX IDX_FUNC_ID (JOB_ID)
     )ENGINE = InnoDB, CHARSET = utf8mb4, COLLATE = utf8mb4_bin, ROW_FORMAT=COMPRESSED ,KEY_BLOCK_SIZE=8;
     """,
+    """
+    -- AI Assistant Credential / AI アシスタント 認証情報
+    CREATE TABLE IF NOT EXISTS T_USER_AI_CREDENTIAL
+    (
+        CREDENTIAL_ID                   VARCHAR(36) NOT NULL,                           -- Credential ID (ULID)
+        USER_ID                         VARCHAR(256) NOT NULL,                          -- Keycloak User ID
+        AI_SERVICE_ID                   VARCHAR(64) NOT NULL,                           -- AIサービスID: bedrock, openai, anthropic, etc.
+        CREDENTIAL_NAME                 VARCHAR(255) NOT NULL,                          -- Credential識別名 (ユーザーが設定)
+        ENCRYPTED_CREDENTIAL_DATA       LONGTEXT NOT NULL,                              -- 暗号化されたCredentialデータ (JSON形式)
+        STATUS                          VARCHAR(32) NOT NULL DEFAULT 'active',          -- ステータス: active/expired/disabled
+        EXPIRES_AT                      DATETIME NULL,                                  -- Credential有効期限 (該当する場合)
+        LAST_VALIDATED_AT               DATETIME NULL,                                  -- 最終検証日時
+        LAST_USED_AT                    DATETIME NULL,                                  -- 最終使用日時
+        VALIDATION_ERROR                TEXT NULL,                                      -- 検証エラーメッセージ
+        NOTES                           TEXT NULL,                                      -- 備考・メモ
+        CREATE_TIMESTAMP                DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,    -- 作成日時
+        CREATE_USER                     VARCHAR(40),                                    -- 作成者
+        LAST_UPDATE_TIMESTAMP           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,    -- 最終更新日時
+        LAST_UPDATE_USER                VARCHAR(40),                                    -- 最終更新者
+        PRIMARY KEY (CREDENTIAL_ID),
+        UNIQUE KEY UK_USER_SERVICE_NAME (USER_ID, AI_SERVICE_ID, CREDENTIAL_NAME),
+        INDEX IDX_USER_SERVICE (USER_ID, AI_SERVICE_ID),
+        INDEX IDX_SERVICE_STATUS (AI_SERVICE_ID, STATUS),
+        INDEX IDX_EXPIRES (EXPIRES_AT),
+        INDEX IDX_LAST_USED (LAST_USED_AT)
+    )ENGINE = InnoDB, CHARSET = utf8mb4, COLLATE = utf8mb4_unicode_ci;
+    """,
 ]
 
 SQL_INSERT_ORGANIZATION_DBINFO = """
@@ -311,6 +338,48 @@ SQL_WORKSPACE_CREATE_TABLES = [
         INDEX IDX_CREATE_TIMESTAMP (CREATE_TIMESTAMP),
         INDEX IND_NOTIFICATION_STATUS (NOTIFICATION_STATUS, LAST_UPDATE_TIMESTAMP)
     )ENGINE = InnoDB, CHARSET = utf8mb4, COLLATE = utf8mb4_bin, ROW_FORMAT=COMPRESSED ,KEY_BLOCK_SIZE=8;
+    """,
+    """
+    -- AI Assistant Conversation / AI アシスタント チャット会話
+    CREATE TABLE IF NOT EXISTS T_AI_CONVERSATION
+    (
+        CONVERSATION_ID                 VARCHAR(36) NOT NULL,                           -- Conversation ID (ULID)
+        WORKSPACE_ID                    VARCHAR(36) NOT NULL,                           -- Workspace ID
+        USER_ID                         VARCHAR(256) NOT NULL,                          -- Keycloak User ID
+        TITLE                           VARCHAR(255) NOT NULL,                          -- 会話タイトル
+        STATUS                          VARCHAR(32) NOT NULL DEFAULT 'active',          -- ステータス: active/closed/archived
+        CURRENT_TOKEN_COUNT             INT DEFAULT 0,                                  -- 現在のトークン数（累積）
+        CREATE_TIMESTAMP                DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,    -- 作成日時
+        CREATE_USER                     VARCHAR(40),                                    -- 作成者
+        LAST_UPDATE_TIMESTAMP           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,    -- 最終更新日時
+        LAST_UPDATE_USER                VARCHAR(40),                                    -- 最終更新者
+        PRIMARY KEY (CONVERSATION_ID),
+        INDEX IDX_WORKSPACE_USER (WORKSPACE_ID, USER_ID),
+        INDEX IDX_STATUS (STATUS),
+        INDEX IDX_LAST_UPDATE (LAST_UPDATE_TIMESTAMP)
+    )ENGINE = InnoDB, CHARSET = utf8mb4, COLLATE = utf8mb4_unicode_ci;
+    """,
+    """
+    -- AI Assistant Message / AI アシスタント チャットメッセージ
+    CREATE TABLE IF NOT EXISTS T_AI_MESSAGE
+    (
+        MESSAGE_ID                      VARCHAR(36) NOT NULL,                           -- Message ID (ULID)
+        CONVERSATION_ID                 VARCHAR(36) NOT NULL,                           -- Conversation ID
+        MESSAGE_SEQ                     INT NOT NULL,                                   -- メッセージ順序番号
+        ROLE                            VARCHAR(32) NOT NULL,                           -- ロール: user/assistant/system
+        MESSAGE_TEXT                    LONGTEXT NOT NULL,                              -- メッセージ本文
+        AI_SERVICE_ID                   VARCHAR(64) NULL,                               -- AIサービスID (assistantの場合)
+        AI_MODEL_ID                     VARCHAR(255) NULL,                              -- AIモデルID (assistantの場合)
+        TOKEN_COUNT                     INT DEFAULT 0,                                  -- トークン数
+        CREATE_TIMESTAMP                DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,    -- 作成日時
+        CREATE_USER                     VARCHAR(40),                                    -- 作成者
+        PRIMARY KEY (MESSAGE_ID),
+        UNIQUE KEY UK_CONV_SEQ (CONVERSATION_ID, MESSAGE_SEQ),
+        INDEX IDX_CONVERSATION (CONVERSATION_ID),
+        INDEX IDX_ROLE (ROLE),
+        CONSTRAINT FK_MESSAGE_CONVERSATION FOREIGN KEY (CONVERSATION_ID)
+            REFERENCES T_AI_CONVERSATION(CONVERSATION_ID) ON DELETE CASCADE
+    )ENGINE = InnoDB, CHARSET = utf8mb4, COLLATE = utf8mb4_unicode_ci;
     """
 ]
 
