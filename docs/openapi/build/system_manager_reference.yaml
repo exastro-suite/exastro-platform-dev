@@ -2182,6 +2182,110 @@ components:
                 format: uuid
               create_user_name:
                 type: string
+    aiCredentialInfo:
+      type: object
+      properties:
+        credential_id:
+          type: string
+        ai_service_id:
+          type: string
+          enum:
+            - bedrock-cache
+            - bedrock
+        credential_name:
+          type: string
+        status:
+          type: string
+          enum:
+            - active
+            - expired
+            - disabled
+        expires_at:
+          type: string
+          format: date-time
+        last_validated_at:
+          type: string
+          format: date-time
+        last_used_at:
+          type: string
+          format: date-time
+        validation_error:
+          type: string
+        notes:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    modelInfo:
+      type: object
+      properties:
+        id:
+          type: string
+          description: モデルID
+        name:
+          type: string
+          description: モデル名
+        description:
+          type: string
+          description: モデル説明
+        type:
+          type: string
+          description: プロバイダータイプ
+        status:
+          type: string
+          description: ステータス
+    conversationInfo:
+      type: object
+      properties:
+        conversation_id:
+          type: string
+        title:
+          type: string
+        status:
+          type: string
+          enum:
+            - active
+            - closed
+            - archived
+        current_token_count:
+          type: integer
+        message_count:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    messageInfo:
+      type: object
+      properties:
+        message_id:
+          type: string
+        conversation_id:
+          type: string
+        message_seq:
+          type: integer
+        role:
+          type: string
+          enum:
+            - user
+            - assistant
+            - system
+        message_text:
+          type: string
+        ai_service_id:
+          type: string
+        ai_model_id:
+          type: string
+        token_count:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
   securitySchemes:
     BearerAuth:
       description: Credentials or access token for API

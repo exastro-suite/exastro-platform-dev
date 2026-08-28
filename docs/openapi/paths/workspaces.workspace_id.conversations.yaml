@@ -1,0 +1,143 @@
+#   Copyright 2026 NEC Corporation
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
+
+post:
+  tags:
+    - AIAssistantService
+  summary: 会話を作成
+  description: 新しいチャット会話を作成する
+  operationId: create_conversation
+  x-openapi-router-controller: controllers.ai_assistant_service_controller
+  parameters:
+    - name: organization_id
+      in: path
+      required: true
+      schema:
+        type: string
+    - name: workspace_id
+      in: path
+      required: true
+      schema:
+        type: string
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          required:
+            - title
+          properties:
+            title:
+              type: string
+              description: 会話タイトル
+              example: "Bedrockとのチャット"
+  responses:
+    200:
+      description: 会話作成成功
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '../schemas/responseOk.yaml'
+              - type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      conversation_id:
+                        type: string
+                      title:
+                        type: string
+                      status:
+                        type: string
+    400:
+      description: バリデーションエラー
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/runtimeError.yaml'
+    500:
+      description: サーバーエラー
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/runtimeError.yaml'
+
+get:
+  tags:
+    - AIAssistantService
+  summary: 会話一覧を取得
+  description: ユーザーの会話一覧を取得する
+  operationId: list_conversations
+  x-openapi-router-controller: controllers.ai_assistant_service_controller
+  parameters:
+    - name: organization_id
+      in: path
+      required: true
+      schema:
+        type: string
+    - name: workspace_id
+      in: path
+      required: true
+      schema:
+        type: string
+    - name: status
+      in: query
+      required: false
+      schema:
+        type: string
+        enum: [active, closed, archived]
+      description: ステータスフィルター
+    - name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        default: 50
+      description: 取得件数
+    - name: offset
+      in: query
+      required: false
+      schema:
+        type: integer
+        default: 0
+      description: オフセット
+  responses:
+    200:
+      description: 成功
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '../schemas/responseOk.yaml'
+              - type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      conversations:
+                        type: array
+                        items:
+                          $ref: '../schemas/conversationInfo.yaml'
+                      count:
+                        type: integer
+                      total_count:
+                        type: integer
+    default:
+      description: An unexpected error response.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/runtimeError.yaml'

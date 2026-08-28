@@ -182,3 +182,11 @@ serviceAccountUserUpdate:
   $ref: "./serviceAccountUserUpdate.yaml"
 serviceAccountUserTokenList:
   $ref: "./serviceAccountUserTokenList.yaml"
+aiCredentialInfo:
+  $ref: "./aiCredentialInfo.yaml"
+modelInfo:
+  $ref: "./modelInfo.yaml"
+conversationInfo:
+  $ref: "./conversationInfo.yaml"
+messageInfo:
+  $ref: "./messageInfo.yaml"

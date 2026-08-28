@@ -74,6 +74,8 @@ tags:
   description: 監査ログに関する操作
 - name: ServiceAccountUsersService
   description: サービスアカウントユーザーに関する操作
+- name: AIAssistantService
+  description: AIアシスタントに関する操作
 - name: InternalCommonService
   description: 共通(内部用)
 - name: InternalPlanService
@@ -129,6 +131,15 @@ paths:
   "/api/{organization_id}/platform/settings/common/{config_key}":
       $ref: './paths/common.settings.organizations.common.config.yaml'
 
+  "/api/{organization_id}/platform/users/_current/{ai_service_id}/credentials":
+      $ref: './paths/users._current.ai_service_id.credentials.yaml'
+  "/api/{organization_id}/platform/users/_current/{ai_service_id}/credentials/{credential_id}":
+      $ref: './paths/users._current.ai_service_id.credentials.credential_id.yaml'
+  "/api/{organization_id}/platform/users/_current/{ai_service_id}/credentials/{credential_id}/validate":
+      $ref: './paths/users._current.ai_service_id.credentials.credential_id.validate.yaml'
+  "/api/{organization_id}/platform/users/_current/{ai_service_id}/models":
+      $ref: './paths/users._current.ai_service_id.models.yaml'
+
   "/api/{organization_id}/platform/workspaces":
       $ref: './paths/workspaces.yaml'
   "/api/{organization_id}/platform/workspaces/{workspace_id}":
@@ -147,6 +158,11 @@ paths:
 
   # "/api/{organization_id}/platform/workspaces/{workspace_id}/notifications/{notifications_id}":
   #     $ref: './paths/workspaces.workspace_id.notifications.notification_id.yaml'
+
+  "/api/{organization_id}/platform/workspaces/{workspace_id}/conversations":
+      $ref: './paths/workspaces.workspace_id.conversations.yaml'
+  "/api/{organization_id}/platform/workspaces/{workspace_id}/conversations/{conversation_id}/messages":
+      $ref: './paths/workspaces.workspace_id.conversations.conversation_id.messages.yaml'
 
   "/api/{organization_id}/platform/users":
       $ref: './paths/users.yaml'

@@ -1,0 +1,178 @@
+#   Copyright 2026 NEC Corporation
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
+
+get:
+  tags:
+    - AIAssistantService
+  summary: メッセージ一覧を取得
+  description: 会話のメッセージ履歴を取得する
+  operationId: list_messages
+  x-openapi-router-controller: controllers.ai_assistant_service_controller
+  parameters:
+    - name: organization_id
+      in: path
+      required: true
+      schema:
+        type: string
+    - name: workspace_id
+      in: path
+      required: true
+      schema:
+        type: string
+    - name: conversation_id
+      in: path
+      required: true
+      schema:
+        type: string
+    - name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        default: 100
+      description: 取得件数
+    - name: offset
+      in: query
+      required: false
+      schema:
+        type: integer
+        default: 0
+      description: オフセット(message_seq基準)
+  responses:
+    200:
+      description: 成功
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '../schemas/responseOk.yaml'
+              - type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      messages:
+                        type: array
+                        items:
+                          $ref: '../schemas/messageInfo.yaml'
+                      count:
+                        type: integer
+                      conversation_id:
+                        type: string
+    404:
+      description: 会話が見つからない
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/runtimeError.yaml'
+    default:
+      description: An unexpected error response.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/runtimeError.yaml'
+
+post:
+  tags:
+    - AIAssistantService
+  summary: メッセージを送信
+  description: ユーザーメッセージを送信し、AIから応答を取得する
+  operationId: send_message
+  x-openapi-router-controller: controllers.ai_assistant_service_controller
+  parameters:
+    - name: organization_id
+      in: path
+      required: true
+      schema:
+        type: string
+    - name: workspace_id
+      in: path
+      required: true
+      schema:
+        type: string
+    - name: conversation_id
+      in: path
+      required: true
+      schema:
+        type: string
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          required:
+            - message
+          properties:
+            message:
+              type: string
+              description: ユーザーメッセージ
+              example: "こんにちは、Bedrockのテストです"
+            model_id:
+              type: string
+              description: 使用するモデルID(省略時はデフォルト)
+              example: "anthropic.claude-3-5-sonnet-20240620-v1:0"
+            ai_service_id:
+              type: string
+              description: AIサービスID(省略時は'bedrock')
+              default: "bedrock"
+  responses:
+    200:
+      description: メッセージ送信成功
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '../schemas/responseOk.yaml'
+              - type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      conversation_id:
+                        type: string
+                      user_message_id:
+                        type: string
+                      assistant_message_id:
+                        type: string
+                      content:
+                        type: string
+                        description: AIの応答
+                      usage:
+                        type: object
+                        properties:
+                          input_tokens:
+                            type: integer
+                          output_tokens:
+                            type: integer
+                          total_tokens:
+                            type: integer
+    400:
+      description: バリデーションエラー
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/runtimeError.yaml'
+    404:
+      description: 会話が見つからない
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/runtimeError.yaml'
+    500:
+      description: サーバーエラー
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/runtimeError.yaml'
