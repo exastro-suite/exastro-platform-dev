@@ -35,7 +35,10 @@ from services.ai_assistant.aws_session_manager import (
 from ai_providers.base import (
     AIProviderTimeoutError,
     AIProviderValidationError,
+    AIRequest,
+    AIMessage,
 )
+from ai_providers.factory import create_ai_provider, UnsupportedAIServiceError
 
 import globals
 
@@ -58,42 +61,43 @@ class ConversationService:
         workspace_id: str,
         user_id: str,
         title: str,
+        service_id: str = "LLMEditor",
     ) -> str:
         """
         会話を作成
 
         Args:
-            organization_id: Organization ID
-            workspace_id: Workspace ID
+            organization_id: Organization ID (DB接続用、テーブルには保存しない)
+            workspace_id: Workspace ID (DB接続用、テーブルには保存しない)
             user_id: User ID
             title: 会話タイトル
+            service_id: サービスID（AgenticAI/LLMEditor）
 
         Returns:
             str: Conversation ID
         """
         conversation_id = ulid.new().str
 
-        with closing(DBconnector().connect_platformdb()) as conn:
+        with closing(DBconnector().connect_workspacedb(organization_id, workspace_id)) as conn:
             with closing(conn.cursor()) as cursor:
                 cursor.execute(
                     """
                     INSERT INTO T_CHAT_CONVERSATION
                     (
-                        CONVERSATION_ID, ORGANIZATION_ID, WORKSPACE_ID, USER_ID, TITLE,
+                        CONVERSATION_ID, SERVICE_ID, USER_ID, TITLE,
                         STATUS,
                         CREATE_TIMESTAMP, CREATE_USER,
                         LAST_UPDATE_TIMESTAMP, LAST_UPDATE_USER
                     )
                     VALUES
                     (
-                        %s, %s, %s, %s, %s, 'active',
+                        %s, %s, %s, %s, 'active',
                         NOW(), %s, NOW(), %s
                     )
                     """,
                     (
                         conversation_id,
-                        organization_id,
-                        workspace_id,
+                        service_id,
                         user_id,
                         title,
                         user_id,
@@ -114,6 +118,7 @@ class ConversationService:
         organization_id: str,
         workspace_id: str,
         user_id: str,
+        service_id: Optional[str] = None,
         status: Optional[str] = None,
         limit: int = 50,
         offset: int = 0,
@@ -122,9 +127,10 @@ class ConversationService:
         会話一覧を取得
 
         Args:
-            organization_id: Organization ID
-            workspace_id: Workspace ID
+            organization_id: Organization ID (DB接続用、テーブルには保存しない)
+            workspace_id: Workspace ID (DB接続用、テーブルには保存しない)
             user_id: User ID
+            service_id: サービスID（AgenticAI/LLMEditor）フィルター (オプション)
             status: ステータスフィルター (オプション)
             limit: 取得件数
             offset: オフセット
@@ -132,39 +138,37 @@ class ConversationService:
         Returns:
             List[Dict]: 会話一覧
         """
-        with closing(DBconnector().connect_platformdb()) as conn:
+        with closing(DBconnector().connect_workspacedb(organization_id, workspace_id)) as conn:
             with closing(conn.cursor()) as cursor:
-                # メッセージ数をサブクエリで取得
+                # WHERE句を動的に構築
+                where_conditions = ["c.USER_ID = %s"]
+                params = [user_id]
+
+                if service_id:
+                    where_conditions.append("c.SERVICE_ID = %s")
+                    params.append(service_id)
+
                 if status:
-                    cursor.execute(
-                        """
-                        SELECT
-                            c.CONVERSATION_ID, c.TITLE, c.STATUS,
-                            c.CURRENT_TOKEN_COUNT, c.CREATE_TIMESTAMP, c.LAST_UPDATE_TIMESTAMP,
-                            (SELECT COUNT(*) FROM T_CHAT_MESSAGE m
-                             WHERE m.CONVERSATION_ID = c.CONVERSATION_ID) AS MESSAGE_COUNT
-                        FROM T_CHAT_CONVERSATION c
-                        WHERE c.ORGANIZATION_ID = %s AND c.WORKSPACE_ID = %s AND c.USER_ID = %s AND c.STATUS = %s
-                        ORDER BY c.LAST_UPDATE_TIMESTAMP DESC
-                        LIMIT %s OFFSET %s
-                        """,
-                        (organization_id, workspace_id, user_id, status, limit, offset),
-                    )
-                else:
-                    cursor.execute(
-                        """
-                        SELECT
-                            c.CONVERSATION_ID, c.TITLE, c.STATUS,
-                            c.CURRENT_TOKEN_COUNT, c.CREATE_TIMESTAMP, c.LAST_UPDATE_TIMESTAMP,
-                            (SELECT COUNT(*) FROM T_CHAT_MESSAGE m
-                             WHERE m.CONVERSATION_ID = c.CONVERSATION_ID) AS MESSAGE_COUNT
-                        FROM T_CHAT_CONVERSATION c
-                        WHERE c.ORGANIZATION_ID = %s AND c.WORKSPACE_ID = %s AND c.USER_ID = %s
-                        ORDER BY c.LAST_UPDATE_TIMESTAMP DESC
-                        LIMIT %s OFFSET %s
-                        """,
-                        (organization_id, workspace_id, user_id, limit, offset),
-                    )
+                    where_conditions.append("c.STATUS = %s")
+                    params.append(status)
+
+                where_clause = " AND ".join(where_conditions)
+                params.extend([limit, offset])
+
+                cursor.execute(
+                    f"""
+                    SELECT
+                        c.CONVERSATION_ID, c.SERVICE_ID, c.TITLE, c.STATUS,
+                        c.CURRENT_TOKEN_COUNT, c.CREATE_TIMESTAMP, c.LAST_UPDATE_TIMESTAMP,
+                        (SELECT COUNT(*) FROM T_CHAT_MESSAGE m
+                         WHERE m.CONVERSATION_ID = c.CONVERSATION_ID) AS MESSAGE_COUNT
+                    FROM T_CHAT_CONVERSATION c
+                    WHERE {where_clause}
+                    ORDER BY c.LAST_UPDATE_TIMESTAMP DESC
+                    LIMIT %s OFFSET %s
+                    """,
+                    params,
+                )
 
                 conversations = cursor.fetchall()
 
@@ -188,8 +192,8 @@ class ConversationService:
         メッセージ一覧を取得
 
         Args:
-            organization_id: Organization ID
-            workspace_id: Workspace ID
+            organization_id: Organization ID (DB接続用、テーブルには保存しない)
+            workspace_id: Workspace ID (DB接続用、テーブルには保存しない)
             user_id: User ID
             conversation_id: Conversation ID
             limit: 取得件数
@@ -201,23 +205,22 @@ class ConversationService:
         Raises:
             ConversationNotFound: 会話が見つからない
         """
-        with closing(DBconnector().connect_platformdb()) as conn:
+        with closing(DBconnector().connect_workspacedb(organization_id, workspace_id)) as conn:
             with closing(conn.cursor()) as cursor:
                 # 会話の存在確認
                 cursor.execute(
                     """
                     SELECT CONVERSATION_ID
                     FROM T_CHAT_CONVERSATION
-                    WHERE CONVERSATION_ID = %s AND ORGANIZATION_ID = %s AND USER_ID = %s
+                    WHERE CONVERSATION_ID = %s AND USER_ID = %s
                     """,
-                    (conversation_id, organization_id, user_id),
+                    (conversation_id, user_id),
                 )
                 conversation = cursor.fetchone()
 
                 if not conversation:
                     raise ConversationNotFound(
-                        f"Conversation not found: id={conversation_id}, "
-                        f"org={organization_id}, user={user_id}"
+                        f"Conversation not found: id={conversation_id}, user={user_id}"
                     )
 
                 # メッセージ一覧取得
@@ -258,8 +261,8 @@ class ConversationService:
         メッセージを送信してAI応答を取得
 
         Args:
-            organization_id: Organization ID
-            workspace_id: Workspace ID
+            organization_id: Organization ID (DB接続用、テーブルには保存しない)
+            workspace_id: Workspace ID (DB接続用、テーブルには保存しない)
             user_id: User ID
             conversation_id: Conversation ID
             message_text: ユーザーメッセージ
@@ -272,23 +275,22 @@ class ConversationService:
         Raises:
             ConversationNotFound: 会話が見つからない
         """
-        with closing(DBconnector().connect_platformdb()) as conn:
+        with closing(DBconnector().connect_workspacedb(organization_id, workspace_id)) as conn:
             with closing(conn.cursor()) as cursor:
                 # 会話の存在確認
                 cursor.execute(
                     """
                     SELECT CONVERSATION_ID
                     FROM T_CHAT_CONVERSATION
-                    WHERE CONVERSATION_ID = %s AND ORGANIZATION_ID = %s AND USER_ID = %s
+                    WHERE CONVERSATION_ID = %s AND USER_ID = %s
                     """,
-                    (conversation_id, organization_id, user_id),
+                    (conversation_id, user_id),
                 )
                 conversation = cursor.fetchone()
 
                 if not conversation:
                     raise ConversationNotFound(
-                        f"Conversation not found: id={conversation_id}, "
-                        f"org={organization_id}, user={user_id}"
+                        f"Conversation not found: id={conversation_id}, user={user_id}"
                     )
 
                 # 次のメッセージSEQを取得
@@ -504,15 +506,22 @@ class ConversationService:
                     if latest_token:
                         # トークンが更新された場合、Credentialデータも一緒に保存
                         credential_service.update_last_used(
-                            credential.credential_id,
+                            organization_id=organization_id,
+                            credential_id=credential.credential_id,
                             credential_data=latest_token
                         )
                     else:
                         # トークンは更新されていないが、LAST_USED_ATは更新
-                        credential_service.update_last_used(credential.credential_id)
+                        credential_service.update_last_used(
+                            organization_id=organization_id,
+                            credential_id=credential.credential_id
+                        )
                 else:
                     # bedrock（固定トークン）の場合、LAST_USED_ATのみ更新
-                    credential_service.update_last_used(credential.credential_id)
+                    credential_service.update_last_used(
+                        organization_id=organization_id,
+                        credential_id=credential.credential_id
+                    )
 
             return {
                 "conversation_id": conversation_id,
@@ -556,6 +565,272 @@ class ConversationService:
 
         except Exception as e:
             globals.logger.error(f"Failed to call Bedrock: {e}", exc_info=True)
+            raise
+
+    def send_message_v2(
+        self,
+        organization_id: str,
+        workspace_id: str,
+        user_id: str,
+        conversation_id: str,
+        message_text: str,
+        model_id: str = "anthropic.claude-3-5-sonnet-20240620-v1:0",
+        ai_service_id: str = "bedrock",
+        system_prompt: Optional[str] = None,
+        max_tokens: int = 4096,
+        temperature: float = 0.7,
+    ) -> Dict:
+        """
+        メッセージを送信してAI応答を取得（汎用版）
+
+        Args:
+            organization_id: Organization ID (DB接続用、テーブルには保存しない)
+            workspace_id: Workspace ID (DB接続用、テーブルには保存しない)
+            user_id: User ID
+            conversation_id: Conversation ID
+            message_text: ユーザーメッセージ
+            model_id: AIモデルID
+            ai_service_id: AIサービスID (bedrock, openai, gemini等)
+            system_prompt: システムプロンプト（オプション）
+            max_tokens: 最大トークン数
+            temperature: Temperature
+
+        Returns:
+            Dict: 送信結果
+
+        Raises:
+            ConversationNotFound: 会話が見つからない
+        """
+        with closing(DBconnector().connect_workspacedb(organization_id, workspace_id)) as conn:
+            with closing(conn.cursor()) as cursor:
+                # 会話の存在確認
+                cursor.execute(
+                    """
+                    SELECT CONVERSATION_ID
+                    FROM T_CHAT_CONVERSATION
+                    WHERE CONVERSATION_ID = %s AND USER_ID = %s
+                    """,
+                    (conversation_id, user_id),
+                )
+                conversation = cursor.fetchone()
+
+                if not conversation:
+                    raise ConversationNotFound(
+                        f"Conversation not found: id={conversation_id}, user={user_id}"
+                    )
+
+                # 次のメッセージSEQを取得
+                cursor.execute(
+                    """
+                    SELECT COALESCE(MAX(MESSAGE_SEQ), 0) + 1 AS next_seq
+                    FROM T_CHAT_MESSAGE
+                    WHERE CONVERSATION_ID = %s
+                    """,
+                    (conversation_id,),
+                )
+                result = cursor.fetchone()
+                next_seq = result["next_seq"]
+
+                # ユーザーメッセージを保存
+                user_message_id = ulid.new().str
+                cursor.execute(
+                    """
+                    INSERT INTO T_CHAT_MESSAGE
+                    (
+                        MESSAGE_ID, CONVERSATION_ID, MESSAGE_SEQ, ROLE,
+                        MESSAGE_TEXT, TOKEN_COUNT,
+                        CREATE_TIMESTAMP, CREATE_USER
+                    )
+                    VALUES
+                    (
+                        %s, %s, %s, 'user',
+                        %s, 0,
+                        NOW(), %s
+                    )
+                    """,
+                    (
+                        user_message_id,
+                        conversation_id,
+                        next_seq,
+                        message_text,
+                        user_id,
+                    ),
+                )
+
+                # 会話履歴を取得
+                cursor.execute(
+                    """
+                    SELECT ROLE, MESSAGE_TEXT
+                    FROM T_CHAT_MESSAGE
+                    WHERE CONVERSATION_ID = %s
+                    ORDER BY MESSAGE_SEQ ASC
+                    """,
+                    (conversation_id,),
+                )
+                history = cursor.fetchall()
+
+                conn.commit()
+
+        # AI プロバイダーを呼び出し
+        try:
+            # Credentialを取得
+            credential_service = get_ai_credential_service()
+            credential = credential_service.get_credential(
+                organization_id=organization_id,
+                user_id=user_id,
+                ai_service_id=ai_service_id,
+            )
+
+            # タイムアウト設定
+            timeout = int(os.getenv("AI_ASSISTANT_READ_TIMEOUT", "120"))
+
+            # AI Providerを作成
+            provider = create_ai_provider(
+                ai_service_id=ai_service_id,
+                credential_data=credential.credential_data,
+                timeout_seconds=timeout,
+            )
+
+            # AIRequestを構築
+            messages = []
+            for msg in history:
+                messages.append(
+                    AIMessage(
+                        role=msg["ROLE"],
+                        content=msg["MESSAGE_TEXT"],
+                    )
+                )
+
+            ai_request = AIRequest(
+                messages=messages,
+                model_id=model_id,
+                system=system_prompt,
+                max_tokens=max_tokens,
+                temperature=temperature,
+            )
+
+            # AI呼び出し
+            response = provider.converse(ai_request)
+
+            # アシスタントメッセージを保存
+            assistant_message_id = ulid.new().str
+            assistant_content = response.content
+            input_tokens = response.usage.input_tokens
+            output_tokens = response.usage.output_tokens
+
+            with closing(DBconnector().connect_workspacedb(organization_id, workspace_id)) as conn:
+                with closing(conn.cursor()) as cursor:
+                    cursor.execute(
+                        """
+                        INSERT INTO T_CHAT_MESSAGE
+                        (
+                            MESSAGE_ID, CONVERSATION_ID, MESSAGE_SEQ, ROLE,
+                            MESSAGE_TEXT, AI_SERVICE_ID, AI_MODEL_ID,
+                            TOKEN_COUNT,
+                            CREATE_TIMESTAMP, CREATE_USER
+                        )
+                        VALUES
+                        (
+                            %s, %s, %s, 'assistant',
+                            %s, %s, %s,
+                            %s,
+                            NOW(), %s
+                        )
+                        """,
+                        (
+                            assistant_message_id,
+                            conversation_id,
+                            next_seq + 1,
+                            assistant_content,
+                            ai_service_id,
+                            model_id,
+                            output_tokens,
+                            user_id,
+                        ),
+                    )
+
+                    # 会話のトークン数を更新
+                    cursor.execute(
+                        """
+                        UPDATE T_CHAT_CONVERSATION
+                        SET CURRENT_TOKEN_COUNT = CURRENT_TOKEN_COUNT + %s,
+                            ACTIVE_TOKEN_COUNT = ACTIVE_TOKEN_COUNT + %s,
+                            LAST_UPDATE_TIMESTAMP = NOW(),
+                            LAST_UPDATE_USER = %s
+                        WHERE CONVERSATION_ID = %s
+                        """,
+                        (
+                            input_tokens + output_tokens,
+                            input_tokens + output_tokens,
+                            user_id,
+                            conversation_id,
+                        ),
+                    )
+
+                    conn.commit()
+
+            globals.logger.debug(
+                f"Message sent and response received (v2): "
+                f"conv={conversation_id}, "
+                f"provider={provider.get_provider_name()}, "
+                f"user_msg={user_message_id}, "
+                f"assistant_msg={assistant_message_id}, "
+                f"tokens={input_tokens}+{output_tokens}"
+            )
+
+            # 最終使用日時更新
+            credential_service.update_last_used(
+                organization_id=organization_id,
+                credential_id=credential.credential_id
+            )
+
+            return {
+                "conversation_id": conversation_id,
+                "user_message_id": user_message_id,
+                "assistant_message_id": assistant_message_id,
+                "content": assistant_content,
+                "usage": {
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens,
+                    "total_tokens": input_tokens + output_tokens,
+                },
+                "provider": provider.get_provider_name(),
+            }
+
+        except AIProviderTimeoutError as e:
+            # タイムアウト → 408
+            globals.logger.error(f"AI provider request timeout: {e}")
+            message_id = "408-94105"
+            message = f"AI サービスへのリクエストがタイムアウトしました: {str(e)}"
+            raise common.RequestTimeoutException(
+                message_id=message_id, message=message
+            ) from e
+
+        except AIProviderValidationError as e:
+            # maxTokens 超過などのバリデーションエラー → 413
+            error_message = str(e)
+            if "maxTokens" in error_message or "token" in error_message.lower():
+                globals.logger.error(f"AI provider payload too large: {e}")
+                message_id = "413-94106"
+                message = f"リクエストのペイロードが大きすぎます: {str(e)}"
+                raise common.PayloadTooLargeException(
+                    message_id=message_id, message=message
+                ) from e
+            else:
+                # その他のバリデーションエラーは 400
+                globals.logger.error(f"AI provider validation error: {e}")
+                raise
+
+        except CredentialNotFound as e:
+            globals.logger.error(f"Credential not found: {e}")
+            raise Exception(f"AI Credentialが登録されていません（{ai_service_id}）。先にCredentialを登録してください。")
+
+        except UnsupportedAIServiceError as e:
+            globals.logger.error(f"Unsupported AI service: {e}")
+            raise Exception(f"サポートされていないAIサービスです: {ai_service_id}")
+
+        except Exception as e:
+            globals.logger.error(f"Failed to call AI provider: {e}", exc_info=True)
             raise
 
 

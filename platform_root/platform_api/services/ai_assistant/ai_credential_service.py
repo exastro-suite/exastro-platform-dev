@@ -68,7 +68,7 @@ class AiCredentialService:
         Credentialを登録
 
         Args:
-            organization_id: Organization ID
+            organization_id: Organization ID (DB接続用、テーブルには保存しない)
             user_id: User ID
             ai_service_id: AIサービスID (bedrock, openai, anthropic, etc.)
             credential_name: Credential名
@@ -94,13 +94,13 @@ class AiCredentialService:
             except Exception as e:
                 globals.logger.warning(f"Failed to parse expires_at: {e}")
 
-        with closing(DBconnector().connect_platformdb()) as conn:
+        with closing(DBconnector().connect_orgdb(organization_id)) as conn:
             with closing(conn.cursor()) as cursor:
                 cursor.execute(
                     """
                     INSERT INTO T_USER_AI_CREDENTIAL
                     (
-                        CREDENTIAL_ID, ORGANIZATION_ID, USER_ID,
+                        CREDENTIAL_ID, USER_ID,
                         AI_SERVICE_ID, CREDENTIAL_NAME,
                         ENCRYPTED_CREDENTIAL_DATA,
                         STATUS, EXPIRES_AT, NOTES,
@@ -109,7 +109,7 @@ class AiCredentialService:
                     )
                     VALUES
                     (
-                        %s, %s, %s,
+                        %s, %s,
                         %s, %s,
                         %s,
                         'active', %s, %s,
@@ -119,7 +119,6 @@ class AiCredentialService:
                     """,
                     (
                         credential_id,
-                        organization_id,
                         user_id,
                         ai_service_id,
                         credential_name,
@@ -134,7 +133,7 @@ class AiCredentialService:
 
         globals.logger.debug(
             f"AI Credential registered: id={credential_id}, "
-            f"service={ai_service_id}, org={organization_id}, user={user_id}"
+            f"service={ai_service_id}, user={user_id}"
         )
 
         return credential_id
@@ -150,7 +149,7 @@ class AiCredentialService:
         Credentialを取得
 
         Args:
-            organization_id: Organization ID
+            organization_id: Organization ID (DB接続用、テーブルには保存しない)
             user_id: User ID
             ai_service_id: AIサービスID
             credential_id: Credential ID（省略時は最新のactiveなものを取得）
@@ -161,7 +160,7 @@ class AiCredentialService:
         Raises:
             CredentialNotFound: Credentialが見つからない
         """
-        with closing(DBconnector().connect_platformdb()) as conn:
+        with closing(DBconnector().connect_orgdb(organization_id)) as conn:
             with closing(conn.cursor()) as cursor:
                 if credential_id:
                     # 特定のCredentialを取得
@@ -173,11 +172,10 @@ class AiCredentialService:
                             STATUS, EXPIRES_AT, LAST_USED_AT
                         FROM T_USER_AI_CREDENTIAL
                         WHERE CREDENTIAL_ID = %s
-                          AND ORGANIZATION_ID = %s
                           AND USER_ID = %s
                           AND AI_SERVICE_ID = %s
                         """,
-                        (credential_id, organization_id, user_id, ai_service_id),
+                        (credential_id, user_id, ai_service_id),
                     )
                 else:
                     # 最新のactiveなCredentialを取得
@@ -188,14 +186,13 @@ class AiCredentialService:
                             ENCRYPTED_CREDENTIAL_DATA,
                             STATUS, EXPIRES_AT, LAST_USED_AT
                         FROM T_USER_AI_CREDENTIAL
-                        WHERE ORGANIZATION_ID = %s
-                          AND USER_ID = %s
+                        WHERE USER_ID = %s
                           AND AI_SERVICE_ID = %s
                           AND STATUS = 'active'
                         ORDER BY CREATE_TIMESTAMP DESC
                         LIMIT 1
                         """,
-                        (organization_id, user_id, ai_service_id),
+                        (user_id, ai_service_id),
                     )
 
                 row = cursor.fetchone()
@@ -203,7 +200,7 @@ class AiCredentialService:
                 if not row:
                     raise CredentialNotFound(
                         f"Credential not found: service={ai_service_id}, "
-                        f"org={organization_id}, user={user_id}"
+                        f"user={user_id}"
                     )
 
                 # Credentialデータを復号化
@@ -232,7 +229,7 @@ class AiCredentialService:
         Credential一覧を取得
 
         Args:
-            organization_id: Organization ID
+            organization_id: Organization ID (DB接続用、テーブルには保存しない)
             user_id: User ID
             ai_service_id: AIサービスID
             status: ステータスフィルター
@@ -240,7 +237,7 @@ class AiCredentialService:
         Returns:
             Credential一覧（Credentialデータは含まない）
         """
-        with closing(DBconnector().connect_platformdb()) as conn:
+        with closing(DBconnector().connect_orgdb(organization_id)) as conn:
             with closing(conn.cursor()) as cursor:
                 query = """
                     SELECT
@@ -250,11 +247,10 @@ class AiCredentialService:
                         VALIDATION_ERROR, NOTES,
                         CREATE_TIMESTAMP, LAST_UPDATE_TIMESTAMP
                     FROM T_USER_AI_CREDENTIAL
-                    WHERE ORGANIZATION_ID = %s
-                      AND USER_ID = %s
+                    WHERE USER_ID = %s
                       AND AI_SERVICE_ID = %s
                 """
-                params = [organization_id, user_id, ai_service_id]
+                params = [user_id, ai_service_id]
 
                 if status:
                     query += " AND STATUS = %s"
@@ -278,7 +274,7 @@ class AiCredentialService:
         Credentialを削除
 
         Args:
-            organization_id: Organization ID
+            organization_id: Organization ID (DB接続用、テーブルには保存しない)
             user_id: User ID
             ai_service_id: AIサービスID
             credential_id: Credential ID
@@ -286,17 +282,16 @@ class AiCredentialService:
         Returns:
             削除成功したかどうか
         """
-        with closing(DBconnector().connect_platformdb()) as conn:
+        with closing(DBconnector().connect_orgdb(organization_id)) as conn:
             with closing(conn.cursor()) as cursor:
                 cursor.execute(
                     """
                     DELETE FROM T_USER_AI_CREDENTIAL
                     WHERE CREDENTIAL_ID = %s
-                      AND ORGANIZATION_ID = %s
                       AND USER_ID = %s
                       AND AI_SERVICE_ID = %s
                     """,
-                    (credential_id, organization_id, user_id, ai_service_id),
+                    (credential_id, user_id, ai_service_id),
                 )
                 deleted = cursor.rowcount > 0
                 conn.commit()
@@ -304,7 +299,7 @@ class AiCredentialService:
         if deleted:
             globals.logger.debug(
                 f"AI Credential deleted: id={credential_id}, "
-                f"service={ai_service_id}, org={organization_id}, user={user_id}"
+                f"service={ai_service_id}, user={user_id}"
             )
 
         return deleted
@@ -323,7 +318,7 @@ class AiCredentialService:
         Credentialを更新（部分更新）
 
         Args:
-            organization_id: Organization ID
+            organization_id: Organization ID (DB接続用、テーブルには保存しない)
             user_id: User ID
             ai_service_id: AIサービスID
             credential_id: Credential ID
@@ -334,7 +329,7 @@ class AiCredentialService:
         Returns:
             更新成功したかどうか
         """
-        with closing(DBconnector().connect_platformdb()) as conn:
+        with closing(DBconnector().connect_orgdb(organization_id)) as conn:
             with closing(conn.cursor()) as cursor:
                 # 更新するフィールドを動的に構築
                 update_fields = []
@@ -361,13 +356,12 @@ class AiCredentialService:
                 params.append(user_id)
 
                 # WHERE句のパラメータ
-                params.extend([credential_id, organization_id, user_id, ai_service_id])
+                params.extend([credential_id, user_id, ai_service_id])
 
                 query = f"""
                     UPDATE T_USER_AI_CREDENTIAL
                     SET {', '.join(update_fields)}
                     WHERE CREDENTIAL_ID = %s
-                      AND ORGANIZATION_ID = %s
                       AND USER_ID = %s
                       AND AI_SERVICE_ID = %s
                 """
@@ -379,7 +373,7 @@ class AiCredentialService:
         if updated:
             globals.logger.debug(
                 f"AI Credential updated: id={credential_id}, "
-                f"service={ai_service_id}, org={organization_id}, user={user_id}, "
+                f"service={ai_service_id}, user={user_id}, "
                 f"fields={[k.split('=')[0].strip() for k in update_fields if '=' in k]}"
             )
 
@@ -387,6 +381,7 @@ class AiCredentialService:
 
     def update_last_used(
         self,
+        organization_id: str,
         credential_id: str,
         credential_data: Optional[dict] = None,
     ) -> None:
@@ -394,11 +389,12 @@ class AiCredentialService:
         最終使用日時を更新（オプションでCredentialデータも更新）
 
         Args:
+            organization_id: Organization ID (DB接続用、テーブルには保存しない)
             credential_id: Credential ID
             credential_data: 更新するCredentialデータ（Noneの場合は最終使用日時のみ更新）
                            aws-cacheの場合、トークン自動更新後の最新データを渡す
         """
-        with closing(DBconnector().connect_platformdb()) as conn:
+        with closing(DBconnector().connect_orgdb(organization_id)) as conn:
             with closing(conn.cursor()) as cursor:
                 if credential_data:
                     # Credentialデータと最終使用日時を更新

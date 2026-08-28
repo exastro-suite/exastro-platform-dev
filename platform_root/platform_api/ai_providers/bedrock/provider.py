@@ -230,6 +230,10 @@ class BedrockProvider(AIProvider):
                 "messages": self._build_messages(request.messages, caps),
             }
 
+            # System プロンプト
+            if request.system:
+                converse_params["system"] = [{"text": request.system}]
+
             # Inference Configuration
             inference_config = {}
             if request.max_tokens is not None:

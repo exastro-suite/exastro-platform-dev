@@ -44,6 +44,7 @@ class AIRequest:
     """AI呼び出しリクエスト"""
     messages: List[AIMessage]
     model_id: str
+    system: Optional[str] = None  # システムプロンプト
     max_tokens: Optional[int] = None
     temperature: Optional[float] = None
     top_p: Optional[float] = None
