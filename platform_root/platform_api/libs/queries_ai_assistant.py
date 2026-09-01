@@ -1,0 +1,264 @@
+#   Copyright 2026 NEC Corporation
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
+
+"""
+AI Assistant SQL Queries
+
+AI Assistant機能で使用するSQLクエリ定義
+"""
+
+# ==================== Conversation ====================
+
+SQL_SELECT_CONVERSATION = """
+SELECT CONVERSATION_ID, AI_SERVICE_ID, SERVICE_ID
+FROM T_CHAT_CONVERSATION
+WHERE CONVERSATION_ID = %(conversation_id)s AND USER_ID = %(user_id)s
+"""
+
+SQL_SELECT_CONVERSATION_FOR_CREATE = """
+SELECT CONVERSATION_ID, SERVICE_ID, AI_SERVICE_ID, TITLE, STATUS
+FROM T_CHAT_CONVERSATION
+WHERE CONVERSATION_ID = %(conversation_id)s
+"""
+
+SQL_INSERT_CONVERSATION = """
+INSERT INTO T_CHAT_CONVERSATION
+(
+    CONVERSATION_ID, SERVICE_ID, WORKSPACE_ID, USER_ID, AI_SERVICE_ID,
+    TITLE, STATUS, CURRENT_TOKEN_COUNT,
+    CREATE_TIMESTAMP, CREATE_USER, LAST_UPDATE_TIMESTAMP, LAST_UPDATE_USER
+)
+VALUES (
+    %(conversation_id)s, %(service_id)s, %(workspace_id)s, %(user_id)s, %(ai_service_id)s,
+    %(title)s, 'active', 0,
+    NOW(), %(user_id)s, NOW(), %(user_id)s
+)
+"""
+
+SQL_SELECT_USER_ACTIVE_CREDENTIAL = """
+SELECT AI_SERVICE_ID
+FROM T_USER_AI_CREDENTIAL
+WHERE USER_ID = %(user_id)s AND STATUS = 'active'
+ORDER BY CREATE_TIMESTAMP DESC
+LIMIT 1
+"""
+
+SQL_LIST_CONVERSATIONS = """
+SELECT
+    c.CONVERSATION_ID, c.SERVICE_ID, c.AI_SERVICE_ID, c.TITLE, c.STATUS,
+    c.CURRENT_TOKEN_COUNT, c.CREATE_TIMESTAMP, c.LAST_UPDATE_TIMESTAMP,
+    COUNT(m.MESSAGE_ID) AS MESSAGE_COUNT
+FROM T_CHAT_CONVERSATION c
+LEFT JOIN T_CHAT_MESSAGE m ON c.CONVERSATION_ID = m.CONVERSATION_ID
+WHERE c.USER_ID = %(user_id)s
+  AND (%(status)s IS NULL OR c.STATUS = %(status)s)
+GROUP BY c.CONVERSATION_ID
+ORDER BY c.LAST_UPDATE_TIMESTAMP DESC
+LIMIT %(limit)s OFFSET %(offset)s
+"""
+
+# ==================== Message ====================
+
+SQL_GET_NEXT_MESSAGE_SEQ = """
+SELECT COALESCE(MAX(MESSAGE_SEQ), 0) + 1 AS next_seq
+FROM T_CHAT_MESSAGE
+WHERE CONVERSATION_ID = %(conversation_id)s
+"""
+
+SQL_INSERT_MESSAGE = """
+INSERT INTO T_CHAT_MESSAGE
+(
+    MESSAGE_ID, CONVERSATION_ID, MESSAGE_SEQ, ROLE,
+    MESSAGE_TEXT, TOKEN_COUNT,
+    CREATE_TIMESTAMP, CREATE_USER
+)
+VALUES (
+    %(message_id)s, %(conversation_id)s, %(message_seq)s, %(role)s,
+    %(message_text)s, %(token_count)s,
+    NOW(), %(user_id)s
+)
+"""
+
+SQL_INSERT_MESSAGE_WITH_MODEL = """
+INSERT INTO T_CHAT_MESSAGE
+(
+    MESSAGE_ID, CONVERSATION_ID, MESSAGE_SEQ, ROLE,
+    MESSAGE_TEXT, AI_MODEL_ID, TOKEN_COUNT,
+    CREATE_TIMESTAMP, CREATE_USER
+)
+VALUES (
+    %(message_id)s, %(conversation_id)s, %(message_seq)s, %(role)s,
+    %(message_text)s, %(ai_model_id)s, %(token_count)s,
+    NOW(), %(user_id)s
+)
+"""
+
+SQL_SELECT_CONVERSATION_HISTORY = """
+SELECT ROLE, MESSAGE_TEXT
+FROM T_CHAT_MESSAGE
+WHERE CONVERSATION_ID = %(conversation_id)s
+ORDER BY MESSAGE_SEQ ASC
+"""
+
+SQL_LIST_MESSAGES = """
+SELECT
+    MESSAGE_ID, CONVERSATION_ID, MESSAGE_SEQ, ROLE,
+    MESSAGE_TEXT, AI_MODEL_ID, TOKEN_COUNT,
+    CREATE_TIMESTAMP
+FROM T_CHAT_MESSAGE
+WHERE CONVERSATION_ID = %(conversation_id)s
+ORDER BY MESSAGE_SEQ ASC
+LIMIT %(limit)s OFFSET %(offset)s
+"""
+
+SQL_UPDATE_CONVERSATION_TOKEN_COUNT = """
+UPDATE T_CHAT_CONVERSATION
+SET CURRENT_TOKEN_COUNT = CURRENT_TOKEN_COUNT + %(token_count)s,
+    LAST_UPDATE_TIMESTAMP = NOW(),
+    LAST_UPDATE_USER = %(user_id)s
+WHERE CONVERSATION_ID = %(conversation_id)s
+"""
+
+# ==================== History ====================
+
+SQL_GET_NEXT_HISTORY_SEQ = """
+SELECT COALESCE(MAX(HISTORY_SEQ), 0) + 1 AS next_seq
+FROM T_CHAT_HISTORY
+WHERE CONVERSATION_ID = %(conversation_id)s
+"""
+
+SQL_INSERT_HISTORY = """
+INSERT INTO T_CHAT_HISTORY
+(
+    HISTORY_ID, CONVERSATION_ID, HISTORY_SEQ, ROLE,
+    CONTENT, TIMESTAMP, THINKING_MS, MODEL,
+    CREATE_TIMESTAMP, CREATE_USER
+)
+VALUES (
+    %(history_id)s, %(conversation_id)s, %(history_seq)s, %(role)s,
+    %(content)s, %(timestamp)s, %(thinking_ms)s, %(model)s,
+    NOW(), %(user_id)s
+)
+"""
+
+SQL_SELECT_CONVERSATION_FOR_HISTORY = """
+SELECT CONVERSATION_ID
+FROM T_CHAT_CONVERSATION
+WHERE CONVERSATION_ID = %(conversation_id)s AND USER_ID = %(user_id)s
+"""
+
+SQL_LIST_HISTORIES = """
+SELECT
+    HISTORY_ID, CONVERSATION_ID, HISTORY_SEQ, ROLE,
+    CONTENT, TIMESTAMP, THINKING_MS, MODEL,
+    CREATE_TIMESTAMP
+FROM T_CHAT_HISTORY
+WHERE CONVERSATION_ID = %(conversation_id)s
+ORDER BY HISTORY_SEQ ASC
+LIMIT %(limit)s OFFSET %(offset)s
+"""
+
+# ==================== AI Credential ====================
+
+SQL_SELECT_USER_CREDENTIAL_BY_ID = """
+SELECT
+    CREDENTIAL_ID, AI_SERVICE_ID, CREDENTIAL_NAME,
+    ENCRYPTED_CREDENTIAL_DATA,
+    STATUS, EXPIRES_AT, LAST_USED_AT
+FROM T_USER_AI_CREDENTIAL
+WHERE CREDENTIAL_ID = %(credential_id)s
+  AND USER_ID = %(user_id)s
+  AND AI_SERVICE_ID = %(ai_service_id)s
+"""
+
+SQL_SELECT_USER_ACTIVE_CREDENTIAL_BY_SERVICE = """
+SELECT
+    CREDENTIAL_ID, AI_SERVICE_ID, CREDENTIAL_NAME,
+    ENCRYPTED_CREDENTIAL_DATA,
+    STATUS, EXPIRES_AT, LAST_USED_AT
+FROM T_USER_AI_CREDENTIAL
+WHERE USER_ID = %(user_id)s
+  AND AI_SERVICE_ID = %(ai_service_id)s
+  AND STATUS = 'active'
+ORDER BY CREATE_TIMESTAMP DESC
+LIMIT 1
+"""
+
+SQL_INSERT_USER_CREDENTIAL = """
+INSERT INTO T_USER_AI_CREDENTIAL
+(
+    CREDENTIAL_ID, USER_ID,
+    AI_SERVICE_ID, CREDENTIAL_NAME,
+    ENCRYPTED_CREDENTIAL_DATA,
+    STATUS, EXPIRES_AT, NOTES,
+    CREATE_TIMESTAMP, CREATE_USER,
+    LAST_UPDATE_TIMESTAMP, LAST_UPDATE_USER
+)
+VALUES (
+    %(credential_id)s, %(user_id)s,
+    %(ai_service_id)s, %(credential_name)s,
+    %(encrypted_credential_data)s,
+    'active', %(expires_at)s, %(notes)s,
+    NOW(), %(user_id)s,
+    NOW(), %(user_id)s
+)
+"""
+
+SQL_UPDATE_CREDENTIAL_LAST_USED = """
+UPDATE T_USER_AI_CREDENTIAL
+SET LAST_USED_AT = NOW(),
+    LAST_UPDATE_TIMESTAMP = NOW()
+WHERE CREDENTIAL_ID = %(credential_id)s
+"""
+
+SQL_UPDATE_CREDENTIAL_DATA_AND_LAST_USED = """
+UPDATE T_USER_AI_CREDENTIAL
+SET ENCRYPTED_CREDENTIAL_DATA = %(encrypted_credential_data)s,
+    LAST_USED_AT = NOW(),
+    LAST_UPDATE_TIMESTAMP = NOW()
+WHERE CREDENTIAL_ID = %(credential_id)s
+"""
+
+SQL_DELETE_USER_CREDENTIAL = """
+DELETE FROM T_USER_AI_CREDENTIAL
+WHERE CREDENTIAL_ID = %(credential_id)s
+  AND USER_ID = %(user_id)s
+"""
+
+SQL_LIST_USER_CREDENTIALS = """
+SELECT
+    CREDENTIAL_ID, AI_SERVICE_ID, CREDENTIAL_NAME,
+    STATUS, EXPIRES_AT,
+    LAST_VALIDATED_AT, LAST_USED_AT,
+    VALIDATION_ERROR, NOTES,
+    CREATE_TIMESTAMP, LAST_UPDATE_TIMESTAMP
+FROM T_USER_AI_CREDENTIAL
+WHERE USER_ID = %(user_id)s
+  AND AI_SERVICE_ID = %(ai_service_id)s
+ORDER BY CREATE_TIMESTAMP DESC
+"""
+
+SQL_LIST_USER_CREDENTIALS_WITH_STATUS = """
+SELECT
+    CREDENTIAL_ID, AI_SERVICE_ID, CREDENTIAL_NAME,
+    STATUS, EXPIRES_AT,
+    LAST_VALIDATED_AT, LAST_USED_AT,
+    VALIDATION_ERROR, NOTES,
+    CREATE_TIMESTAMP, LAST_UPDATE_TIMESTAMP
+FROM T_USER_AI_CREDENTIAL
+WHERE USER_ID = %(user_id)s
+  AND AI_SERVICE_ID = %(ai_service_id)s
+  AND STATUS = %(status)s
+ORDER BY CREATE_TIMESTAMP DESC
+"""

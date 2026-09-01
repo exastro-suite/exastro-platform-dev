@@ -27,6 +27,7 @@ import ulid
 
 from common_library.common.db import DBconnector
 from common_library.common import encrypt
+from libs import queries_ai_assistant
 
 import globals
 
@@ -97,37 +98,16 @@ class AiCredentialService:
         with closing(DBconnector().connect_orgdb(organization_id)) as conn:
             with closing(conn.cursor()) as cursor:
                 cursor.execute(
-                    """
-                    INSERT INTO T_USER_AI_CREDENTIAL
-                    (
-                        CREDENTIAL_ID, USER_ID,
-                        AI_SERVICE_ID, CREDENTIAL_NAME,
-                        ENCRYPTED_CREDENTIAL_DATA,
-                        STATUS, EXPIRES_AT, NOTES,
-                        CREATE_TIMESTAMP, CREATE_USER,
-                        LAST_UPDATE_TIMESTAMP, LAST_UPDATE_USER
-                    )
-                    VALUES
-                    (
-                        %s, %s,
-                        %s, %s,
-                        %s,
-                        'active', %s, %s,
-                        NOW(), %s,
-                        NOW(), %s
-                    )
-                    """,
-                    (
-                        credential_id,
-                        user_id,
-                        ai_service_id,
-                        credential_name,
-                        encrypted_data,
-                        expires_at,
-                        notes,
-                        user_id,
-                        user_id,
-                    ),
+                    queries_ai_assistant.SQL_INSERT_USER_CREDENTIAL,
+                    {
+                        "credential_id": credential_id,
+                        "user_id": user_id,
+                        "ai_service_id": ai_service_id,
+                        "credential_name": credential_name,
+                        "encrypted_credential_data": encrypted_data,
+                        "expires_at": expires_at,
+                        "notes": notes,
+                    },
                 )
                 conn.commit()
 
@@ -165,34 +145,21 @@ class AiCredentialService:
                 if credential_id:
                     # 特定のCredentialを取得
                     cursor.execute(
-                        """
-                        SELECT
-                            CREDENTIAL_ID, AI_SERVICE_ID, CREDENTIAL_NAME,
-                            ENCRYPTED_CREDENTIAL_DATA,
-                            STATUS, EXPIRES_AT, LAST_USED_AT
-                        FROM T_USER_AI_CREDENTIAL
-                        WHERE CREDENTIAL_ID = %s
-                          AND USER_ID = %s
-                          AND AI_SERVICE_ID = %s
-                        """,
-                        (credential_id, user_id, ai_service_id),
+                        queries_ai_assistant.SQL_SELECT_USER_CREDENTIAL_BY_ID,
+                        {
+                            "credential_id": credential_id,
+                            "user_id": user_id,
+                            "ai_service_id": ai_service_id,
+                        },
                     )
                 else:
                     # 最新のactiveなCredentialを取得
                     cursor.execute(
-                        """
-                        SELECT
-                            CREDENTIAL_ID, AI_SERVICE_ID, CREDENTIAL_NAME,
-                            ENCRYPTED_CREDENTIAL_DATA,
-                            STATUS, EXPIRES_AT, LAST_USED_AT
-                        FROM T_USER_AI_CREDENTIAL
-                        WHERE USER_ID = %s
-                          AND AI_SERVICE_ID = %s
-                          AND STATUS = 'active'
-                        ORDER BY CREATE_TIMESTAMP DESC
-                        LIMIT 1
-                        """,
-                        (user_id, ai_service_id),
+                        queries_ai_assistant.SQL_SELECT_USER_ACTIVE_CREDENTIAL_BY_SERVICE,
+                        {
+                            "user_id": user_id,
+                            "ai_service_id": ai_service_id,
+                        },
                     )
 
                 row = cursor.fetchone()
@@ -239,28 +206,25 @@ class AiCredentialService:
         """
         with closing(DBconnector().connect_orgdb(organization_id)) as conn:
             with closing(conn.cursor()) as cursor:
-                query = """
-                    SELECT
-                        CREDENTIAL_ID, AI_SERVICE_ID, CREDENTIAL_NAME,
-                        STATUS, EXPIRES_AT,
-                        LAST_VALIDATED_AT, LAST_USED_AT,
-                        VALIDATION_ERROR, NOTES,
-                        CREATE_TIMESTAMP, LAST_UPDATE_TIMESTAMP
-                    FROM T_USER_AI_CREDENTIAL
-                    WHERE USER_ID = %s
-                      AND AI_SERVICE_ID = %s
-                """
-                params = [user_id, ai_service_id]
-
                 if status:
-                    query += " AND STATUS = %s"
-                    params.append(status)
+                    cursor.execute(
+                        queries_ai_assistant.SQL_LIST_USER_CREDENTIALS_WITH_STATUS,
+                        {
+                            "user_id": user_id,
+                            "ai_service_id": ai_service_id,
+                            "status": status,
+                        },
+                    )
+                else:
+                    cursor.execute(
+                        queries_ai_assistant.SQL_LIST_USER_CREDENTIALS,
+                        {
+                            "user_id": user_id,
+                            "ai_service_id": ai_service_id,
+                        },
+                    )
 
-                query += " ORDER BY CREATE_TIMESTAMP DESC"
-
-                cursor.execute(query, params)
                 rows = cursor.fetchall()
-
                 return rows
 
     def delete_credential(
@@ -285,13 +249,11 @@ class AiCredentialService:
         with closing(DBconnector().connect_orgdb(organization_id)) as conn:
             with closing(conn.cursor()) as cursor:
                 cursor.execute(
-                    """
-                    DELETE FROM T_USER_AI_CREDENTIAL
-                    WHERE CREDENTIAL_ID = %s
-                      AND USER_ID = %s
-                      AND AI_SERVICE_ID = %s
-                    """,
-                    (credential_id, user_id, ai_service_id),
+                    queries_ai_assistant.SQL_DELETE_USER_CREDENTIAL,
+                    {
+                        "credential_id": credential_id,
+                        "user_id": user_id,
+                    },
                 )
                 deleted = cursor.rowcount > 0
                 conn.commit()
@@ -401,14 +363,11 @@ class AiCredentialService:
                     encrypted_data = encrypt.encrypt_str(json.dumps(credential_data))
 
                     cursor.execute(
-                        """
-                        UPDATE T_USER_AI_CREDENTIAL
-                        SET ENCRYPTED_CREDENTIAL_DATA = %s,
-                            LAST_USED_AT = NOW(),
-                            LAST_UPDATE_TIMESTAMP = NOW()
-                        WHERE CREDENTIAL_ID = %s
-                        """,
-                        (encrypted_data, credential_id),
+                        queries_ai_assistant.SQL_UPDATE_CREDENTIAL_DATA_AND_LAST_USED,
+                        {
+                            "encrypted_credential_data": encrypted_data,
+                            "credential_id": credential_id,
+                        },
                     )
 
                     globals.logger.debug(
@@ -417,12 +376,8 @@ class AiCredentialService:
                 else:
                     # 最終使用日時のみ更新
                     cursor.execute(
-                        """
-                        UPDATE T_USER_AI_CREDENTIAL
-                        SET LAST_USED_AT = NOW()
-                        WHERE CREDENTIAL_ID = %s
-                        """,
-                        (credential_id,),
+                        queries_ai_assistant.SQL_UPDATE_CREDENTIAL_LAST_USED,
+                        {"credential_id": credential_id},
                     )
 
                     globals.logger.debug(

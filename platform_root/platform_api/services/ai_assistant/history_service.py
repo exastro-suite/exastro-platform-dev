@@ -25,6 +25,7 @@ from typing import Dict, List, Optional
 
 import ulid
 from common_library.common.db import DBconnector
+from libs import queries_ai_assistant
 
 import globals
 
@@ -67,12 +68,8 @@ class HistoryService:
             with closing(conn.cursor()) as cursor:
                 # 次のSEQを取得
                 cursor.execute(
-                    """
-                    SELECT COALESCE(MAX(HISTORY_SEQ), 0) + 1 AS next_seq
-                    FROM T_CHAT_HISTORY
-                    WHERE CONVERSATION_ID = %s
-                    """,
-                    (conversation_id,),
+                    queries_ai_assistant.SQL_GET_NEXT_HISTORY_SEQ,
+                    {"conversation_id": conversation_id},
                 )
                 result = cursor.fetchone()
                 next_seq = result["next_seq"]
@@ -88,26 +85,18 @@ class HistoryService:
                     timestamp_dt = timestamp
 
                 cursor.execute(
-                    """
-                    INSERT INTO T_CHAT_HISTORY
-                    (
-                        HISTORY_ID, CONVERSATION_ID, HISTORY_SEQ, ROLE,
-                        CONTENT, TIMESTAMP, THINKING_MS, MODEL,
-                        CREATE_TIMESTAMP, CREATE_USER
-                    )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s)
-                    """,
-                    (
-                        history_id,
-                        conversation_id,
-                        next_seq,
-                        role,
-                        content_json,
-                        timestamp_dt,
-                        thinking_ms,
-                        model,
-                        user_id,
-                    ),
+                    queries_ai_assistant.SQL_INSERT_HISTORY,
+                    {
+                        "history_id": history_id,
+                        "conversation_id": conversation_id,
+                        "history_seq": next_seq,
+                        "role": role,
+                        "content": content_json,
+                        "timestamp": timestamp_dt,
+                        "thinking_ms": thinking_ms,
+                        "model": model,
+                        "user_id": user_id,
+                    },
                 )
 
                 conn.commit()
@@ -155,12 +144,8 @@ class HistoryService:
             with closing(conn.cursor()) as cursor:
                 # 会話の存在確認とオーナーシップ確認
                 cursor.execute(
-                    """
-                    SELECT CONVERSATION_ID
-                    FROM T_CHAT_CONVERSATION
-                    WHERE CONVERSATION_ID = %s AND USER_ID = %s
-                    """,
-                    (conversation_id, user_id),
+                    queries_ai_assistant.SQL_SELECT_CONVERSATION_FOR_HISTORY,
+                    {"conversation_id": conversation_id, "user_id": user_id},
                 )
                 if not cursor.fetchone():
                     raise ValueError(
@@ -169,17 +154,12 @@ class HistoryService:
 
                 # 履歴を取得
                 cursor.execute(
-                    """
-                    SELECT
-                        HISTORY_ID, CONVERSATION_ID, HISTORY_SEQ, ROLE,
-                        CONTENT, TIMESTAMP, THINKING_MS, MODEL,
-                        CREATE_TIMESTAMP
-                    FROM T_CHAT_HISTORY
-                    WHERE CONVERSATION_ID = %s
-                    ORDER BY HISTORY_SEQ ASC
-                    LIMIT %s OFFSET %s
-                    """,
-                    (conversation_id, limit, offset),
+                    queries_ai_assistant.SQL_LIST_HISTORIES,
+                    {
+                        "conversation_id": conversation_id,
+                        "limit": limit,
+                        "offset": offset,
+                    },
                 )
 
                 histories = []
