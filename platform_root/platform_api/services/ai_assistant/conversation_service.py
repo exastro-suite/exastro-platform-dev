@@ -71,11 +71,38 @@ class ConversationService:
             workspace_id: Workspace ID (DB接続用、テーブルには保存しない)
             user_id: User ID
             title: 会話タイトル
-            service_id: サービスID（AgenticAI/LLMEditor）
+            service_id: サービスID（AgenticAI/LLMEditor - システムプロンプト切り替え用）
 
         Returns:
             str: Conversation ID
+
+        Raises:
+            CredentialNotFound: ユーザーがCredentialを登録していない
         """
+        # T_USER_AI_CREDENTIALから最新のactiveなCredentialを取得してAI_SERVICE_IDを決定
+        with closing(DBconnector().connect_orgdb(organization_id)) as conn:
+            with closing(conn.cursor()) as cursor:
+                cursor.execute(
+                    """
+                    SELECT AI_SERVICE_ID
+                    FROM T_USER_AI_CREDENTIAL
+                    WHERE USER_ID = %s
+                      AND STATUS = 'active'
+                    ORDER BY CREATE_TIMESTAMP DESC
+                    LIMIT 1
+                    """,
+                    (user_id,),
+                )
+                row = cursor.fetchone()
+
+                if not row:
+                    raise CredentialNotFound(
+                        f"No active credential found for user: {user_id}. "
+                        "Please register a credential first."
+                    )
+
+                ai_service_id = row["AI_SERVICE_ID"]
+
         conversation_id = ulid.new().str
 
         with closing(DBconnector().connect_workspacedb(organization_id, workspace_id)) as conn:
@@ -84,21 +111,23 @@ class ConversationService:
                     """
                     INSERT INTO T_CHAT_CONVERSATION
                     (
-                        CONVERSATION_ID, SERVICE_ID, USER_ID, TITLE,
+                        CONVERSATION_ID, SERVICE_ID, WORKSPACE_ID, USER_ID, AI_SERVICE_ID, TITLE,
                         STATUS,
                         CREATE_TIMESTAMP, CREATE_USER,
                         LAST_UPDATE_TIMESTAMP, LAST_UPDATE_USER
                     )
                     VALUES
                     (
-                        %s, %s, %s, %s, 'active',
+                        %s, %s, %s, %s, %s, %s, 'active',
                         NOW(), %s, NOW(), %s
                     )
                     """,
                     (
                         conversation_id,
                         service_id,
+                        workspace_id,
                         user_id,
+                        ai_service_id,
                         title,
                         user_id,
                         user_id,
@@ -108,7 +137,8 @@ class ConversationService:
 
         globals.logger.debug(
             f"Conversation created: id={conversation_id}, "
-            f"org={organization_id}, workspace={workspace_id}, user={user_id}, title={title}"
+            f"org={organization_id}, workspace={workspace_id}, user={user_id}, "
+            f"service={service_id}, ai_service={ai_service_id}, title={title}"
         )
 
         return conversation_id
@@ -158,7 +188,7 @@ class ConversationService:
                 cursor.execute(
                     f"""
                     SELECT
-                        c.CONVERSATION_ID, c.SERVICE_ID, c.TITLE, c.STATUS,
+                        c.CONVERSATION_ID, c.SERVICE_ID, c.AI_SERVICE_ID, c.TITLE, c.STATUS,
                         c.CURRENT_TOKEN_COUNT, c.CREATE_TIMESTAMP, c.LAST_UPDATE_TIMESTAMP,
                         (SELECT COUNT(*) FROM T_CHAT_MESSAGE m
                          WHERE m.CONVERSATION_ID = c.CONVERSATION_ID) AS MESSAGE_COUNT
@@ -228,7 +258,7 @@ class ConversationService:
                     """
                     SELECT
                         MESSAGE_ID, CONVERSATION_ID, MESSAGE_SEQ, ROLE,
-                        MESSAGE_TEXT, AI_SERVICE_ID, AI_MODEL_ID,
+                        MESSAGE_TEXT, AI_MODEL_ID,
                         TOKEN_COUNT, CREATE_TIMESTAMP
                     FROM T_CHAT_MESSAGE
                     WHERE CONVERSATION_ID = %s
@@ -255,7 +285,7 @@ class ConversationService:
         conversation_id: str,
         message_text: str,
         model_id: str = "anthropic.claude-3-5-sonnet-20240620-v1:0",
-        ai_service_id: str = "bedrock",
+        user_language: str = None,
     ) -> Dict:
         """
         メッセージを送信してAI応答を取得
@@ -267,7 +297,7 @@ class ConversationService:
             conversation_id: Conversation ID
             message_text: ユーザーメッセージ
             model_id: AIモデルID
-            ai_service_id: AIサービスID
+            user_language: ユーザー言語 (jp, en, None)
 
         Returns:
             Dict: 送信結果
@@ -277,10 +307,10 @@ class ConversationService:
         """
         with closing(DBconnector().connect_workspacedb(organization_id, workspace_id)) as conn:
             with closing(conn.cursor()) as cursor:
-                # 会話の存在確認
+                # 会話の存在確認とAI_SERVICE_ID、SERVICE_IDの取得
                 cursor.execute(
                     """
-                    SELECT CONVERSATION_ID
+                    SELECT CONVERSATION_ID, AI_SERVICE_ID, SERVICE_ID
                     FROM T_CHAT_CONVERSATION
                     WHERE CONVERSATION_ID = %s AND USER_ID = %s
                     """,
@@ -292,6 +322,10 @@ class ConversationService:
                     raise ConversationNotFound(
                         f"Conversation not found: id={conversation_id}, user={user_id}"
                     )
+
+                # 会話に紐付いたAI_SERVICE_IDとSERVICE_IDを使用
+                ai_service_id = conversation["AI_SERVICE_ID"]
+                service_id = conversation["SERVICE_ID"]
 
                 # 次のメッセージSEQを取得
                 cursor.execute(
@@ -415,6 +449,19 @@ class ConversationService:
             else:
                 raise ValueError(f"Unsupported ai_service_id for Bedrock: {ai_service_id}")
 
+            # システムプロンプトを読み込み
+            from services.ai_assistant.system_prompt_loader import load_system_prompt
+
+            try:
+                system_prompt = load_system_prompt(service_id, user_language)
+                globals.logger.debug(
+                    f"Loaded system prompt for service_id={service_id}, "
+                    f"user_language={user_language}: {len(system_prompt)} chars"
+                )
+            except FileNotFoundError as e:
+                globals.logger.warning(f"System prompt not found: {e}. Using empty prompt.")
+                system_prompt = None
+
             # 会話履歴を構築
             messages = []
             for msg in history:
@@ -424,14 +471,20 @@ class ConversationService:
                 })
 
             # Bedrockを呼び出し
-            response = bedrock_client.converse(
-                modelId=model_id,
-                messages=messages,
-                inferenceConfig={
+            converse_params = {
+                "modelId": model_id,
+                "messages": messages,
+                "inferenceConfig": {
                     "maxTokens": 4096,
                     "temperature": 0.7,
                 },
-            )
+            }
+
+            # システムプロンプトがある場合は追加
+            if system_prompt:
+                converse_params["system"] = [{"text": system_prompt}]
+
+            response = bedrock_client.converse(**converse_params)
 
             # アシスタントメッセージを保存
             assistant_message_id = ulid.new().str
@@ -439,21 +492,21 @@ class ConversationService:
             input_tokens = response["usage"]["inputTokens"]
             output_tokens = response["usage"]["outputTokens"]
 
-            with closing(DBconnector().connect_platformdb()) as conn:
+            with closing(DBconnector().connect_workspacedb(organization_id, workspace_id)) as conn:
                 with closing(conn.cursor()) as cursor:
                     cursor.execute(
                         """
                         INSERT INTO T_CHAT_MESSAGE
                         (
                             MESSAGE_ID, CONVERSATION_ID, MESSAGE_SEQ, ROLE,
-                            MESSAGE_TEXT, AI_SERVICE_ID, AI_MODEL_ID,
+                            MESSAGE_TEXT, AI_MODEL_ID,
                             TOKEN_COUNT,
                             CREATE_TIMESTAMP, CREATE_USER
                         )
                         VALUES
                         (
                             %s, %s, %s, 'assistant',
-                            %s, %s, %s,
+                            %s, %s,
                             %s,
                             NOW(), %s
                         )
@@ -463,7 +516,6 @@ class ConversationService:
                             conversation_id,
                             next_seq + 1,
                             assistant_content,
-                            ai_service_id,
                             model_id,
                             output_tokens,
                             user_id,
@@ -475,13 +527,11 @@ class ConversationService:
                         """
                         UPDATE T_CHAT_CONVERSATION
                         SET CURRENT_TOKEN_COUNT = CURRENT_TOKEN_COUNT + %s,
-                            ACTIVE_TOKEN_COUNT = ACTIVE_TOKEN_COUNT + %s,
                             LAST_UPDATE_TIMESTAMP = NOW(),
                             LAST_UPDATE_USER = %s
                         WHERE CONVERSATION_ID = %s
                         """,
                         (
-                            input_tokens + output_tokens,
                             input_tokens + output_tokens,
                             user_id,
                             conversation_id,
@@ -536,11 +586,11 @@ class ConversationService:
             }
 
         except AIProviderTimeoutError as e:
-            # タイムアウト → 408
+            # タイムアウト → InternalError
             globals.logger.error(f"Bedrock request timeout: {e}")
-            message_id = "408-94105"
+            message_id = "500-94105"
             message = f"AI サービスへのリクエストがタイムアウトしました: {str(e)}"
-            raise common.RequestTimeoutException(
+            raise common.InternalErrorException(
                 message_id=message_id, message=message
             ) from e
 
@@ -549,9 +599,9 @@ class ConversationService:
             error_message = str(e)
             if "maxTokens" in error_message or "token" in error_message.lower():
                 globals.logger.error(f"Bedrock payload too large: {e}")
-                message_id = "413-94106"
+                message_id = "400-94106"
                 message = f"リクエストのペイロードが大きすぎます: {str(e)}"
-                raise common.PayloadTooLargeException(
+                raise common.BadRequestException(
                     message_id=message_id, message=message
                 ) from e
             else:
@@ -575,7 +625,6 @@ class ConversationService:
         conversation_id: str,
         message_text: str,
         model_id: str = "anthropic.claude-3-5-sonnet-20240620-v1:0",
-        ai_service_id: str = "bedrock",
         system_prompt: Optional[str] = None,
         max_tokens: int = 4096,
         temperature: float = 0.7,
@@ -590,7 +639,6 @@ class ConversationService:
             conversation_id: Conversation ID
             message_text: ユーザーメッセージ
             model_id: AIモデルID
-            ai_service_id: AIサービスID (bedrock, openai, gemini等)
             system_prompt: システムプロンプト（オプション）
             max_tokens: 最大トークン数
             temperature: Temperature
@@ -603,10 +651,10 @@ class ConversationService:
         """
         with closing(DBconnector().connect_workspacedb(organization_id, workspace_id)) as conn:
             with closing(conn.cursor()) as cursor:
-                # 会話の存在確認
+                # 会話の存在確認とAI_SERVICE_IDの取得
                 cursor.execute(
                     """
-                    SELECT CONVERSATION_ID
+                    SELECT CONVERSATION_ID, AI_SERVICE_ID
                     FROM T_CHAT_CONVERSATION
                     WHERE CONVERSATION_ID = %s AND USER_ID = %s
                     """,
@@ -618,6 +666,9 @@ class ConversationService:
                     raise ConversationNotFound(
                         f"Conversation not found: id={conversation_id}, user={user_id}"
                     )
+
+                # 会話に紐付いたAI_SERVICE_IDを使用
+                ai_service_id = conversation["AI_SERVICE_ID"]
 
                 # 次のメッセージSEQを取得
                 cursor.execute(
@@ -725,14 +776,14 @@ class ConversationService:
                         INSERT INTO T_CHAT_MESSAGE
                         (
                             MESSAGE_ID, CONVERSATION_ID, MESSAGE_SEQ, ROLE,
-                            MESSAGE_TEXT, AI_SERVICE_ID, AI_MODEL_ID,
+                            MESSAGE_TEXT, AI_MODEL_ID,
                             TOKEN_COUNT,
                             CREATE_TIMESTAMP, CREATE_USER
                         )
                         VALUES
                         (
                             %s, %s, %s, 'assistant',
-                            %s, %s, %s,
+                            %s, %s,
                             %s,
                             NOW(), %s
                         )
@@ -742,7 +793,6 @@ class ConversationService:
                             conversation_id,
                             next_seq + 1,
                             assistant_content,
-                            ai_service_id,
                             model_id,
                             output_tokens,
                             user_id,
@@ -754,13 +804,11 @@ class ConversationService:
                         """
                         UPDATE T_CHAT_CONVERSATION
                         SET CURRENT_TOKEN_COUNT = CURRENT_TOKEN_COUNT + %s,
-                            ACTIVE_TOKEN_COUNT = ACTIVE_TOKEN_COUNT + %s,
                             LAST_UPDATE_TIMESTAMP = NOW(),
                             LAST_UPDATE_USER = %s
                         WHERE CONVERSATION_ID = %s
                         """,
                         (
-                            input_tokens + output_tokens,
                             input_tokens + output_tokens,
                             user_id,
                             conversation_id,
@@ -798,11 +846,11 @@ class ConversationService:
             }
 
         except AIProviderTimeoutError as e:
-            # タイムアウト → 408
+            # タイムアウト → InternalError
             globals.logger.error(f"AI provider request timeout: {e}")
-            message_id = "408-94105"
+            message_id = "500-94105"
             message = f"AI サービスへのリクエストがタイムアウトしました: {str(e)}"
-            raise common.RequestTimeoutException(
+            raise common.InternalErrorException(
                 message_id=message_id, message=message
             ) from e
 
@@ -813,7 +861,7 @@ class ConversationService:
                 globals.logger.error(f"AI provider payload too large: {e}")
                 message_id = "413-94106"
                 message = f"リクエストのペイロードが大きすぎます: {str(e)}"
-                raise common.PayloadTooLargeException(
+                raise common.BadRequestException(
                     message_id=message_id, message=message
                 ) from e
             else:

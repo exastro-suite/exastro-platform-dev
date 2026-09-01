@@ -121,12 +121,8 @@ post:
               example: "こんにちは、Bedrockのテストです"
             model_id:
               type: string
-              description: 使用するモデルID(省略時はデフォルト)
+              description: 使用するモデルID(メッセージごとに変更可能、省略時はデフォルト)
               example: "anthropic.claude-3-5-sonnet-20240620-v1:0"
-            ai_service_id:
-              type: string
-              description: AIサービスID(省略時は'bedrock')
-              default: "bedrock"
   responses:
     200:
       description: メッセージ送信成功

@@ -249,24 +249,31 @@ class ModelService:
                 if latest_token:
                     # トークンが更新された場合、Credentialデータも一緒に保存
                     credential_service.update_last_used(
-                        credential.credential_id,
+                        organization_id=organization_id,
+                        credential_id=credential.credential_id,
                         credential_data=latest_token
                     )
                 else:
                     # トークンは更新されていないが、LAST_USED_ATは更新
-                    credential_service.update_last_used(credential.credential_id)
+                    credential_service.update_last_used(
+                        organization_id=organization_id,
+                        credential_id=credential.credential_id
+                    )
             else:
                 # bedrock（固定トークン）の場合、LAST_USED_ATのみ更新
-                credential_service.update_last_used(credential.credential_id)
+                credential_service.update_last_used(
+                    organization_id=organization_id,
+                    credential_id=credential.credential_id
+                )
 
             return model_list
 
         except ReadTimeoutError as e:
-            # タイムアウト → 408
+            # タイムアウト → InternalError
             globals.logger.error(f"Bedrock request timeout: {e}")
-            message_id = "408-94107"
+            message_id = "500-94107"
             message = f"モデル一覧取得がタイムアウトしました: {str(e)}"
-            raise common.RequestTimeoutException(
+            raise common.InternalErrorException(
                 message_id=message_id, message=message
             ) from e
 

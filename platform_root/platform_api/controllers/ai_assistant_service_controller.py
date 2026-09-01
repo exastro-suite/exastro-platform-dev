@@ -20,8 +20,10 @@ AIアシスタントに関する操作
 
 import connexion
 import inspect
+from contextlib import closing
 
 from common_library.common import common, multi_lang
+from common_library.common.db import DBconnector
 from services.ai_assistant.conversation_service import (
     get_conversation_service,
     ConversationNotFound,
@@ -51,6 +53,7 @@ def create_conversation(body, organization_id, workspace_id):
 
     body = r.get_json()
     title = body.get("title")
+    service_id = body.get("service_id", "LLMEditor")
 
     # バリデーション
     if not title:
@@ -69,18 +72,35 @@ def create_conversation(body, organization_id, workspace_id):
             workspace_id=workspace_id,
             user_id=user_id,
             title=title,
+            service_id=service_id,
         )
+
+        # 作成された会話を取得してAI_SERVICE_IDを含む完全な情報を返す
+        with closing(DBconnector().connect_workspacedb(organization_id, workspace_id)) as conn:
+            with closing(conn.cursor()) as cursor:
+                cursor.execute(
+                    """
+                    SELECT CONVERSATION_ID, SERVICE_ID, AI_SERVICE_ID, TITLE, STATUS
+                    FROM T_CHAT_CONVERSATION
+                    WHERE CONVERSATION_ID = %s
+                    """,
+                    (conversation_id,),
+                )
+                conversation = cursor.fetchone()
 
         globals.logger.debug(
             f"Conversation created: id={conversation_id}, "
+            f"service={service_id}, ai_service={conversation['AI_SERVICE_ID']}, "
             f"org={organization_id}, workspace={workspace_id}, user={user_id}"
         )
 
         return common.response_200_ok(
             {
                 "conversation_id": conversation_id,
+                "service_id": conversation["SERVICE_ID"],
+                "ai_service_id": conversation["AI_SERVICE_ID"],
                 "title": title,
-                "status": "active",
+                "status": conversation["STATUS"],
             }
         )
 
@@ -135,6 +155,8 @@ def list_conversations(organization_id, workspace_id, status=None, limit=50, off
         for conv in conversations:
             conversations_data.append({
                 "conversation_id": conv["CONVERSATION_ID"],
+                "service_id": conv["SERVICE_ID"],
+                "ai_service_id": conv["AI_SERVICE_ID"],
                 "title": conv["TITLE"],
                 "status": conv["STATUS"],
                 "current_token_count": conv["CURRENT_TOKEN_COUNT"] or 0,
@@ -143,7 +165,7 @@ def list_conversations(organization_id, workspace_id, status=None, limit=50, off
                 "updated_at": conv["LAST_UPDATE_TIMESTAMP"].isoformat() if conv["LAST_UPDATE_TIMESTAMP"] else None,
             })
 
-        return common.response_200(
+        return common.response_200_ok(
             {
                 "conversations": conversations_data,
                 "count": len(conversations_data),
@@ -206,13 +228,12 @@ def list_messages(conversation_id, organization_id, workspace_id, limit=100, off
                 "message_seq": msg["MESSAGE_SEQ"],
                 "role": msg["ROLE"],
                 "message_text": msg["MESSAGE_TEXT"],
-                "ai_service_id": msg.get("AI_SERVICE_ID"),
                 "ai_model_id": msg.get("AI_MODEL_ID"),
                 "token_count": msg.get("TOKEN_COUNT", 0),
                 "created_at": msg["CREATE_TIMESTAMP"].isoformat() if msg["CREATE_TIMESTAMP"] else None,
             })
 
-        return common.response_200(
+        return common.response_200_ok(
             {
                 "messages": messages_data,
                 "count": len(messages_data),
@@ -263,7 +284,6 @@ def send_message(body, conversation_id, organization_id, workspace_id):
     body = r.get_json()
     message_text = body.get("message")
     model_id = body.get("model_id", "anthropic.claude-3-5-sonnet-20240620-v1:0")
-    ai_service_id = body.get("ai_service_id", "bedrock")
 
     # バリデーション
     if not message_text:
@@ -277,6 +297,18 @@ def send_message(body, conversation_id, organization_id, workspace_id):
     try:
         service = get_conversation_service()
 
+        # ユーザー言語を取得 (Accept-Languageヘッダーから)
+        user_language = None
+        accept_language = connexion.request.headers.get('Accept-Language', '')
+        if 'ja' in accept_language or 'jp' in accept_language:
+            user_language = 'jp'
+        elif 'en' in accept_language:
+            user_language = 'en'
+
+        globals.logger.debug(
+            f"User language detected: {user_language} (Accept-Language: {accept_language})"
+        )
+
         result = service.send_message(
             organization_id=organization_id,
             workspace_id=workspace_id,
@@ -284,7 +316,7 @@ def send_message(body, conversation_id, organization_id, workspace_id):
             conversation_id=conversation_id,
             message_text=message_text,
             model_id=model_id,
-            ai_service_id=ai_service_id,
+            user_language=user_language,
         )
 
         globals.logger.debug(
@@ -303,14 +335,6 @@ def send_message(body, conversation_id, organization_id, workspace_id):
             "会話が見つかりません"
         )
         raise common.NotFoundException(message_id=message_id, message=message)
-
-    except common.RequestTimeoutException:
-        # 408 タイムアウト(serviceレイヤーで生成済み)
-        raise
-
-    except common.PayloadTooLargeException:
-        # 413 ペイロード超過(serviceレイヤーで生成済み)
-        raise
 
     except Exception as e:
         globals.logger.error(f"Failed to send message: {e}", exc_info=True)

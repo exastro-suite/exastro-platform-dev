@@ -341,11 +341,13 @@ SQL_WORKSPACE_CREATE_TABLES = [
     """,
     """
     -- AI Assistant Conversation / AI アシスタント チャット会話
-    CREATE TABLE IF NOT EXISTS T_AI_CONVERSATION
+    CREATE TABLE IF NOT EXISTS T_CHAT_CONVERSATION
     (
         CONVERSATION_ID                 VARCHAR(36) NOT NULL,                           -- Conversation ID (ULID)
+        SERVICE_ID                      VARCHAR(64) NOT NULL,                           -- サービスID: AgenticAI/LLMEditor (システムプロンプト切り替え用)
         WORKSPACE_ID                    VARCHAR(36) NOT NULL,                           -- Workspace ID
         USER_ID                         VARCHAR(256) NOT NULL,                          -- Keycloak User ID
+        AI_SERVICE_ID                   VARCHAR(64) NOT NULL,                           -- AIサービスID: bedrock, bedrock-cache, openai, etc.
         TITLE                           VARCHAR(255) NOT NULL,                          -- 会話タイトル
         STATUS                          VARCHAR(32) NOT NULL DEFAULT 'active',          -- ステータス: active/closed/archived
         CURRENT_TOKEN_COUNT             INT DEFAULT 0,                                  -- 現在のトークン数（累積）
@@ -354,21 +356,22 @@ SQL_WORKSPACE_CREATE_TABLES = [
         LAST_UPDATE_TIMESTAMP           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,    -- 最終更新日時
         LAST_UPDATE_USER                VARCHAR(40),                                    -- 最終更新者
         PRIMARY KEY (CONVERSATION_ID),
+        INDEX IDX_SERVICE (SERVICE_ID),
         INDEX IDX_WORKSPACE_USER (WORKSPACE_ID, USER_ID),
+        INDEX IDX_AI_SERVICE (AI_SERVICE_ID),
         INDEX IDX_STATUS (STATUS),
         INDEX IDX_LAST_UPDATE (LAST_UPDATE_TIMESTAMP)
     )ENGINE = InnoDB, CHARSET = utf8mb4, COLLATE = utf8mb4_unicode_ci;
     """,
     """
     -- AI Assistant Message / AI アシスタント チャットメッセージ
-    CREATE TABLE IF NOT EXISTS T_AI_MESSAGE
+    CREATE TABLE IF NOT EXISTS T_CHAT_MESSAGE
     (
         MESSAGE_ID                      VARCHAR(36) NOT NULL,                           -- Message ID (ULID)
         CONVERSATION_ID                 VARCHAR(36) NOT NULL,                           -- Conversation ID
         MESSAGE_SEQ                     INT NOT NULL,                                   -- メッセージ順序番号
         ROLE                            VARCHAR(32) NOT NULL,                           -- ロール: user/assistant/system
         MESSAGE_TEXT                    LONGTEXT NOT NULL,                              -- メッセージ本文
-        AI_SERVICE_ID                   VARCHAR(64) NULL,                               -- AIサービスID (assistantの場合)
         AI_MODEL_ID                     VARCHAR(255) NULL,                              -- AIモデルID (assistantの場合)
         TOKEN_COUNT                     INT DEFAULT 0,                                  -- トークン数
         CREATE_TIMESTAMP                DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,    -- 作成日時
@@ -378,7 +381,7 @@ SQL_WORKSPACE_CREATE_TABLES = [
         INDEX IDX_CONVERSATION (CONVERSATION_ID),
         INDEX IDX_ROLE (ROLE),
         CONSTRAINT FK_MESSAGE_CONVERSATION FOREIGN KEY (CONVERSATION_ID)
-            REFERENCES T_AI_CONVERSATION(CONVERSATION_ID) ON DELETE CASCADE
+            REFERENCES T_CHAT_CONVERSATION(CONVERSATION_ID) ON DELETE CASCADE
     )ENGINE = InnoDB, CHARSET = utf8mb4, COLLATE = utf8mb4_unicode_ci;
     """
 ]

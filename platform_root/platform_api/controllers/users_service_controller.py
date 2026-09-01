@@ -1097,6 +1097,49 @@ def _validate_by_service(ai_service_id: str, credential_data: dict) -> dict:
                 "message": f"Credential validation failed: {str(e)}",
             }
 
+    elif ai_service_id == "bedrock-cache":
+        # AWS Login Cache検証
+        from services.ai_assistant.aws_session_manager import (
+            create_bedrock_session_from_credential_data,
+        )
+
+        try:
+            # 必要なフィールドが存在するか確認
+            required_fields = ["accessToken", "refreshToken", "idToken"]
+            missing_fields = [f for f in required_fields if f not in credential_data]
+
+            if missing_fields:
+                return {
+                    "valid": False,
+                    "message": f"Missing required fields: {', '.join(missing_fields)}",
+                }
+
+            # AWS Login Cacheセッションを作成して検証
+            region = credential_data.get("region", "ap-northeast-1")
+            aws_session = create_bedrock_session_from_credential_data(
+                credential_data=credential_data,
+                region=region,
+            )
+
+            # STSで認証情報を検証
+            sts = aws_session._session.client("sts")
+            identity = sts.get_caller_identity()
+
+            return {
+                "valid": True,
+                "message": "AWS Login Cache credential is valid",
+                "account_id": identity.get("Account"),
+                "user_id": identity.get("UserId"),
+                "arn": identity.get("Arn"),
+            }
+
+        except Exception as e:
+            globals.logger.error(f"AWS Login Cache validation failed: {e}", exc_info=True)
+            return {
+                "valid": False,
+                "message": f"AWS Login Cache validation failed: {str(e)}",
+            }
+
     elif ai_service_id == "openai":
         # OpenAI検証
         return {
@@ -1169,10 +1212,6 @@ def list_models(organization_id, ai_service_id):
         message = multi_lang.get_text(message_id, "Credentialが見つかりません")
         raise common.NotFoundException(message_id=message_id, message=message)
 
-    except common.RequestTimeoutException:
-        # 408 タイムアウト(serviceレイヤーで生成済み)
-        raise
-
     except Exception as e:
         globals.logger.error(f"Failed to list models: {e}", exc_info=True)
         message_id = "500-94007"
@@ -1180,3 +1219,4 @@ def list_models(organization_id, ai_service_id):
             message_id, "モデル一覧取得に失敗しました: {}", str(e)
         )
         raise common.InternalErrorException(message_id=message_id, message=message)
+

@@ -6129,6 +6129,12 @@ components:
       properties:
         conversation_id:
           type: string
+        service_id:
+          type: string
+          description: サービスID（AgenticAI/LLMEditor）
+        ai_service_id:
+          type: string
+          description: AIサービスID（bedrock/bedrock-cache/openai等）
         title:
           type: string
         status:
@@ -6164,10 +6170,9 @@ components:
           - system
         message_text:
           type: string
-        ai_service_id:
-          type: string
         ai_model_id:
           type: string
+          description: AIモデルID（assistantメッセージの場合、メッセージごとに変更可能）
         token_count:
           type: integer
         created_at:
@@ -6438,6 +6443,14 @@ components:
           type: string
           description: 会話タイトル
           example: Bedrockとのチャット
+        service_id:
+          type: string
+          description: サービスID（システムプロンプト切り替え用）
+          example: LLMEditor
+          default: LLMEditor
+          enum:
+          - LLMEditor
+          - AgenticAI
     inline_response_200_26:
       allOf:
       - $ref: "#/components/schemas/responseOk"
@@ -6463,12 +6476,8 @@ components:
           example: こんにちは、Bedrockのテストです
         model_id:
           type: string
-          description: 使用するモデルID(省略時はデフォルト)
+          description: 使用するモデルID(メッセージごとに変更可能、省略時はデフォルト)
           example: anthropic.claude-3-5-sonnet-20240620-v1:0
-        ai_service_id:
-          type: string
-          description: AIサービスID(省略時は'bedrock')
-          default: bedrock
     inline_response_200_28:
       allOf:
       - $ref: "#/components/schemas/responseOk"
@@ -6994,6 +7003,12 @@ components:
       properties:
         conversation_id:
           type: string
+        service_id:
+          type: string
+          description: サービスID
+        ai_service_id:
+          type: string
+          description: AIサービスID（ユーザーのCredentialから自動取得）
         title:
           type: string
         status:

@@ -16,6 +16,12 @@ type: object
 properties:
   conversation_id:
     type: string
+  service_id:
+    type: string
+    description: サービスID（AgenticAI/LLMEditor）
+  ai_service_id:
+    type: string
+    description: AIサービスID（bedrock/bedrock-cache/openai等）
   title:
     type: string
   status:

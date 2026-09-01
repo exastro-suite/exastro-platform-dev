@@ -2242,6 +2242,12 @@ components:
       properties:
         conversation_id:
           type: string
+        service_id:
+          type: string
+          description: サービスID（AgenticAI/LLMEditor）
+        ai_service_id:
+          type: string
+          description: AIサービスID（bedrock/bedrock-cache/openai等）
         title:
           type: string
         status:
@@ -2277,10 +2283,9 @@ components:
             - system
         message_text:
           type: string
-        ai_service_id:
-          type: string
         ai_model_id:
           type: string
+          description: AIモデルID（assistantメッセージの場合、メッセージごとに変更可能）
         token_count:
           type: integer
         created_at:

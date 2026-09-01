@@ -43,6 +43,14 @@ post:
               type: string
               description: 会話タイトル
               example: "Bedrockとのチャット"
+            service_id:
+              type: string
+              description: サービスID（システムプロンプト切り替え用）
+              default: "LLMEditor"
+              enum:
+                - LLMEditor
+                - AgenticAI
+              example: "LLMEditor"
   responses:
     200:
       description: 会話作成成功
@@ -58,6 +66,12 @@ post:
                     properties:
                       conversation_id:
                         type: string
+                      service_id:
+                        type: string
+                        description: サービスID
+                      ai_service_id:
+                        type: string
+                        description: AIサービスID（ユーザーのCredentialから自動取得）
                       title:
                         type: string
                       status:

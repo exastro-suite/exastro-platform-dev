@@ -25,10 +25,9 @@ properties:
     enum: [user, assistant, system]
   message_text:
     type: string
-  ai_service_id:
-    type: string
   ai_model_id:
     type: string
+    description: AIモデルID（assistantメッセージの場合、メッセージごとに変更可能）
   token_count:
     type: integer
   created_at:
