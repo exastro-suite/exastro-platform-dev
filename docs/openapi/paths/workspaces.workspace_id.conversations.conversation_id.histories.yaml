@@ -1,0 +1,175 @@
+#   Copyright 2026 NEC Corporation
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
+
+get:
+  tags:
+    - AIAssistantService
+  summary: 会話履歴一覧を取得
+  description: 会話の履歴（UI用）を取得する
+  operationId: list_histories
+  x-openapi-router-controller: controllers.ai_assistant_service_controller
+  parameters:
+    - name: organization_id
+      in: path
+      required: true
+      schema:
+        type: string
+    - name: workspace_id
+      in: path
+      required: true
+      schema:
+        type: string
+    - name: conversation_id
+      in: path
+      required: true
+      schema:
+        type: string
+    - name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        default: 100
+      description: 取得件数
+    - name: offset
+      in: query
+      required: false
+      schema:
+        type: integer
+        default: 0
+      description: オフセット(history_seq基準)
+  responses:
+    200:
+      description: 成功
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '../schemas/responseOk.yaml'
+              - type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      histories:
+                        type: array
+                        items:
+                          $ref: '../schemas/historyInfo.yaml'
+                      count:
+                        type: integer
+                      conversation_id:
+                        type: string
+    404:
+      description: 会話が見つからない
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/runtimeError.yaml'
+    default:
+      description: An unexpected error response.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/runtimeError.yaml'
+
+post:
+  tags:
+    - AIAssistantService
+  summary: 会話履歴を作成
+  description: UIからの応答を会話履歴として保存する
+  operationId: create_history
+  x-openapi-router-controller: controllers.ai_assistant_service_controller
+  parameters:
+    - name: organization_id
+      in: path
+      required: true
+      schema:
+        type: string
+    - name: workspace_id
+      in: path
+      required: true
+      schema:
+        type: string
+    - name: conversation_id
+      in: path
+      required: true
+      schema:
+        type: string
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          required:
+            - role
+            - content
+            - _timestamp
+          properties:
+            role:
+              type: string
+              enum: [user, assistant]
+              description: ロール
+              example: "user"
+            content:
+              type: array
+              description: コンテンツ（JSON配列）
+              items:
+                type: object
+              example:
+                - type: "text"
+                  text: "こんにちは"
+            _timestamp:
+              type: string
+              format: date-time
+              description: タイムスタンプ（ISO 8601）
+              example: "2026-08-27T07:10:56.261Z"
+            _thinkingMs:
+              type: integer
+              description: 思考時間（ミリ秒、assistantの場合）
+              example: 4448
+            _model:
+              type: string
+              description: モデル名（assistantの場合）
+              example: "global.anthropic.claude-opus-5"
+  responses:
+    200:
+      description: 作成成功
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '../schemas/responseOk.yaml'
+              - type: object
+                properties:
+                  data:
+                    $ref: '../schemas/historyInfo.yaml'
+    400:
+      description: バリデーションエラー
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/runtimeError.yaml'
+    404:
+      description: 会話が見つからない
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/runtimeError.yaml'
+    500:
+      description: サーバーエラー
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/runtimeError.yaml'

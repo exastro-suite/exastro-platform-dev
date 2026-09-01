@@ -383,6 +383,27 @@ SQL_WORKSPACE_CREATE_TABLES = [
         CONSTRAINT FK_MESSAGE_CONVERSATION FOREIGN KEY (CONVERSATION_ID)
             REFERENCES T_CHAT_CONVERSATION(CONVERSATION_ID) ON DELETE CASCADE
     )ENGINE = InnoDB, CHARSET = utf8mb4, COLLATE = utf8mb4_unicode_ci;
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS T_CHAT_HISTORY
+    (
+        HISTORY_ID                      VARCHAR(36) NOT NULL,                           -- History ID (ULID)
+        CONVERSATION_ID                 VARCHAR(36) NOT NULL,                           -- Conversation ID
+        HISTORY_SEQ                     INT NOT NULL,                                   -- 履歴順序番号
+        ROLE                            VARCHAR(32) NOT NULL,                           -- ロール: user/assistant
+        CONTENT                         LONGTEXT NOT NULL,                              -- コンテンツ（JSON配列）
+        TIMESTAMP                       DATETIME(6) NOT NULL,                           -- タイムスタンプ
+        THINKING_MS                     INT NULL,                                       -- 思考時間（ミリ秒）
+        MODEL                           VARCHAR(255) NULL,                              -- AIモデル名
+        CREATE_TIMESTAMP                DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,    -- 作成日時
+        CREATE_USER                     VARCHAR(40),                                    -- 作成者
+        PRIMARY KEY (HISTORY_ID),
+        UNIQUE KEY UK_CONV_HIST_SEQ (CONVERSATION_ID, HISTORY_SEQ),
+        INDEX IDX_CONV_HISTORY (CONVERSATION_ID),
+        INDEX IDX_TIMESTAMP (TIMESTAMP),
+        CONSTRAINT FK_HISTORY_CONVERSATION FOREIGN KEY (CONVERSATION_ID)
+            REFERENCES T_CHAT_CONVERSATION(CONVERSATION_ID) ON DELETE CASCADE
+    )ENGINE = InnoDB, CHARSET = utf8mb4, COLLATE = utf8mb4_unicode_ci;
     """
 ]
 

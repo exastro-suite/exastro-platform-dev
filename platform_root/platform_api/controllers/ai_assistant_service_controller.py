@@ -28,6 +28,7 @@ from services.ai_assistant.conversation_service import (
     get_conversation_service,
     ConversationNotFound,
 )
+from services.ai_assistant.history_service import get_history_service
 
 import globals
 
@@ -342,6 +343,137 @@ def send_message(body, conversation_id, organization_id, workspace_id):
         message = multi_lang.get_text(
             message_id,
             "メッセージ送信に失敗しました: {}",
+            str(e)
+        )
+        raise common.InternalErrorException(message_id=message_id, message=message)
+
+
+@common.platform_exception_handler
+def create_history(conversation_id, organization_id, workspace_id):
+    """
+    会話履歴を作成
+
+    Args:
+        conversation_id: Conversation ID
+        organization_id: Organization ID
+        workspace_id: Workspace ID
+
+    Returns:
+        作成した履歴レコード
+    """
+    globals.logger.info(f"### func:create_history")
+
+    user_id = connexion.request.headers.get('User-Id')
+    body = connexion.request.get_json()
+
+    # バリデーション
+    required_fields = ['role', 'content', '_timestamp']
+    for field in required_fields:
+        if field not in body:
+            message_id = "400-94201"
+            message = multi_lang.get_text(
+                message_id,
+                f"必須フィールドが不足しています: {field}"
+            )
+            raise common.BadRequestException(message_id=message_id, message=message)
+
+    try:
+        service = get_history_service()
+
+        result = service.create_history(
+            organization_id=organization_id,
+            workspace_id=workspace_id,
+            user_id=user_id,
+            conversation_id=conversation_id,
+            role=body['role'],
+            content=body['content'],
+            timestamp=body['_timestamp'],
+            thinking_ms=body.get('_thinkingMs'),
+            model=body.get('_model'),
+        )
+
+        globals.logger.debug(
+            f"History created: conv={conversation_id}, "
+            f"history_id={result['history_id']}, "
+            f"seq={result['history_seq']}"
+        )
+
+        return common.response_200_ok(result)
+
+    except ValueError as e:
+        message_id = "404-94202"
+        message = multi_lang.get_text(
+            message_id,
+            f"会話が見つかりません: {str(e)}"
+        )
+        raise common.NotFoundException(message_id=message_id, message=message)
+
+    except Exception as e:
+        globals.logger.error(f"Failed to create history: {e}", exc_info=True)
+        message_id = "500-94203"
+        message = multi_lang.get_text(
+            message_id,
+            "履歴作成に失敗しました: {}",
+            str(e)
+        )
+        raise common.InternalErrorException(message_id=message_id, message=message)
+
+
+@common.platform_exception_handler
+def list_histories(conversation_id, organization_id, workspace_id, limit=100, offset=0):
+    """
+    会話履歴一覧を取得
+
+    Args:
+        conversation_id: Conversation ID
+        organization_id: Organization ID
+        workspace_id: Workspace ID
+        limit: 取得件数
+        offset: オフセット
+
+    Returns:
+        履歴一覧
+    """
+    globals.logger.info(f"### func:list_histories")
+
+    user_id = connexion.request.headers.get('User-Id')
+
+    try:
+        service = get_history_service()
+
+        histories = service.list_histories(
+            organization_id=organization_id,
+            workspace_id=workspace_id,
+            user_id=user_id,
+            conversation_id=conversation_id,
+            limit=limit,
+            offset=offset,
+        )
+
+        globals.logger.debug(
+            f"Listed {len(histories)} histories: conv={conversation_id}"
+        )
+
+        return common.response_200_ok({
+            "histories": histories,
+            "count": len(histories),
+            "conversation_id": conversation_id,
+        })
+
+    except ValueError as e:
+        message_id = "404-94204"
+        message = multi_lang.get_text(
+            message_id,
+            f"会話が見つかりません: {str(e)}"
+        )
+        raise common.NotFoundException(message_id=message_id, message=message)
+
+    except Exception as e:
+        globals.logger.error(f"Failed to list histories: {e}", exc_info=True)
+        message_id = "500-94205"
+        message = multi_lang.get_text(
+            message_id,
+            "履歴一覧取得に失敗しました: {}",
             str(e)
         )
         raise common.InternalErrorException(message_id=message_id, message=message)

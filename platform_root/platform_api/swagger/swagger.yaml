@@ -2237,6 +2237,133 @@ paths:
               schema:
                 $ref: "#/components/schemas/runtimeError"
       x-openapi-router-controller: controllers.ai_assistant_service_controller
+  /api/{organization_id}/platform/workspaces/{workspace_id}/conversations/{conversation_id}/histories:
+    get:
+      tags:
+      - AIAssistantService
+      summary: 会話履歴一覧を取得
+      description: 会話の履歴（UI用）を取得する
+      operationId: list_histories
+      parameters:
+      - name: organization_id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      - name: workspace_id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      - name: conversation_id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      - name: limit
+        in: query
+        description: 取得件数
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: integer
+          default: 100
+      - name: offset
+        in: query
+        description: オフセット(history_seq基準)
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: integer
+          default: 0
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_200_29"
+        "404":
+          description: 会話が見つからない
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/runtimeError"
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/runtimeError"
+      x-openapi-router-controller: controllers.ai_assistant_service_controller
+    post:
+      tags:
+      - AIAssistantService
+      summary: 会話履歴を作成
+      description: UIからの応答を会話履歴として保存する
+      operationId: create_history
+      parameters:
+      - name: organization_id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      - name: workspace_id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      - name: conversation_id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/conversation_id_histories_body"
+        required: true
+      responses:
+        "200":
+          description: 作成成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_200_30"
+        "400":
+          description: バリデーションエラー
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/runtimeError"
+        "404":
+          description: 会話が見つからない
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/runtimeError"
+        "500":
+          description: サーバーエラー
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/runtimeError"
+      x-openapi-router-controller: controllers.ai_assistant_service_controller
   /api/{organization_id}/platform/users:
     get:
       tags:
@@ -2286,7 +2413,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_29"
+                $ref: "#/components/schemas/inline_response_200_31"
         default:
           description: An unexpected error response.
           content:
@@ -2355,7 +2482,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_30"
+                $ref: "#/components/schemas/inline_response_200_32"
         default:
           description: An unexpected error response.
           content:
@@ -2471,7 +2598,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_31"
+                $ref: "#/components/schemas/inline_response_200_33"
         default:
           description: An unexpected error response.
           content:
@@ -2650,7 +2777,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_32"
+                $ref: "#/components/schemas/inline_response_200_34"
         default:
           description: An unexpected error response.
           content:
@@ -2862,7 +2989,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_33"
+                $ref: "#/components/schemas/inline_response_200_35"
         default:
           description: An unexpected error response.
           content:
@@ -2897,7 +3024,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_34"
+                $ref: "#/components/schemas/inline_response_200_36"
         default:
           description: An unexpected error response.
           content:
@@ -2974,7 +3101,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_35"
+                $ref: "#/components/schemas/inline_response_200_37"
         default:
           description: An unexpected error response.
           content:
@@ -3002,7 +3129,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_36"
+                $ref: "#/components/schemas/inline_response_200_38"
         default:
           description: An unexpected error response.
           content:
@@ -3037,7 +3164,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_37"
+                $ref: "#/components/schemas/inline_response_200_39"
         default:
           description: An unexpected error response.
           content:
@@ -3101,7 +3228,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_38"
+                $ref: "#/components/schemas/inline_response_200_40"
         default:
           description: An unexpected error response.
           content:
@@ -3154,7 +3281,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_38"
+                $ref: "#/components/schemas/inline_response_200_40"
         default:
           description: An unexpected error response.
           content:
@@ -3182,7 +3309,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_39"
+                $ref: "#/components/schemas/inline_response_200_41"
               example:
                 value:
                   result: 200
@@ -3311,7 +3438,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_40"
+                $ref: "#/components/schemas/inline_response_200_42"
         default:
           description: An unexpected error response.
           content:
@@ -3344,7 +3471,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_41"
+                $ref: "#/components/schemas/inline_response_200_43"
         default:
           description: An unexpected error response.
           content:
@@ -3422,7 +3549,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_42"
+                $ref: "#/components/schemas/inline_response_200_44"
         default:
           description: An unexpected error response.
           content:
@@ -3505,7 +3632,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_43"
+                $ref: "#/components/schemas/inline_response_200_45"
         default:
           description: An unexpected error response.
           content:
@@ -3638,7 +3765,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_44"
+                $ref: "#/components/schemas/inline_response_200_46"
         default:
           description: An unexpected error response.
           content:
@@ -3686,7 +3813,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_45"
+                $ref: "#/components/schemas/inline_response_200_47"
         default:
           description: An unexpected error response.
           content:
@@ -3979,7 +4106,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_46"
+                $ref: "#/components/schemas/inline_response_200_48"
         default:
           description: An unexpected error response.
           content:
@@ -4034,7 +4161,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_47"
+                $ref: "#/components/schemas/inline_response_200_49"
         default:
           description: An unexpected error response.
           content:
@@ -4152,7 +4279,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_48"
+                $ref: "#/components/schemas/inline_response_200_50"
         default:
           description: An unexpected error response.
           content:
@@ -4208,7 +4335,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_29"
+                $ref: "#/components/schemas/inline_response_200_31"
         default:
           description: An unexpected error response.
           content:
@@ -4264,7 +4391,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_49"
+                $ref: "#/components/schemas/inline_response_200_51"
         default:
           description: An unexpected error response.
           content:
@@ -4285,7 +4412,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_38"
+                $ref: "#/components/schemas/inline_response_200_40"
         default:
           description: An unexpected error response.
           content:
@@ -4647,7 +4774,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_42"
+                $ref: "#/components/schemas/inline_response_200_44"
         default:
           description: An unexpected error response.
           content:
@@ -4730,7 +4857,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_44"
+                $ref: "#/components/schemas/inline_response_200_46"
         default:
           description: An unexpected error response.
           content:
@@ -4778,7 +4905,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_45"
+                $ref: "#/components/schemas/inline_response_200_47"
         default:
           description: An unexpected error response.
           content:
@@ -6488,15 +6615,64 @@ components:
     inline_response_200_29:
       allOf:
       - $ref: "#/components/schemas/responseOk"
-      - $ref: "#/components/schemas/userList"
+      - type: object
+        properties:
+          data:
+            $ref: "#/components/schemas/inline_response_200_29_data"
+    conversation_id_histories_body:
+      required:
+      - _timestamp
+      - content
+      - role
+      type: object
+      properties:
+        role:
+          type: string
+          description: ロール
+          example: user
+          enum:
+          - user
+          - assistant
+        content:
+          type: array
+          description: コンテンツ（JSON配列）
+          example:
+          - type: text
+            text: こんにちは
+          items:
+            type: object
+        _timestamp:
+          type: string
+          description: タイムスタンプ（ISO 8601）
+          format: date-time
+          example: 2026-08-27T07:10:56.261Z
+        _thinkingMs:
+          type: integer
+          description: 思考時間（ミリ秒、assistantの場合）
+          example: 4448
+        _model:
+          type: string
+          description: モデル名（assistantの場合）
+          example: global.anthropic.claude-opus-5
     inline_response_200_30:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - type: object
         properties:
           data:
-            $ref: "#/components/schemas/user"
+            $ref: "#/components/schemas/inline_response_200_30_data"
     inline_response_200_31:
+      allOf:
+      - $ref: "#/components/schemas/responseOk"
+      - $ref: "#/components/schemas/userList"
+    inline_response_200_32:
+      allOf:
+      - $ref: "#/components/schemas/responseOk"
+      - type: object
+        properties:
+          data:
+            $ref: "#/components/schemas/user"
+    inline_response_200_33:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - $ref: "#/components/schemas/roleDetailList"
@@ -6506,7 +6682,7 @@ components:
     roles_role_name_body:
       oneOf:
       - $ref: "#/components/schemas/roleDetailWorkspacePut"
-    inline_response_200_32:
+    inline_response_200_34:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - title: roleList is list of Role resources.
@@ -6516,11 +6692,11 @@ components:
             type: array
             items:
               $ref: "#/components/schemas/roleUser"
-    inline_response_200_33:
+    inline_response_200_35:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - $ref: "#/components/schemas/jobsUserBulkStatusList"
-    inline_response_200_34:
+    inline_response_200_36:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - title: Jobs user bulk processing result.
@@ -6528,7 +6704,7 @@ components:
         properties:
           data:
             $ref: "#/components/schemas/jobsUserBulkStatus"
-    inline_response_200_35:
+    inline_response_200_37:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - type: object
@@ -6537,11 +6713,11 @@ components:
             type: object
             example:
               job_id: XXXXXXXXXXXXXXXXXXXXXXXXXX
-    inline_response_200_36:
+    inline_response_200_38:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - $ref: "#/components/schemas/jobsUserExportStatusList"
-    inline_response_200_37:
+    inline_response_200_39:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - title: Jobs user export processing result.
@@ -6549,7 +6725,7 @@ components:
         properties:
           data:
             $ref: "#/components/schemas/jobsUserExportStatus"
-    inline_response_200_38:
+    inline_response_200_40:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - $ref: "#/components/schemas/maintenanceModeSettings"
@@ -6562,15 +6738,15 @@ components:
         data_update_stop:
           type: string
           example: "1"
-    inline_response_200_39:
+    inline_response_200_41:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - $ref: "#/components/schemas/settingsMailserverList"
-    inline_response_200_40:
+    inline_response_200_42:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - $ref: "#/components/schemas/AuditLogDownloadList"
-    inline_response_200_41:
+    inline_response_200_43:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - type: object
@@ -6579,44 +6755,44 @@ components:
             type: object
             example:
               download_id: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-    inline_response_200_42:
-      allOf:
-      - $ref: "#/components/schemas/responseOk"
-      - $ref: "#/components/schemas/serviceAccountUserList"
-    inline_response_200_43:
-      allOf:
-      - $ref: "#/components/schemas/responseOk"
-      - type: object
-        properties:
-          data:
-            $ref: "#/components/schemas/serviceAccountUser"
     inline_response_200_44:
       allOf:
       - $ref: "#/components/schemas/responseOk"
-      - $ref: "#/components/schemas/serviceAccountUserTokenList"
+      - $ref: "#/components/schemas/serviceAccountUserList"
     inline_response_200_45:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - type: object
         properties:
           data:
-            $ref: "#/components/schemas/inline_response_200_45_data"
+            $ref: "#/components/schemas/serviceAccountUser"
     inline_response_200_46:
       allOf:
       - $ref: "#/components/schemas/responseOk"
-      - $ref: "#/components/schemas/limitsList"
+      - $ref: "#/components/schemas/serviceAccountUserTokenList"
     inline_response_200_47:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - type: object
         properties:
           data:
-            $ref: "#/components/schemas/planItem"
+            $ref: "#/components/schemas/inline_response_200_47_data"
     inline_response_200_48:
       allOf:
       - $ref: "#/components/schemas/responseOk"
-      - $ref: "#/components/schemas/roleList"
+      - $ref: "#/components/schemas/limitsList"
     inline_response_200_49:
+      allOf:
+      - $ref: "#/components/schemas/responseOk"
+      - type: object
+        properties:
+          data:
+            $ref: "#/components/schemas/planItem"
+    inline_response_200_50:
+      allOf:
+      - $ref: "#/components/schemas/responseOk"
+      - $ref: "#/components/schemas/roleList"
+    inline_response_200_51:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - $ref: "#/components/schemas/userWorkspaceList"
@@ -7047,7 +7223,51 @@ components:
           description: AIの応答
         usage:
           $ref: "#/components/schemas/inline_response_200_28_data_usage"
-    inline_response_200_45_data:
+    inline_response_200_29_data:
+      type: object
+      properties:
+        histories:
+          type: array
+          items:
+            $ref: "#/paths/~1api~1%7Borganization_id%7D~1platform~1workspaces~1%7Bworkspace_id%7D~1conversations~1%7Bconversation_id%7D~1histories/post/responses/200/content/application~1json/schema/allOf/1/properties/data"
+        count:
+          type: integer
+        conversation_id:
+          type: string
+    inline_response_200_30_data:
+      type: object
+      properties:
+        history_id:
+          type: string
+          description: 履歴ID
+        conversation_id:
+          type: string
+          description: 会話ID
+        history_seq:
+          type: integer
+          description: 履歴順序番号
+        role:
+          type: string
+          description: ロール
+          enum:
+          - user
+          - assistant
+        content:
+          type: array
+          description: コンテンツ（JSON配列）
+          items:
+            type: object
+        _timestamp:
+          type: string
+          description: タイムスタンプ
+          format: date-time
+        _thinkingMs:
+          type: integer
+          description: 思考時間（ミリ秒、assistantの場合のみ）
+        _model:
+          type: string
+          description: モデル名（assistantの場合のみ）
+    inline_response_200_47_data:
       type: object
       properties:
         refresh_token:
