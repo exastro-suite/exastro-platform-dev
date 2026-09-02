@@ -286,6 +286,7 @@ class ConversationService:
         message_text: str,
         model_id: str = "anthropic.claude-3-5-sonnet-20240620-v1:0",
         user_language: str = None,
+        menu_id: str = None,
     ) -> Dict:
         """
         メッセージを送信してAI応答を取得
@@ -298,6 +299,7 @@ class ConversationService:
             message_text: ユーザーメッセージ
             model_id: AIモデルID
             user_language: ユーザー言語 (jp, en, None)
+            menu_id: メニューID (ITA画面ID、任意)
 
         Returns:
             Dict: 送信結果
@@ -450,7 +452,10 @@ class ConversationService:
                 raise ValueError(f"Unsupported ai_service_id for Bedrock: {ai_service_id}")
 
             # システムプロンプトを読み込み
-            from services.ai_assistant.system_prompt_loader import load_system_prompt
+            from services.ai_assistant.system_prompt_loader import (
+                load_system_prompt,
+                load_menu_prompt,
+            )
 
             try:
                 system_prompt = load_system_prompt(service_id, user_language)
@@ -461,6 +466,25 @@ class ConversationService:
             except FileNotFoundError as e:
                 globals.logger.warning(f"System prompt not found: {e}. Using empty prompt.")
                 system_prompt = None
+
+            # menu_idが指定されている場合は追加プロンプトを読み込み
+            if menu_id:
+                try:
+                    menu_prompt = load_menu_prompt(menu_id, user_language)
+                    if menu_prompt:
+                        # 既存のシステムプロンプトに追記
+                        if system_prompt:
+                            system_prompt = f"{system_prompt}\n\n{menu_prompt}"
+                        else:
+                            system_prompt = menu_prompt
+                        globals.logger.debug(
+                            f"Loaded and appended menu prompt for menu_id={menu_id}: "
+                            f"{len(menu_prompt)} chars, total={len(system_prompt)} chars"
+                        )
+                except Exception as e:
+                    globals.logger.warning(
+                        f"Failed to load menu prompt for menu_id={menu_id}: {e}"
+                    )
 
             # 会話履歴を構築
             messages = []

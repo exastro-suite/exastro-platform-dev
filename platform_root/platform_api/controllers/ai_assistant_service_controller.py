@@ -285,6 +285,7 @@ def send_message(body, conversation_id, organization_id, workspace_id):
     body = r.get_json()
     message_text = body.get("message")
     model_id = body.get("model_id", "anthropic.claude-3-5-sonnet-20240620-v1:0")
+    menu_id = body.get("menu_id")  # ITA画面ID（任意）
 
     # バリデーション
     if not message_text:
@@ -307,7 +308,8 @@ def send_message(body, conversation_id, organization_id, workspace_id):
             user_language = 'en'
 
         globals.logger.debug(
-            f"User language detected: {user_language} (Accept-Language: {accept_language})"
+            f"User language detected: {user_language} (Accept-Language: {accept_language}), "
+            f"menu_id: {menu_id}"
         )
 
         result = service.send_message(
@@ -318,6 +320,7 @@ def send_message(body, conversation_id, organization_id, workspace_id):
             message_text=message_text,
             model_id=model_id,
             user_language=user_language,
+            menu_id=menu_id,
         )
 
         globals.logger.debug(

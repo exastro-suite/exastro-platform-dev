@@ -47,10 +47,15 @@ class SystemPromptLoader:
             # デフォルト: platform_api/prompts/system/
             api_root = Path(__file__).parent.parent.parent
             self.prompts_dir = api_root / "prompts" / "system"
+            self.menu_prompts_dir = api_root / "prompts" / "menu"
         else:
             self.prompts_dir = Path(prompts_dir)
+            self.menu_prompts_dir = Path(prompts_dir).parent / "menu"
 
-        globals.logger.debug(f"SystemPromptLoader initialized: {self.prompts_dir}")
+        globals.logger.debug(
+            f"SystemPromptLoader initialized: system={self.prompts_dir}, "
+            f"menu={self.menu_prompts_dir}"
+        )
 
     def load_prompt(
         self, service_id: str, user_language: Optional[str] = None
@@ -114,6 +119,44 @@ class SystemPromptLoader:
             globals.logger.error(f"Failed to read prompt file {file_path}: {e}")
             raise
 
+    def load_menu_prompt(
+        self, menu_id: str, user_language: Optional[str] = None
+    ) -> Optional[str]:
+        """
+        メニュー固有の追加システムプロンプトを読み込む
+
+        Args:
+            menu_id: メニューID (ITA画面ID)
+            user_language: ユーザー言語 (jp, en, None)
+
+        Returns:
+            追加プロンプト文字列（ファイルがない場合はNone）
+        """
+        # menu_id を小文字に正規化
+        menu_id_lower = menu_id.lower()
+
+        # 言語別プロンプトを優先的に読み込み
+        if user_language:
+            lang_file = self.menu_prompts_dir / f"{menu_id_lower}_{user_language}.txt"
+            if lang_file.exists():
+                globals.logger.debug(
+                    f"Loading menu-specific prompt (language): {lang_file}"
+                )
+                return self._read_file(lang_file)
+
+        # 言語別プロンプトがない場合はベースプロンプトを使用
+        base_file = self.menu_prompts_dir / f"{menu_id_lower}_base.txt"
+        if base_file.exists():
+            globals.logger.debug(f"Loading menu-specific prompt (base): {base_file}")
+            return self._read_file(base_file)
+
+        # どちらも見つからない場合はNone（エラーにしない）
+        globals.logger.debug(
+            f"No menu-specific prompt found for menu_id={menu_id}, "
+            f"user_language={user_language}"
+        )
+        return None
+
     def get_available_services(self) -> list[str]:
         """
         利用可能なサービスIDのリストを取得
@@ -162,3 +205,20 @@ def load_system_prompt(
     """
     loader = get_system_prompt_loader()
     return loader.load_prompt(service_id, user_language)
+
+
+def load_menu_prompt(
+    menu_id: str, user_language: Optional[str] = None
+) -> Optional[str]:
+    """
+    メニュー固有の追加プロンプトを読み込む（ショートカット関数）
+
+    Args:
+        menu_id: メニューID
+        user_language: ユーザー言語
+
+    Returns:
+        追加プロンプト文字列（なければNone）
+    """
+    loader = get_system_prompt_loader()
+    return loader.load_menu_prompt(menu_id, user_language)

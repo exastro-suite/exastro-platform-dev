@@ -965,6 +965,10 @@ paths:
                   type: string
                   description: 使用するモデルID(メッセージごとに変更可能、省略時はデフォルト)
                   example: 'anthropic.claude-3-5-sonnet-20240620-v1:0'
+                menu_id:
+                  type: string
+                  description: ITA画面ID(指定時はメニュー固有のシステムプロンプトを追加)
+                  example: menu_001
       responses:
         '200':
           description: メッセージ送信成功
