@@ -755,7 +755,7 @@ def list_credentials(organization_id, ai_service_id, status=None):
                 }
             )
 
-        return common.response_200(
+        return common.response_200_ok(
             {
                 "credentials": credentials_data,
                 "count": len(credentials_data),
@@ -802,7 +802,7 @@ def get_credential(organization_id, ai_service_id, credential_id):
         )
 
         # Credentialデータはマスク(セキュリティ上、詳細は返さない)
-        return common.response_200(
+        return common.response_200_ok(
             {
                 "credential_id": credential.credential_id,
                 "ai_service_id": credential.ai_service_id,

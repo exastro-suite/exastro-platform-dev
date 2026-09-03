@@ -500,7 +500,6 @@ class ConversationService:
                 "messages": messages,
                 "inferenceConfig": {
                     "maxTokens": 4096,
-                    "temperature": 0.7,
                 },
             }
 
