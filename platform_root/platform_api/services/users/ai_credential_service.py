@@ -36,7 +36,7 @@ import globals
 class AiCredential:
     """AI Service Credential"""
     credential_id: str
-    ai_service_id: str
+    credential_type: str
     credential_name: str
     credential_data: Dict[str, Any]  # JSON形式のCredentialデータ
     status: str
@@ -60,7 +60,7 @@ class AiCredentialService:
         self,
         organization_id: str,
         user_id: str,
-        ai_service_id: str,
+        credential_type: str,
         credential_name: str,
         credential_data: Dict[str, Any],
         notes: Optional[str] = None,
@@ -71,7 +71,7 @@ class AiCredentialService:
         Args:
             organization_id: Organization ID (DB接続用、テーブルには保存しない)
             user_id: User ID
-            ai_service_id: AIサービスID (bedrock, openai, anthropic, etc.)
+            credential_type: AIサービスID (bedrock, openai, anthropic, etc.)
             credential_name: Credential名
             credential_data: Credentialデータ（JSON形式）
             notes: 備考
@@ -102,7 +102,7 @@ class AiCredentialService:
                     {
                         "credential_id": credential_id,
                         "user_id": user_id,
-                        "ai_service_id": ai_service_id,
+                        "credential_type": credential_type,
                         "credential_name": credential_name,
                         "encrypted_credential_data": encrypted_data,
                         "expires_at": expires_at,
@@ -113,7 +113,7 @@ class AiCredentialService:
 
         globals.logger.debug(
             f"AI Credential registered: id={credential_id}, "
-            f"service={ai_service_id}, user={user_id}"
+            f"service={credential_type}, user={user_id}"
         )
 
         return credential_id
@@ -122,7 +122,7 @@ class AiCredentialService:
         self,
         organization_id: str,
         user_id: str,
-        ai_service_id: str,
+        credential_type: str,
         credential_id: Optional[str] = None,
     ) -> AiCredential:
         """
@@ -131,7 +131,7 @@ class AiCredentialService:
         Args:
             organization_id: Organization ID (DB接続用、テーブルには保存しない)
             user_id: User ID
-            ai_service_id: AIサービスID
+            credential_type: AIサービスID
             credential_id: Credential ID（省略時は最新のactiveなものを取得）
 
         Returns:
@@ -149,7 +149,7 @@ class AiCredentialService:
                         {
                             "credential_id": credential_id,
                             "user_id": user_id,
-                            "ai_service_id": ai_service_id,
+                            "credential_type": credential_type,
                         },
                     )
                 else:
@@ -158,7 +158,7 @@ class AiCredentialService:
                         queries_ai_assistant.SQL_SELECT_USER_ACTIVE_CREDENTIAL_BY_SERVICE,
                         {
                             "user_id": user_id,
-                            "ai_service_id": ai_service_id,
+                            "credential_type": credential_type,
                         },
                     )
 
@@ -166,7 +166,7 @@ class AiCredentialService:
 
                 if not row:
                     raise CredentialNotFound(
-                        f"Credential not found: service={ai_service_id}, "
+                        f"Credential not found: service={credential_type}, "
                         f"user={user_id}"
                     )
 
@@ -177,7 +177,7 @@ class AiCredentialService:
 
                 return AiCredential(
                     credential_id=row["CREDENTIAL_ID"],
-                    ai_service_id=row["AI_SERVICE_ID"],
+                    credential_type=row["CREDENTIAL_TYPE"],
                     credential_name=row["CREDENTIAL_NAME"],
                     credential_data=credential_data,
                     status=row["STATUS"],
@@ -189,7 +189,7 @@ class AiCredentialService:
         self,
         organization_id: str,
         user_id: str,
-        ai_service_id: str,
+        credential_type: str,
         status: Optional[str] = None,
     ) -> List[Dict]:
         """
@@ -198,7 +198,7 @@ class AiCredentialService:
         Args:
             organization_id: Organization ID (DB接続用、テーブルには保存しない)
             user_id: User ID
-            ai_service_id: AIサービスID
+            credential_type: AIサービスID
             status: ステータスフィルター
 
         Returns:
@@ -211,7 +211,7 @@ class AiCredentialService:
                         queries_ai_assistant.SQL_LIST_USER_CREDENTIALS_WITH_STATUS,
                         {
                             "user_id": user_id,
-                            "ai_service_id": ai_service_id,
+                            "credential_type": credential_type,
                             "status": status,
                         },
                     )
@@ -220,7 +220,7 @@ class AiCredentialService:
                         queries_ai_assistant.SQL_LIST_USER_CREDENTIALS,
                         {
                             "user_id": user_id,
-                            "ai_service_id": ai_service_id,
+                            "credential_type": credential_type,
                         },
                     )
 
@@ -231,7 +231,7 @@ class AiCredentialService:
         self,
         organization_id: str,
         user_id: str,
-        ai_service_id: str,
+        credential_type: str,
         credential_id: str,
     ) -> bool:
         """
@@ -240,7 +240,7 @@ class AiCredentialService:
         Args:
             organization_id: Organization ID (DB接続用、テーブルには保存しない)
             user_id: User ID
-            ai_service_id: AIサービスID
+            credential_type: AIサービスID
             credential_id: Credential ID
 
         Returns:
@@ -261,7 +261,7 @@ class AiCredentialService:
         if deleted:
             globals.logger.debug(
                 f"AI Credential deleted: id={credential_id}, "
-                f"service={ai_service_id}, user={user_id}"
+                f"service={credential_type}, user={user_id}"
             )
 
         return deleted
@@ -270,22 +270,22 @@ class AiCredentialService:
         self,
         organization_id: str,
         user_id: str,
-        ai_service_id: str,
+        credential_type: str,
         credential_id: str,
         credential_name: Optional[str] = None,
         credential_data: Optional[Dict] = None,
         notes: Optional[str] = None,
     ) -> bool:
         """
-        Credentialを更新（部分更新）
+        Credentialを更新（全体更新）
 
         Args:
             organization_id: Organization ID (DB接続用、テーブルには保存しない)
             user_id: User ID
-            ai_service_id: AIサービスID
+            credential_type: Credentialタイプ
             credential_id: Credential ID
-            credential_name: Credential名（任意）
-            credential_data: Credentialデータ（任意）
+            credential_name: Credential名（必須）
+            credential_data: Credentialデータ（必須）
             notes: 備考（任意）
 
         Returns:
@@ -318,14 +318,14 @@ class AiCredentialService:
                 params.append(user_id)
 
                 # WHERE句のパラメータ
-                params.extend([credential_id, user_id, ai_service_id])
+                params.extend([credential_id, user_id, credential_type])
 
                 query = f"""
-                    UPDATE T_USER_AI_CREDENTIAL
+                    UPDATE T_USER_CREDENTIAL
                     SET {', '.join(update_fields)}
                     WHERE CREDENTIAL_ID = %s
                       AND USER_ID = %s
-                      AND AI_SERVICE_ID = %s
+                      AND CREDENTIAL_TYPE = %s
                 """
 
                 cursor.execute(query, params)
@@ -334,8 +334,8 @@ class AiCredentialService:
 
         if updated:
             globals.logger.debug(
-                f"AI Credential updated: id={credential_id}, "
-                f"service={ai_service_id}, user={user_id}, "
+                f"Credential updated: id={credential_id}, "
+                f"type={credential_type}, user={user_id}, "
                 f"fields={[k.split('=')[0].strip() for k in update_fields if '=' in k]}"
             )
 

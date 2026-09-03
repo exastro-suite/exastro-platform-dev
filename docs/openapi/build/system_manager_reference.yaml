@@ -2187,11 +2187,13 @@ components:
       properties:
         credential_id:
           type: string
-        ai_service_id:
+        credential_type:
           type: string
           enum:
             - bedrock-cache
             - bedrock
+            - openai
+            - anthropic
         credential_name:
           type: string
         status:
@@ -2264,31 +2266,6 @@ components:
           type: string
           format: date-time
         updated_at:
-          type: string
-          format: date-time
-    messageInfo:
-      type: object
-      properties:
-        message_id:
-          type: string
-        conversation_id:
-          type: string
-        message_seq:
-          type: integer
-        role:
-          type: string
-          enum:
-            - user
-            - assistant
-            - system
-        message_text:
-          type: string
-        ai_model_id:
-          type: string
-          description: AIモデルID（assistantメッセージの場合、メッセージごとに変更可能）
-        token_count:
-          type: integer
-        created_at:
           type: string
           format: date-time
   securitySchemes:

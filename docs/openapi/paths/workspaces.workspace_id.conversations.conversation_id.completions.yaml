@@ -12,83 +12,14 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-get:
-  tags:
-    - AIAssistantService
-  summary: メッセージ一覧を取得
-  description: 会話のメッセージ履歴を取得する
-  operationId: list_messages
-  x-openapi-router-controller: controllers.ai_assistant_service_controller
-  parameters:
-    - name: organization_id
-      in: path
-      required: true
-      schema:
-        type: string
-    - name: workspace_id
-      in: path
-      required: true
-      schema:
-        type: string
-    - name: conversation_id
-      in: path
-      required: true
-      schema:
-        type: string
-    - name: limit
-      in: query
-      required: false
-      schema:
-        type: integer
-        default: 100
-      description: 取得件数
-    - name: offset
-      in: query
-      required: false
-      schema:
-        type: integer
-        default: 0
-      description: オフセット(message_seq基準)
-  responses:
-    200:
-      description: 成功
-      content:
-        application/json:
-          schema:
-            allOf:
-              - $ref: '../schemas/responseOk.yaml'
-              - type: object
-                properties:
-                  data:
-                    type: object
-                    properties:
-                      messages:
-                        type: array
-                        items:
-                          $ref: '../schemas/messageInfo.yaml'
-                      count:
-                        type: integer
-                      conversation_id:
-                        type: string
-    404:
-      description: 会話が見つからない
-      content:
-        application/json:
-          schema:
-            $ref: '../schemas/runtimeError.yaml'
-    default:
-      description: An unexpected error response.
-      content:
-        application/json:
-          schema:
-            $ref: '../schemas/runtimeError.yaml'
-
 post:
   tags:
     - AIAssistantService
-  summary: メッセージを送信
-  description: ユーザーメッセージを送信し、AIから応答を取得する
-  operationId: send_message
+  summary: AI応答を生成
+  description: >-
+    ユーザーメッセージを送信し、AIとの会話を1ターン進めて応答を取得する。
+    会話全体はT_CHAT_HISTORYにJSON配列(ターン一覧)のスナップショットとして保存される(T_CHAT_MESSAGEは使用しない)。
+  operationId: create_completion
   x-openapi-router-controller: controllers.ai_assistant_service_controller
   parameters:
     - name: organization_id
@@ -119,6 +50,11 @@ post:
               type: string
               description: ユーザーメッセージ
               example: "こんにちは、Bedrockのテストです"
+            ai_service_id:
+              type: string
+              description: AIサービスID(メッセージ固有、会話のデフォルトをオーバーライド、省略時は会話のAI_SERVICE_IDを使用)
+              enum: [bedrock-cache, bedrock, openai, anthropic]
+              example: "bedrock-cache"
             model_id:
               type: string
               description: 使用するモデルID(メッセージごとに変更可能、省略時はデフォルト)
@@ -129,7 +65,7 @@ post:
               example: "menu_001"
   responses:
     200:
-      description: メッセージ送信成功
+      description: AI応答の生成成功
       content:
         application/json:
           schema:
@@ -142,10 +78,15 @@ post:
                     properties:
                       conversation_id:
                         type: string
-                      user_message_id:
+                      history_id:
                         type: string
-                      assistant_message_id:
-                        type: string
+                        description: 保存されたT_CHAT_HISTORYスナップショットのID
+                      user_message_seq:
+                        type: integer
+                        description: スナップショット内でのユーザーメッセージの順序番号(1始まり)
+                      assistant_message_seq:
+                        type: integer
+                        description: スナップショット内でのアシスタントメッセージの順序番号(1始まり)
                       content:
                         type: string
                         description: AIの応答

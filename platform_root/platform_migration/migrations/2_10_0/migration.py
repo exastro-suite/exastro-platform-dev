@@ -25,7 +25,7 @@ def main():
 
     # オーガナイゼーションデータベースの更新
     # Update organization database
-    # - T_USER_AI_CREDENTIAL テーブル作成（オーガナイゼーション単位）
+    # - T_USER_CREDENTIAL テーブル作成（オーガナイゼーション単位）
     api = update_organization_db.update_organization_db()
     result.append(api.start())
 

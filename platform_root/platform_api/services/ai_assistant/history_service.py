@@ -20,7 +20,6 @@ History Service
 
 import json
 from contextlib import closing
-from datetime import datetime
 from typing import Dict, List, Optional
 
 import ulid
@@ -41,11 +40,7 @@ class HistoryService:
         workspace_id: str,
         user_id: str,
         conversation_id: str,
-        role: str,
-        content: List[Dict],
-        timestamp: str,
-        thinking_ms: Optional[int] = None,
-        model: Optional[str] = None,
+        contents: List[Dict],
     ) -> Dict:
         """
         履歴レコードを作成
@@ -55,11 +50,7 @@ class HistoryService:
             workspace_id: Workspace ID
             user_id: User ID
             conversation_id: Conversation ID
-            role: ロール (user/assistant)
-            content: コンテンツ（JSON配列）
-            timestamp: タイムスタンプ (ISO 8601)
-            thinking_ms: 思考時間（ミリ秒、optional）
-            model: モデル名（optional）
+            contents: コンテンツ（JSON配列全体 - role, content, _timestamp等を含む配列）
 
         Returns:
             作成した履歴レコード
@@ -76,13 +67,7 @@ class HistoryService:
 
                 # 履歴レコードを作成
                 history_id = ulid.new().str
-                content_json = json.dumps(content, ensure_ascii=False)
-
-                # timestampをdatetimeに変換
-                if isinstance(timestamp, str):
-                    timestamp_dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
-                else:
-                    timestamp_dt = timestamp
+                contents_json = json.dumps(contents, ensure_ascii=False)
 
                 cursor.execute(
                     queries_ai_assistant.SQL_INSERT_HISTORY,
@@ -90,11 +75,7 @@ class HistoryService:
                         "history_id": history_id,
                         "conversation_id": conversation_id,
                         "history_seq": next_seq,
-                        "role": role,
-                        "content": content_json,
-                        "timestamp": timestamp_dt,
-                        "thinking_ms": thinking_ms,
-                        "model": model,
+                        "contents": contents_json,
                         "user_id": user_id,
                     },
                 )
@@ -103,19 +84,51 @@ class HistoryService:
 
                 globals.logger.debug(
                     f"Created history: id={history_id}, conv={conversation_id}, "
-                    f"seq={next_seq}, role={role}"
+                    f"seq={next_seq}"
                 )
 
                 return {
                     "history_id": history_id,
                     "conversation_id": conversation_id,
                     "history_seq": next_seq,
-                    "role": role,
-                    "content": content,
-                    "timestamp": timestamp,
-                    "thinking_ms": thinking_ms,
-                    "model": model,
+                    "contents": contents,
                 }
+
+    def get_latest_history(
+        self,
+        organization_id: str,
+        workspace_id: str,
+        conversation_id: str,
+    ) -> Optional[List[Dict]]:
+        """
+        会話の最新の履歴スナップショット（JSON配列全体）を取得
+
+        /completionsエンドポイントが会話のやり取りを継続する際、
+        直前までの全ターン（role, content, _timestamp等）を取得するために使う。
+
+        Args:
+            organization_id: Organization ID
+            workspace_id: Workspace ID
+            conversation_id: Conversation ID
+
+        Returns:
+            直近のcontents（JSON配列）。履歴が存在しない場合はNone。
+        """
+        with closing(DBconnector().connect_workspacedb(organization_id, workspace_id)) as conn:
+            with closing(conn.cursor()) as cursor:
+                cursor.execute(
+                    queries_ai_assistant.SQL_SELECT_LATEST_HISTORY,
+                    {"conversation_id": conversation_id},
+                )
+                row = cursor.fetchone()
+
+        if not row:
+            return None
+
+        try:
+            return json.loads(row["CONTENTS"])
+        except (json.JSONDecodeError, TypeError):
+            return None
 
     def list_histories(
         self,
@@ -138,7 +151,7 @@ class HistoryService:
             offset: オフセット（HISTORY_SEQ基準）
 
         Returns:
-            履歴レコードのリスト
+            履歴レコードのリスト（各レコードにJSON配列全体を含む）
         """
         with closing(DBconnector().connect_workspacedb(organization_id, workspace_id)) as conn:
             with closing(conn.cursor()) as cursor:
@@ -164,26 +177,20 @@ class HistoryService:
 
                 histories = []
                 for row in cursor.fetchall():
-                    # CONTENTをJSONとしてパース
+                    # CONTENTSをJSONとしてパース
                     try:
-                        content = json.loads(row["CONTENT"])
+                        contents = json.loads(row["CONTENTS"])
                     except (json.JSONDecodeError, TypeError):
-                        content = []
+                        contents = []
 
                     history_dict = {
                         "history_id": row["HISTORY_ID"],
                         "conversation_id": row["CONVERSATION_ID"],
                         "history_seq": row["HISTORY_SEQ"],
-                        "role": row["ROLE"],
-                        "content": content,
-                        "_timestamp": row["TIMESTAMP"].isoformat() + 'Z' if row["TIMESTAMP"] else None,
+                        "contents": contents,
+                        "created_at": row["CREATE_TIMESTAMP"].isoformat() if row["CREATE_TIMESTAMP"] else None,
+                        "updated_at": row["LAST_UPDATE_TIMESTAMP"].isoformat() if row["LAST_UPDATE_TIMESTAMP"] else None,
                     }
-
-                    # オプションフィールドを追加
-                    if row["THINKING_MS"] is not None:
-                        history_dict["_thinkingMs"] = row["THINKING_MS"]
-                    if row["MODEL"]:
-                        history_dict["_model"] = row["MODEL"]
 
                     histories.append(history_dict)
 
@@ -192,6 +199,130 @@ class HistoryService:
                 )
 
                 return histories
+
+    def replace_histories(
+        self,
+        organization_id: str,
+        workspace_id: str,
+        user_id: str,
+        conversation_id: str,
+        histories: List[List[Dict]],
+    ) -> List[Dict]:
+        """
+        会話履歴を全置き換え
+
+        既存のT_CHAT_HISTORYレコードを全て削除し、指定されたcontents配列群を
+        新しい履歴レコードとして登録し直す（GETで取得できる内容をそのまま置き換えるイメージ）。
+
+        Args:
+            organization_id: Organization ID
+            workspace_id: Workspace ID
+            user_id: User ID
+            conversation_id: Conversation ID
+            histories: 置き換え後の履歴レコード一覧（各要素はcontents配列）
+
+        Returns:
+            置き換え後の履歴レコードのリスト
+
+        Raises:
+            ValueError: 会話が見つからない
+        """
+        with closing(DBconnector().connect_workspacedb(organization_id, workspace_id)) as conn:
+            with closing(conn.cursor()) as cursor:
+                # 会話の存在確認とオーナーシップ確認
+                cursor.execute(
+                    queries_ai_assistant.SQL_SELECT_CONVERSATION_FOR_HISTORY,
+                    {"conversation_id": conversation_id, "user_id": user_id},
+                )
+                if not cursor.fetchone():
+                    raise ValueError(
+                        f"Conversation not found or access denied: {conversation_id}"
+                    )
+
+                # 既存の履歴を全削除してから置き換え後の内容を登録し直す
+                cursor.execute(
+                    queries_ai_assistant.SQL_DELETE_HISTORIES,
+                    {"conversation_id": conversation_id},
+                )
+
+                results = []
+                for index, contents in enumerate(histories, start=1):
+                    history_id = ulid.new().str
+                    contents_json = json.dumps(contents, ensure_ascii=False)
+
+                    cursor.execute(
+                        queries_ai_assistant.SQL_INSERT_HISTORY,
+                        {
+                            "history_id": history_id,
+                            "conversation_id": conversation_id,
+                            "history_seq": index,
+                            "contents": contents_json,
+                            "user_id": user_id,
+                        },
+                    )
+
+                    results.append({
+                        "history_id": history_id,
+                        "conversation_id": conversation_id,
+                        "history_seq": index,
+                        "contents": contents,
+                    })
+
+                conn.commit()
+
+                globals.logger.debug(
+                    f"Replaced histories: conv={conversation_id}, count={len(results)}"
+                )
+
+                return results
+
+    def delete_histories(
+        self,
+        organization_id: str,
+        workspace_id: str,
+        user_id: str,
+        conversation_id: str,
+    ) -> int:
+        """
+        会話履歴を全削除
+
+        Args:
+            organization_id: Organization ID
+            workspace_id: Workspace ID
+            user_id: User ID
+            conversation_id: Conversation ID
+
+        Returns:
+            削除件数
+
+        Raises:
+            ValueError: 会話が見つからない
+        """
+        with closing(DBconnector().connect_workspacedb(organization_id, workspace_id)) as conn:
+            with closing(conn.cursor()) as cursor:
+                # 会話の存在確認とオーナーシップ確認
+                cursor.execute(
+                    queries_ai_assistant.SQL_SELECT_CONVERSATION_FOR_HISTORY,
+                    {"conversation_id": conversation_id, "user_id": user_id},
+                )
+                if not cursor.fetchone():
+                    raise ValueError(
+                        f"Conversation not found or access denied: {conversation_id}"
+                    )
+
+                cursor.execute(
+                    queries_ai_assistant.SQL_DELETE_HISTORIES,
+                    {"conversation_id": conversation_id},
+                )
+                deleted_count = cursor.rowcount
+
+                conn.commit()
+
+                globals.logger.debug(
+                    f"Deleted histories: conv={conversation_id}, count={deleted_count}"
+                )
+
+                return deleted_count
 
 
 # シングルトンインスタンス

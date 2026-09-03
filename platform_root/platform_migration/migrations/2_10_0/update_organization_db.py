@@ -151,32 +151,32 @@ class update_organization_db:
             with closing(db.connect_orgdb(organization_id)) as conn:
                 with conn.cursor() as cursor:
 
-                    # T_USER_AI_CREDENTIAL テーブル作成（オーガナイゼーション単位）
+                    # T_USER_CREDENTIAL テーブル作成（オーガナイゼーション単位）
                     try:
-                        globals.logger.info(f"[{self.step_count}/{self.step_max}] - create table T_USER_AI_CREDENTIAL: organization_id:[{organization_id}]")
+                        globals.logger.info(f"[{self.step_count}/{self.step_max}] - create table T_USER_CREDENTIAL: organization_id:[{organization_id}]")
 
                         # テーブル存在確認
-                        cursor.execute(queries_db_organizations.CHECK_TABLE_EXISTS, ('T_USER_AI_CREDENTIAL',))
+                        cursor.execute(queries_db_organizations.CHECK_TABLE_EXISTS, ('T_USER_CREDENTIAL',))
                         result = cursor.fetchone()
 
                         if result['count'] == 0:
-                            query = queries_db_organizations.CREATE_TABLE_AI_CREDENTIAL
+                            query = queries_db_organizations.CREATE_TABLE_USER_CREDENTIAL
                             globals.logger.debug(f'EXECUTE SQL:{query}')
                             cursor.execute(query)
-                            globals.logger.info(f"[{self.step_count}/{self.step_max}] -- OK: create table T_USER_AI_CREDENTIAL: organization_id:[{organization_id}]")
+                            globals.logger.info(f"[{self.step_count}/{self.step_max}] -- OK: create table T_USER_CREDENTIAL: organization_id:[{organization_id}]")
                             self.ok_count += 1
                         else:
-                            globals.logger.info(f"[{self.step_count}/{self.step_max}] -- SKIP: table T_USER_AI_CREDENTIAL already exists: organization_id:[{organization_id}]")
+                            globals.logger.info(f"[{self.step_count}/{self.step_max}] -- SKIP: table T_USER_CREDENTIAL already exists: organization_id:[{organization_id}]")
                             self.skip_count += 1
 
                         conn.commit()
 
                     except Exception as e:
-                        globals.logger.info(f"[{self.step_count}/{self.step_max}] -- NG: create table T_USER_AI_CREDENTIAL: organization_id:[{organization_id}]")
+                        globals.logger.info(f"[{self.step_count}/{self.step_max}] -- NG: create table T_USER_CREDENTIAL: organization_id:[{organization_id}]")
                         globals.logger.error(f"exception:{e.args}")
                         message_id = "500-90031"
                         message = multi_lang.get_text(message_id,
-                                                      "organization_db create table T_USER_AI_CREDENTIAL failed. organization_id:[{0}]",
+                                                      "organization_db create table T_USER_CREDENTIAL failed. organization_id:[{0}]",
                                                       organization_id)
                         raise common.InternalErrorException(message_id=message_id, message=message)
 

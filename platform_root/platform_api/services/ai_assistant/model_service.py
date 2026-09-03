@@ -126,7 +126,7 @@ class ModelService:
         self,
         organization_id: str,
         user_id: str,
-        ai_service_id: str,
+        credential_type: str,
     ) -> List[Dict]:
         """
         Bedrockの使用可能なモデル一覧を取得
@@ -134,7 +134,7 @@ class ModelService:
         Args:
             organization_id: Organization ID
             user_id: User ID
-            ai_service_id: AIサービスID (bedrock-cache または bedrock)
+            credential_type: Credentialタイプ (bedrock-cache または bedrock)
 
         Returns:
             モデル一覧
@@ -144,14 +144,14 @@ class ModelService:
             credential = credential_service.get_credential(
                 organization_id=organization_id,
                 user_id=user_id,
-                ai_service_id=ai_service_id,
+                credential_type=credential_type,
             )
 
             # 変数を外側で定義
             aws_session = None
 
             # Bedrock clientを作成
-            if ai_service_id == "bedrock-cache":
+            if credential_type == "bedrock-cache":
                 # AWS Login Cache使用（DBから取得したCredentialデータ）
                 globals.logger.debug(
                     f"credential_data keys: {list(credential.credential_data.keys())}"
@@ -239,11 +239,11 @@ class ModelService:
 
             globals.logger.debug(
                 f"Retrieved {len(model_list)} Bedrock models for "
-                f"service={ai_service_id}, org={organization_id}, user={user_id}"
+                f"service={credential_type}, org={organization_id}, user={user_id}"
             )
 
             # 最終使用日時とトークン更新（Bedrock呼び出し後）
-            if ai_service_id == "bedrock-cache" and aws_session:
+            if credential_type == "bedrock-cache" and aws_session:
                 # bedrock-cacheの場合、トークンが自動更新されている可能性がある
                 latest_token = aws_session.get_current_token()
                 if latest_token:

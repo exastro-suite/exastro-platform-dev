@@ -602,7 +602,7 @@ def user_delete(organization_id, user_id):
 # =========================================================================
 
 @common.platform_exception_handler
-def register_credential(body, organization_id, ai_service_id):
+def register_credential(body, organization_id, credential_type):
     """
     Credentialを登録
 
@@ -610,8 +610,8 @@ def register_credential(body, organization_id, ai_service_id):
     :type body: dict
     :param organization_id:
     :type organization_id: str
-    :param ai_service_id:
-    :type ai_service_id: str
+    :param credential_type:
+    :type credential_type: str
 
     :rtype: dict
     """
@@ -639,7 +639,7 @@ def register_credential(body, organization_id, ai_service_id):
         raise common.BadRequestException(message_id=message_id, message=message)
 
     # bedrock-cache の特別処理
-    if ai_service_id == "bedrock-cache":
+    if credential_type == "bedrock-cache":
         # キャッシュファイルの内容が渡されているか確認
         if "idToken" not in credential_data:
             message_id = "400-94014"
@@ -659,7 +659,7 @@ def register_credential(body, organization_id, ai_service_id):
         credential_id = service.register_credential(
             organization_id=organization_id,
             user_id=user_id,
-            ai_service_id=ai_service_id,
+            credential_type=credential_type,
             credential_name=credential_name,
             credential_data=credential_data,
             notes=notes,
@@ -667,13 +667,13 @@ def register_credential(body, organization_id, ai_service_id):
 
         globals.logger.debug(
             f"AI Credential registered: id={credential_id}, "
-            f"service={ai_service_id}, org={organization_id}, user={user_id}"
+            f"service={credential_type}, org={organization_id}, user={user_id}"
         )
 
         return common.response_200_ok(
             {
                 "credential_id": credential_id,
-                "ai_service_id": ai_service_id,
+                "credential_type": credential_type,
                 "credential_name": credential_name,
                 "status": "active",
                 "message": "Credential registered successfully",
@@ -690,14 +690,14 @@ def register_credential(body, organization_id, ai_service_id):
 
 
 @common.platform_exception_handler
-def list_credentials(organization_id, ai_service_id, status=None):
+def list_credentials(organization_id, credential_type, status=None):
     """
     Credential一覧を取得
 
     :param organization_id:
     :type organization_id: str
-    :param ai_service_id:
-    :type ai_service_id: str
+    :param credential_type:
+    :type credential_type: str
     :param status:
     :type status: str
 
@@ -714,7 +714,7 @@ def list_credentials(organization_id, ai_service_id, status=None):
         credentials = service.list_credentials(
             organization_id=organization_id,
             user_id=user_id,
-            ai_service_id=ai_service_id,
+            credential_type=credential_type,
             status=status,
         )
 
@@ -724,7 +724,7 @@ def list_credentials(organization_id, ai_service_id, status=None):
             credentials_data.append(
                 {
                     "credential_id": cred["CREDENTIAL_ID"],
-                    "ai_service_id": cred["AI_SERVICE_ID"],
+                    "credential_type": cred["CREDENTIAL_TYPE"],
                     "credential_name": cred["CREDENTIAL_NAME"],
                     "status": cred["STATUS"],
                     "expires_at": (
@@ -759,7 +759,7 @@ def list_credentials(organization_id, ai_service_id, status=None):
             {
                 "credentials": credentials_data,
                 "count": len(credentials_data),
-                "ai_service_id": ai_service_id,
+                "credential_type": credential_type,
             }
         )
 
@@ -773,14 +773,14 @@ def list_credentials(organization_id, ai_service_id, status=None):
 
 
 @common.platform_exception_handler
-def get_credential(organization_id, ai_service_id, credential_id):
+def get_credential(organization_id, credential_type, credential_id):
     """
     Credential詳細を取得
 
     :param organization_id:
     :type organization_id: str
-    :param ai_service_id:
-    :type ai_service_id: str
+    :param credential_type:
+    :type credential_type: str
     :param credential_id:
     :type credential_id: str
 
@@ -797,7 +797,7 @@ def get_credential(organization_id, ai_service_id, credential_id):
         credential = service.get_credential(
             organization_id=organization_id,
             user_id=user_id,
-            ai_service_id=ai_service_id,
+            credential_type=credential_type,
             credential_id=credential_id,
         )
 
@@ -805,7 +805,7 @@ def get_credential(organization_id, ai_service_id, credential_id):
         return common.response_200_ok(
             {
                 "credential_id": credential.credential_id,
-                "ai_service_id": credential.ai_service_id,
+                "credential_type": credential.credential_type,
                 "credential_name": credential.credential_name,
                 "status": credential.status,
                 "expires_at": (
@@ -835,14 +835,14 @@ def get_credential(organization_id, ai_service_id, credential_id):
 
 
 @common.platform_exception_handler
-def delete_credential(organization_id, ai_service_id, credential_id):
+def delete_credential(organization_id, credential_type, credential_id):
     """
     Credentialを削除
 
     :param organization_id:
     :type organization_id: str
-    :param ai_service_id:
-    :type ai_service_id: str
+    :param credential_type:
+    :type credential_type: str
     :param credential_id:
     :type credential_id: str
 
@@ -859,7 +859,7 @@ def delete_credential(organization_id, ai_service_id, credential_id):
         deleted = service.delete_credential(
             organization_id=organization_id,
             user_id=user_id,
-            ai_service_id=ai_service_id,
+            credential_type=credential_type,
             credential_id=credential_id,
         )
 
@@ -870,7 +870,7 @@ def delete_credential(organization_id, ai_service_id, credential_id):
 
         globals.logger.debug(
             f"AI Credential deleted: id={credential_id}, "
-            f"service={ai_service_id}, org={organization_id}, user={user_id}"
+            f"service={credential_type}, org={organization_id}, user={user_id}"
         )
 
         return common.response_200_ok(
@@ -893,16 +893,16 @@ def delete_credential(organization_id, ai_service_id, credential_id):
 
 
 @common.platform_exception_handler
-def update_credential(body, organization_id, ai_service_id, credential_id):
+def update_credential(body, organization_id, credential_type, credential_id):
     """
-    Credentialを更新(部分更新)
+    Credentialを更新(全体更新)
 
     :param body:
     :type body: dict
     :param organization_id:
     :type organization_id: str
-    :param ai_service_id:
-    :type ai_service_id: str
+    :param credential_type:
+    :type credential_type: str
     :param credential_id:
     :type credential_id: str
 
@@ -918,33 +918,29 @@ def update_credential(body, organization_id, ai_service_id, credential_id):
     credential_data = body.get("credential_data")
     notes = body.get("notes")
 
-    # 少なくとも1つのフィールドが必要
-    if not any([credential_name, credential_data, notes]):
-        message_id = "400-94015"
+    # 必須フィールドのバリデーション（PUT = 全体更新）
+    if not credential_name:
+        message_id = "400-94001"
+        message = multi_lang.get_text(message_id, "credential_nameは必須です")
+        raise common.BadRequestException(message_id=message_id, message=message)
+
+    if not credential_data or not isinstance(credential_data, dict):
+        message_id = "400-94002"
         message = multi_lang.get_text(
-            message_id, "更新するフィールドを指定してください(credential_name, credential_data, notes のいずれか)"
+            message_id, "credential_dataは必須でJSON形式である必要があります"
         )
         raise common.BadRequestException(message_id=message_id, message=message)
 
-    # credential_dataのバリデーション
-    if credential_data is not None:
-        if not isinstance(credential_data, dict):
-            message_id = "400-94016"
+    # bedrock-cache の特別処理
+    if credential_type == "bedrock-cache":
+        if "idToken" not in credential_data:
+            message_id = "400-94014"
             message = multi_lang.get_text(
-                message_id, "credential_dataはJSON形式である必要があります"
+                message_id,
+                "bedrock-cache requires full cache file content including idToken. "
+                "Please pass the entire content of ~/.aws/login/cache/*.json file."
             )
             raise common.BadRequestException(message_id=message_id, message=message)
-
-        # bedrock-cache の特別処理
-        if ai_service_id == "bedrock-cache":
-            if "idToken" not in credential_data:
-                message_id = "400-94017"
-                message = multi_lang.get_text(
-                    message_id,
-                    "bedrock-cache requires full cache file content including idToken."
-                    "Please pass the entire content of ~/.aws/login/cache/*.json file."
-                )
-                raise common.BadRequestException(message_id=message_id, message=message)
 
     try:
         service = get_ai_credential_service()
@@ -952,7 +948,7 @@ def update_credential(body, organization_id, ai_service_id, credential_id):
         updated = service.update_credential(
             organization_id=organization_id,
             user_id=user_id,
-            ai_service_id=ai_service_id,
+            credential_type=credential_type,
             credential_id=credential_id,
             credential_name=credential_name,
             credential_data=credential_data,
@@ -966,21 +962,21 @@ def update_credential(body, organization_id, ai_service_id, credential_id):
 
         globals.logger.debug(
             f"AI Credential updated: id={credential_id}, "
-            f"service={ai_service_id}, org={organization_id}, user={user_id}"
+            f"service={credential_type}, org={organization_id}, user={user_id}"
         )
 
         # 更新後の情報を取得
         credential = service.get_credential(
             organization_id=organization_id,
             user_id=user_id,
-            ai_service_id=ai_service_id,
+            credential_type=credential_type,
             credential_id=credential_id,
         )
 
         return common.response_200_ok(
             {
                 "credential_id": credential.credential_id,
-                "ai_service_id": credential.ai_service_id,
+                "credential_type": credential.credential_type,
                 "credential_name": credential.credential_name,
                 "status": credential.status,
                 "message": "Credential updated successfully",
@@ -1000,14 +996,14 @@ def update_credential(body, organization_id, ai_service_id, credential_id):
 
 
 @common.platform_exception_handler
-def validate_credential(organization_id, ai_service_id, credential_id):
+def verify_credential(organization_id, credential_type, credential_id):
     """
     Credentialを検証
 
     :param organization_id:
     :type organization_id: str
-    :param ai_service_id:
-    :type ai_service_id: str
+    :param credential_type:
+    :type credential_type: str
     :param credential_id:
     :type credential_id: str
 
@@ -1024,14 +1020,14 @@ def validate_credential(organization_id, ai_service_id, credential_id):
         credential = service.get_credential(
             organization_id=organization_id,
             user_id=user_id,
-            ai_service_id=ai_service_id,
+            credential_type=credential_type,
             credential_id=credential_id,
         )
 
         # サービスごとの検証ロジック
-        validation_result = _validate_by_service(ai_service_id, credential.credential_data)
+        verification_result = _verify_by_service(credential_type, credential.credential_data)
 
-        return common.response_200_ok(validation_result)
+        return common.response_200_ok(verification_result)
 
     except CredentialNotFound:
         message_id = "404-94009"
@@ -1039,7 +1035,7 @@ def validate_credential(organization_id, ai_service_id, credential_id):
         raise common.NotFoundException(message_id=message_id, message=message)
 
     except Exception as e:
-        globals.logger.error(f"Failed to validate credential: {e}", exc_info=True)
+        globals.logger.error(f"Failed to verify credential: {e}", exc_info=True)
         message_id = "500-94006"
         message = multi_lang.get_text(
             message_id, "Credential検証に失敗しました: {}", str(e)
@@ -1047,18 +1043,18 @@ def validate_credential(organization_id, ai_service_id, credential_id):
         raise common.InternalErrorException(message_id=message_id, message=message)
 
 
-def _validate_by_service(ai_service_id: str, credential_data: dict) -> dict:
+def _verify_by_service(credential_type: str, credential_data: dict) -> dict:
     """
     AIサービスごとのCredential検証
 
     Args:
-        ai_service_id: AIサービスID
+        credential_type: AIサービスID
         credential_data: Credentialデータ
 
     Returns:
         検証結果
     """
-    if ai_service_id == "bedrock":
+    if credential_type == "bedrock":
         # AWS Bedrock検証
         import boto3
         from botocore.config import Config
@@ -1094,10 +1090,10 @@ def _validate_by_service(ai_service_id: str, credential_data: dict) -> dict:
         except Exception as e:
             return {
                 "valid": False,
-                "message": f"Credential validation failed: {str(e)}",
+                "message": f"Credential verification failed: {str(e)}",
             }
 
-    elif ai_service_id == "bedrock-cache":
+    elif credential_type == "bedrock-cache":
         # AWS Login Cache検証
         from services.ai_assistant.aws_session_manager import (
             create_bedrock_session_from_credential_data,
@@ -1134,20 +1130,20 @@ def _validate_by_service(ai_service_id: str, credential_data: dict) -> dict:
             }
 
         except Exception as e:
-            globals.logger.error(f"AWS Login Cache validation failed: {e}", exc_info=True)
+            globals.logger.error(f"AWS Login Cache verification failed: {e}", exc_info=True)
             return {
                 "valid": False,
-                "message": f"AWS Login Cache validation failed: {str(e)}",
+                "message": f"AWS Login Cache verification failed: {str(e)}",
             }
 
-    elif ai_service_id == "openai":
+    elif credential_type == "openai":
         # OpenAI検証
         return {
             "valid": True,
-            "message": "OpenAI validation not implemented yet",
+            "message": "OpenAI verification not implemented yet",
         }
 
-    elif ai_service_id == "anthropic":
+    elif credential_type == "anthropic":
         # Anthropic検証
         return {
             "valid": True,
@@ -1157,19 +1153,19 @@ def _validate_by_service(ai_service_id: str, credential_data: dict) -> dict:
     else:
         return {
             "valid": False,
-            "message": f"Validation not supported for service: {ai_service_id}",
+            "message": f"Validation not supported for service: {credential_type}",
         }
 
 
 @common.platform_exception_handler
-def list_models(organization_id, ai_service_id):
+def list_models(organization_id, credential_type):
     """
     使用可能なモデル一覧を取得
 
     :param organization_id:
     :type organization_id: str
-    :param ai_service_id:
-    :type ai_service_id: str
+    :param credential_type:
+    :type credential_type: str
 
     :rtype: dict
     """
@@ -1180,10 +1176,10 @@ def list_models(organization_id, ai_service_id):
 
     try:
         # Bedrockのみ対応
-        if ai_service_id not in ["bedrock-cache", "bedrock"]:
+        if credential_type not in ["bedrock-cache", "bedrock"]:
             message_id = "400-94011"
             message = multi_lang.get_text(
-                message_id, f"Model list not supported for service: {ai_service_id}"
+                message_id, f"Model list not supported for service: {credential_type}"
             )
             raise common.BadRequestException(message_id=message_id, message=message)
 
@@ -1191,19 +1187,19 @@ def list_models(organization_id, ai_service_id):
         models = model_service.get_bedrock_models(
             organization_id=organization_id,
             user_id=user_id,
-            ai_service_id=ai_service_id,
+            credential_type=credential_type,
         )
 
         globals.logger.info(
             f"Retrieved {len(models)} models for "
-            f"service={ai_service_id}, org={organization_id}, user={user_id}"
+            f"service={credential_type}, org={organization_id}, user={user_id}"
         )
 
         return common.response_200_ok(
             {
                 "models": models,
                 "count": len(models),
-                "ai_service_id": ai_service_id,
+                "credential_type": credential_type,
             }
         )
 

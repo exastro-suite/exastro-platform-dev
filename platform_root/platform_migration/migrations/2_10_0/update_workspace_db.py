@@ -229,32 +229,32 @@ class update_workspace_db:
                                                   organization_id, workspace_id)
                     raise common.InternalErrorException(message_id=message_id, message=message)
 
-                # 2. T_AI_MESSAGE テーブル作成
+                # 2. T_AI_HISTORY テーブル作成
                 try:
-                    globals.logger.info(f"[{self.step_count}/{self.step_max}] - create table T_AI_MESSAGE: organization_id:[{organization_id}] workspace_id:[{workspace_id}]")
+                    globals.logger.info(f"[{self.step_count}/{self.step_max}] - create table T_AI_HISTORY: organization_id:[{organization_id}] workspace_id:[{workspace_id}]")
 
                     # テーブル存在確認
-                    cursor.execute(queries_db_workspace.CHECK_TABLE_EXISTS, ('T_AI_MESSAGE',))
+                    cursor.execute(queries_db_workspace.CHECK_TABLE_EXISTS, ('T_CHAT_HISTORY',))
                     result = cursor.fetchone()
 
                     if result['count'] == 0:
-                        query = queries_db_workspace.CREATE_TABLE_AI_MESSAGE
+                        query = queries_db_workspace.CREATE_TABLE_AI_HISTORY
                         globals.logger.debug(f'EXECUTE SQL:{query}')
                         cursor.execute(query)
-                        globals.logger.info(f"[{self.step_count}/{self.step_max}] -- OK: create table T_AI_MESSAGE: organization_id:[{organization_id}] workspace_id:[{workspace_id}]")
+                        globals.logger.info(f"[{self.step_count}/{self.step_max}] -- OK: create table T_AI_HISTORY: organization_id:[{organization_id}] workspace_id:[{workspace_id}]")
                         self.ok_count += 1
                     else:
-                        globals.logger.info(f"[{self.step_count}/{self.step_max}] -- SKIP: table T_AI_MESSAGE already exists: organization_id:[{organization_id}] workspace_id:[{workspace_id}]")
+                        globals.logger.info(f"[{self.step_count}/{self.step_max}] -- SKIP: table T_AI_HISTORY already exists: organization_id:[{organization_id}] workspace_id:[{workspace_id}]")
                         self.skip_count += 1
 
                     conn.commit()
 
                 except Exception as e:
-                    globals.logger.info(f"[{self.step_count}/{self.step_max}] -- NG: create table T_AI_MESSAGE: organization_id:[{organization_id}] workspace_id:[{workspace_id}]")
+                    globals.logger.info(f"[{self.step_count}/{self.step_max}] -- NG: create table T_AI_HISTORY: organization_id:[{organization_id}] workspace_id:[{workspace_id}]")
                     globals.logger.error(f"exception:{e.args}")
                     message_id = "500-90033"
                     message = multi_lang.get_text(message_id,
-                                                  "workspace_db create table T_AI_MESSAGE failed. organization_id:[{0}] workspace_id:[{1}]",
+                                                  "workspace_db create table T_AI_HISTORY failed. organization_id:[{0}] workspace_id:[{1}]",
                                                   organization_id, workspace_id)
                     raise common.InternalErrorException(message_id=message_id, message=message)
 

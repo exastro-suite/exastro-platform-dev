@@ -849,12 +849,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/runtimeError'
-  '/api/{organization_id}/platform/users/_current/{ai_service_id}/credentials':
+  '/api/{organization_id}/platform/users/_current/{credential_type}/credentials':
     post:
       tags:
         - UsersService
       summary: Credentialを登録
-      description: AIサービスのCredentialを登録する
+      description: 外部サービスのCredentialを登録する
       operationId: register_credential
       x-openapi-router-controller: controllers.users_service_controller
       parameters:
@@ -863,7 +863,7 @@ paths:
           required: true
           schema:
             type: string
-        - name: ai_service_id
+        - name: credential_type
           in: path
           required: true
           schema:
@@ -871,10 +871,14 @@ paths:
             enum:
               - bedrock-cache
               - bedrock
+              - openai
+              - anthropic
           description: |
-            AIサービスID
+            Credentialタイプ
             - bedrock-cache: AWS Login Cache (自動トークン更新、credential_data: {"enabled": true})
             - bedrock: AWS Bedrock (手動Credential登録)
+            - openai: OpenAI API
+            - anthropic: Anthropic API
       requestBody:
         required: true
         content:
@@ -925,7 +929,7 @@ paths:
                         properties:
                           credential_id:
                             type: string
-                          ai_service_id:
+                          credential_type:
                             type: string
                           credential_name:
                             type: string
@@ -958,7 +962,7 @@ paths:
           required: true
           schema:
             type: string
-        - name: ai_service_id
+        - name: credential_type
           in: path
           required: true
           schema:
@@ -995,7 +999,7 @@ paths:
                               $ref: '#/components/schemas/aiCredentialInfo'
                           count:
                             type: integer
-                          ai_service_id:
+                          credential_type:
                             type: string
         default:
           description: An unexpected error response.
@@ -1003,7 +1007,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/runtimeError'
-  '/api/{organization_id}/platform/users/_current/{ai_service_id}/credentials/{credential_id}':
+  '/api/{organization_id}/platform/users/_current/{credential_type}/credentials/{credential_id}':
     get:
       tags:
         - UsersService
@@ -1017,7 +1021,7 @@ paths:
           required: true
           schema:
             type: string
-        - name: ai_service_id
+        - name: credential_type
           in: path
           required: true
           schema:
@@ -1045,7 +1049,7 @@ paths:
                         properties:
                           credential_id:
                             type: string
-                          ai_service_id:
+                          credential_type:
                             type: string
                           credential_name:
                             type: string
@@ -1074,11 +1078,11 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/runtimeError'
-    patch:
+    put:
       tags:
         - UsersService
       summary: Credentialを更新
-      description: 既存のCredentialを部分更新する(指定されたフィールドのみ更新)
+      description: 既存のCredentialを全体更新する
       operationId: update_credential
       x-openapi-router-controller: controllers.users_service_controller
       parameters:
@@ -1087,7 +1091,7 @@ paths:
           required: true
           schema:
             type: string
-        - name: ai_service_id
+        - name: credential_type
           in: path
           required: true
           schema:
@@ -1095,6 +1099,8 @@ paths:
             enum:
               - bedrock-cache
               - bedrock
+              - openai
+              - anthropic
         - name: credential_id
           in: path
           required: true
@@ -1106,13 +1112,16 @@ paths:
           application/json:
             schema:
               type: object
+              required:
+                - credential_name
+                - credential_data
               properties:
                 credential_name:
                   type: string
-                  description: Credential名(任意)
+                  description: Credential名
                 credential_data:
                   type: object
-                  description: Credentialデータ(任意)
+                  description: Credentialデータ
                 notes:
                   type: string
                   description: 備考(任意)
@@ -1147,7 +1156,7 @@ paths:
                         properties:
                           credential_id:
                             type: string
-                          ai_service_id:
+                          credential_type:
                             type: string
                           credential_name:
                             type: string
@@ -1186,7 +1195,7 @@ paths:
           required: true
           schema:
             type: string
-        - name: ai_service_id
+        - name: credential_type
           in: path
           required: true
           schema:
@@ -1228,13 +1237,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/runtimeError'
-  '/api/{organization_id}/platform/users/_current/{ai_service_id}/credentials/{credential_id}/validate':
+  '/api/{organization_id}/platform/users/_current/{credential_type}/credentials/{credential_id}/verify':
     post:
       tags:
         - UsersService
       summary: Credentialを検証
       description: Credentialが有効かどうかを検証する
-      operationId: validate_credential
+      operationId: verify_credential
       x-openapi-router-controller: controllers.users_service_controller
       parameters:
         - name: organization_id
@@ -1242,7 +1251,7 @@ paths:
           required: true
           schema:
             type: string
-        - name: ai_service_id
+        - name: credential_type
           in: path
           required: true
           schema:
@@ -1250,6 +1259,8 @@ paths:
             enum:
               - bedrock-cache
               - bedrock
+              - openai
+              - anthropic
         - name: credential_id
           in: path
           required: true
@@ -1290,7 +1301,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/runtimeError'
-  '/api/{organization_id}/platform/users/_current/{ai_service_id}/models':
+  '/api/{organization_id}/platform/users/_current/{credential_type}/models':
     get:
       tags:
         - UsersService
@@ -1304,7 +1315,7 @@ paths:
           required: true
           schema:
             type: string
-        - name: ai_service_id
+        - name: credential_type
           in: path
           required: true
           schema:
@@ -1333,7 +1344,7 @@ paths:
                           count:
                             type: integer
                             description: モデル数
-                          ai_service_id:
+                          credential_type:
                             type: string
                             description: AIサービスID
         '400':
@@ -2283,83 +2294,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/runtimeError'
-  '/api/{organization_id}/platform/workspaces/{workspace_id}/conversations/{conversation_id}/messages':
-    get:
-      tags:
-        - AIAssistantService
-      summary: メッセージ一覧を取得
-      description: 会話のメッセージ履歴を取得する
-      operationId: list_messages
-      x-openapi-router-controller: controllers.ai_assistant_service_controller
-      parameters:
-        - name: organization_id
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: workspace_id
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: conversation_id
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: limit
-          in: query
-          required: false
-          schema:
-            type: integer
-            default: 100
-          description: 取得件数
-        - name: offset
-          in: query
-          required: false
-          schema:
-            type: integer
-            default: 0
-          description: オフセット(message_seq基準)
-      responses:
-        '200':
-          description: 成功
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/responseOk'
-                  - type: object
-                    properties:
-                      data:
-                        type: object
-                        properties:
-                          messages:
-                            type: array
-                            items:
-                              $ref: '#/components/schemas/messageInfo'
-                          count:
-                            type: integer
-                          conversation_id:
-                            type: string
-        '404':
-          description: 会話が見つからない
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/runtimeError'
-        default:
-          description: An unexpected error response.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/runtimeError'
+  '/api/{organization_id}/platform/workspaces/{workspace_id}/conversations/{conversation_id}/completions':
     post:
       tags:
         - AIAssistantService
-      summary: メッセージを送信
-      description: ユーザーメッセージを送信し、AIから応答を取得する
-      operationId: send_message
+      summary: AI応答を生成
+      description: ユーザーメッセージを送信し、AIとの会話を1ターン進めて応答を取得する。 会話全体はT_CHAT_HISTORYにJSON配列(ターン一覧)のスナップショットとして保存される(T_CHAT_MESSAGEは使用しない)。
+      operationId: create_completion
       x-openapi-router-controller: controllers.ai_assistant_service_controller
       parameters:
         - name: organization_id
@@ -2390,6 +2331,15 @@ paths:
                   type: string
                   description: ユーザーメッセージ
                   example: こんにちは、Bedrockのテストです
+                ai_service_id:
+                  type: string
+                  description: AIサービスID(メッセージ固有、会話のデフォルトをオーバーライド、省略時は会話のAI_SERVICE_IDを使用)
+                  enum:
+                    - bedrock-cache
+                    - bedrock
+                    - openai
+                    - anthropic
+                  example: bedrock-cache
                 model_id:
                   type: string
                   description: 使用するモデルID(メッセージごとに変更可能、省略時はデフォルト)
@@ -2400,7 +2350,7 @@ paths:
                   example: menu_001
       responses:
         '200':
-          description: メッセージ送信成功
+          description: AI応答の生成成功
           content:
             application/json:
               schema:
@@ -2413,10 +2363,15 @@ paths:
                         properties:
                           conversation_id:
                             type: string
-                          user_message_id:
+                          history_id:
                             type: string
-                          assistant_message_id:
-                            type: string
+                            description: 保存されたT_CHAT_HISTORYスナップショットのID
+                          user_message_seq:
+                            type: integer
+                            description: スナップショット内でのユーザーメッセージの順序番号(1始まり)
+                          assistant_message_seq:
+                            type: integer
+                            description: スナップショット内でのアシスタントメッセージの順序番号(1始まり)
                           content:
                             type: string
                             description: AIの応答
@@ -2522,7 +2477,7 @@ paths:
       tags:
         - AIAssistantService
       summary: 会話履歴を作成
-      description: UIからの応答を会話履歴として保存する
+      description: UIからの応答を会話履歴として保存する(T_CHAT_HISTORYへのスナップショット保存)
       operationId: create_history
       x-openapi-router-controller: controllers.ai_assistant_service_controller
       parameters:
@@ -2548,38 +2503,43 @@ paths:
             schema:
               type: object
               required:
-                - role
-                - content
-                - _timestamp
+                - contents
               properties:
-                role:
-                  type: string
-                  enum:
-                    - user
-                    - assistant
-                  description: ロール
-                  example: user
-                content:
+                contents:
                   type: array
-                  description: コンテンツ（JSON配列）
+                  description: '会話履歴JSON配列（各要素にrole, content, _timestamp等を含む）'
                   items:
                     type: object
+                    properties:
+                      role:
+                        type: string
+                        enum:
+                          - user
+                          - assistant
+                      content:
+                        type: array
+                        items:
+                          type: object
+                      _timestamp:
+                        type: string
+                        format: date-time
+                      _thinkingMs:
+                        type: integer
+                      _model:
+                        type: string
                   example:
-                    - type: text
-                      text: こんにちは
-                _timestamp:
-                  type: string
-                  format: date-time
-                  description: タイムスタンプ（ISO 8601）
-                  example: '2026-08-27T07:10:56.261Z'
-                _thinkingMs:
-                  type: integer
-                  description: 思考時間（ミリ秒、assistantの場合）
-                  example: 4448
-                _model:
-                  type: string
-                  description: モデル名（assistantの場合）
-                  example: global.anthropic.claude-opus-5
+                    - role: user
+                      content:
+                        - type: text
+                          text: お天気情報システムの全貌を調べて！
+                      _timestamp: '2026-08-27T07:10:56.261Z'
+                    - role: assistant
+                      content:
+                        - text: お天気情報システムに関する資産をExastro内で調査します。
+                          type: text
+                      _timestamp: '2026-08-27T07:11:01.226Z'
+                      _thinkingMs: 4448
+                      _model: global.anthropic.claude-opus-5
       responses:
         '200':
           description: 作成成功
@@ -2602,33 +2562,194 @@ paths:
                           history_seq:
                             type: integer
                             description: 履歴順序番号
-                          role:
-                            type: string
-                            enum:
-                              - user
-                              - assistant
-                            description: ロール
-                          content:
+                          contents:
                             type: array
-                            description: コンテンツ（JSON配列）
+                            description: '会話履歴JSON配列（各要素にrole, content, _timestamp等を含む）'
                             items:
                               type: object
-                          _timestamp:
+                              properties:
+                                role:
+                                  type: string
+                                  enum:
+                                    - user
+                                    - assistant
+                                content:
+                                  type: array
+                                  items:
+                                    type: object
+                                _timestamp:
+                                  type: string
+                                  format: date-time
+                                _thinkingMs:
+                                  type: integer
+                                _model:
+                                  type: string
+                          created_at:
                             type: string
                             format: date-time
-                            description: タイムスタンプ
-                          _thinkingMs:
-                            type: integer
-                            description: 思考時間（ミリ秒、assistantの場合のみ）
-                          _model:
+                            description: 作成日時
+                          updated_at:
                             type: string
-                            description: モデル名（assistantの場合のみ）
+                            format: date-time
+                            description: 最終更新日時
         '400':
           description: バリデーションエラー
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/runtimeError'
+        '404':
+          description: 会話が見つからない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/runtimeError'
+        '500':
+          description: サーバーエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/runtimeError'
+    put:
+      tags:
+        - AIAssistantService
+      summary: 会話履歴を全置き換え
+      description: GETで取得できる内容をそのまま置き換える。既存の履歴レコードは全て削除され、 リクエストで指定したhistoriesの内容にすべて入れ替わる（部分更新ではなく全置換）。
+      operationId: replace_histories
+      x-openapi-router-controller: controllers.ai_assistant_service_controller
+      parameters:
+        - name: organization_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: workspace_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: conversation_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - histories
+              properties:
+                histories:
+                  type: array
+                  description: 置き換え後の履歴レコード一覧(GETレスポンスのhistoriesと同じ形)
+                  items:
+                    type: object
+                    required:
+                      - contents
+                    properties:
+                      contents:
+                        type: array
+                        description: '会話履歴JSON配列（各要素にrole, content, _timestamp等を含む）'
+                        items:
+                          type: object
+                  example:
+                    histories:
+                      - contents:
+                          - role: user
+                            content:
+                              - type: text
+                                text: お天気情報システムの全貌を調べて！
+                            _timestamp: '2026-08-27T07:10:56.261Z'
+                          - role: assistant
+                            content:
+                              - text: お天気情報システムに関する資産をExastro内で調査します。
+                                type: text
+                            _timestamp: '2026-08-27T07:11:01.226Z'
+                            _thinkingMs: 4448
+                            _model: global.anthropic.claude-opus-5
+      responses:
+        '200':
+          description: 置き換え成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/responseOk'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          histories:
+                            type: array
+                            items:
+                              $ref: '#/paths/~1api~1%7Borganization_id%7D~1platform~1workspaces~1%7Bworkspace_id%7D~1conversations~1%7Bconversation_id%7D~1histories/post/responses/200/content/application~1json/schema/allOf/1/properties/data'
+                          count:
+                            type: integer
+                          conversation_id:
+                            type: string
+        '400':
+          description: バリデーションエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/runtimeError'
+        '404':
+          description: 会話が見つからない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/runtimeError'
+        '500':
+          description: サーバーエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/runtimeError'
+    delete:
+      tags:
+        - AIAssistantService
+      summary: 会話履歴を全削除
+      description: 会話に紐づく履歴レコードを全て削除する
+      operationId: delete_histories
+      x-openapi-router-controller: controllers.ai_assistant_service_controller
+      parameters:
+        - name: organization_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: workspace_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: conversation_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 削除成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/responseOk'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          conversation_id:
+                            type: string
+                          deleted_count:
+                            type: integer
+                            description: 削除した履歴レコード件数
         '404':
           description: 会話が見つからない
           content:
@@ -6711,11 +6832,13 @@ components:
       properties:
         credential_id:
           type: string
-        ai_service_id:
+        credential_type:
           type: string
           enum:
             - bedrock-cache
             - bedrock
+            - openai
+            - anthropic
         credential_name:
           type: string
         status:
@@ -6788,31 +6911,6 @@ components:
           type: string
           format: date-time
         updated_at:
-          type: string
-          format: date-time
-    messageInfo:
-      type: object
-      properties:
-        message_id:
-          type: string
-        conversation_id:
-          type: string
-        message_seq:
-          type: integer
-        role:
-          type: string
-          enum:
-            - user
-            - assistant
-            - system
-        message_text:
-          type: string
-        ai_model_id:
-          type: string
-          description: AIモデルID（assistantメッセージの場合、メッセージごとに変更可能）
-        token_count:
-          type: integer
-        created_at:
           type: string
           format: date-time
   examples:

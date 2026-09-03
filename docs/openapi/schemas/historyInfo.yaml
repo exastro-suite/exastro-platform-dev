@@ -23,22 +23,31 @@ properties:
   history_seq:
     type: integer
     description: 履歴順序番号
-  role:
-    type: string
-    enum: [user, assistant]
-    description: ロール
-  content:
+  contents:
     type: array
-    description: コンテンツ（JSON配列）
+    description: 会話履歴JSON配列（各要素にrole, content, _timestamp等を含む）
     items:
       type: object
-  _timestamp:
+      properties:
+        role:
+          type: string
+          enum: [user, assistant]
+        content:
+          type: array
+          items:
+            type: object
+        _timestamp:
+          type: string
+          format: date-time
+        _thinkingMs:
+          type: integer
+        _model:
+          type: string
+  created_at:
     type: string
     format: date-time
-    description: タイムスタンプ
-  _thinkingMs:
-    type: integer
-    description: 思考時間（ミリ秒、assistantの場合のみ）
-  _model:
+    description: 作成日時
+  updated_at:
     type: string
-    description: モデル名（assistantの場合のみ）
+    format: date-time
+    description: 最終更新日時

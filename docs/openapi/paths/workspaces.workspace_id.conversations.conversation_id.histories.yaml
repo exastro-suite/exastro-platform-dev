@@ -87,7 +87,7 @@ post:
   tags:
     - AIAssistantService
   summary: 会話履歴を作成
-  description: UIからの応答を会話履歴として保存する
+  description: UIからの応答を会話履歴として保存する(T_CHAT_HISTORYへのスナップショット保存)
   operationId: create_history
   x-openapi-router-controller: controllers.ai_assistant_service_controller
   parameters:
@@ -113,36 +113,41 @@ post:
         schema:
           type: object
           required:
-            - role
-            - content
-            - _timestamp
+            - contents
           properties:
-            role:
-              type: string
-              enum: [user, assistant]
-              description: ロール
-              example: "user"
-            content:
+            contents:
               type: array
-              description: コンテンツ（JSON配列）
+              description: 会話履歴JSON配列（各要素にrole, content, _timestamp等を含む）
               items:
                 type: object
+                properties:
+                  role:
+                    type: string
+                    enum: [user, assistant]
+                  content:
+                    type: array
+                    items:
+                      type: object
+                  _timestamp:
+                    type: string
+                    format: date-time
+                  _thinkingMs:
+                    type: integer
+                  _model:
+                    type: string
               example:
-                - type: "text"
-                  text: "こんにちは"
-            _timestamp:
-              type: string
-              format: date-time
-              description: タイムスタンプ（ISO 8601）
-              example: "2026-08-27T07:10:56.261Z"
-            _thinkingMs:
-              type: integer
-              description: 思考時間（ミリ秒、assistantの場合）
-              example: 4448
-            _model:
-              type: string
-              description: モデル名（assistantの場合）
-              example: "global.anthropic.claude-opus-5"
+                - role: "user"
+                  content:
+                    - type: "text"
+                      text: "お天気情報システムの全貌を調べて！"
+                  _timestamp: "2026-08-27T07:10:56.261Z"
+                - role: "assistant"
+                  content:
+                    - text: "お天気情報システムに関する資産をExastro内で調査します。"
+                      type: "text"
+                  _timestamp: "2026-08-27T07:11:01.226Z"
+                  _thinkingMs: 4448
+                  _model: "global.anthropic.claude-opus-5"
   responses:
     200:
       description: 作成成功
@@ -161,6 +166,162 @@ post:
         application/json:
           schema:
             $ref: '../schemas/runtimeError.yaml'
+    404:
+      description: 会話が見つからない
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/runtimeError.yaml'
+    500:
+      description: サーバーエラー
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/runtimeError.yaml'
+
+put:
+  tags:
+    - AIAssistantService
+  summary: 会話履歴を全置き換え
+  description: >-
+    GETで取得できる内容をそのまま置き換える。既存の履歴レコードは全て削除され、
+    リクエストで指定したhistoriesの内容にすべて入れ替わる（部分更新ではなく全置換）。
+  operationId: replace_histories
+  x-openapi-router-controller: controllers.ai_assistant_service_controller
+  parameters:
+    - name: organization_id
+      in: path
+      required: true
+      schema:
+        type: string
+    - name: workspace_id
+      in: path
+      required: true
+      schema:
+        type: string
+    - name: conversation_id
+      in: path
+      required: true
+      schema:
+        type: string
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          required:
+            - histories
+          properties:
+            histories:
+              type: array
+              description: 置き換え後の履歴レコード一覧(GETレスポンスのhistoriesと同じ形)
+              items:
+                type: object
+                required:
+                  - contents
+                properties:
+                  contents:
+                    type: array
+                    description: 会話履歴JSON配列（各要素にrole, content, _timestamp等を含む）
+                    items:
+                      type: object
+              example:
+                histories:
+                  - contents:
+                      - role: "user"
+                        content:
+                          - type: "text"
+                            text: "お天気情報システムの全貌を調べて！"
+                        _timestamp: "2026-08-27T07:10:56.261Z"
+                      - role: "assistant"
+                        content:
+                          - text: "お天気情報システムに関する資産をExastro内で調査します。"
+                            type: "text"
+                        _timestamp: "2026-08-27T07:11:01.226Z"
+                        _thinkingMs: 4448
+                        _model: "global.anthropic.claude-opus-5"
+  responses:
+    200:
+      description: 置き換え成功
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '../schemas/responseOk.yaml'
+              - type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      histories:
+                        type: array
+                        items:
+                          $ref: '../schemas/historyInfo.yaml'
+                      count:
+                        type: integer
+                      conversation_id:
+                        type: string
+    400:
+      description: バリデーションエラー
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/runtimeError.yaml'
+    404:
+      description: 会話が見つからない
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/runtimeError.yaml'
+    500:
+      description: サーバーエラー
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/runtimeError.yaml'
+
+delete:
+  tags:
+    - AIAssistantService
+  summary: 会話履歴を全削除
+  description: 会話に紐づく履歴レコードを全て削除する
+  operationId: delete_histories
+  x-openapi-router-controller: controllers.ai_assistant_service_controller
+  parameters:
+    - name: organization_id
+      in: path
+      required: true
+      schema:
+        type: string
+    - name: workspace_id
+      in: path
+      required: true
+      schema:
+        type: string
+    - name: conversation_id
+      in: path
+      required: true
+      schema:
+        type: string
+  responses:
+    200:
+      description: 削除成功
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '../schemas/responseOk.yaml'
+              - type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      conversation_id:
+                        type: string
+                      deleted_count:
+                        type: integer
+                        description: 削除した履歴レコード件数
     404:
       description: 会話が見つからない
       content:

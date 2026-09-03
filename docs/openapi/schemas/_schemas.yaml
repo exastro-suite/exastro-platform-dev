@@ -188,5 +188,3 @@ modelInfo:
   $ref: "./modelInfo.yaml"
 conversationInfo:
   $ref: "./conversationInfo.yaml"
-messageInfo:
-  $ref: "./messageInfo.yaml"
