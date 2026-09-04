@@ -251,6 +251,14 @@ class ConversationService:
             conversation_id=conversation_id,
         ) or []
 
+        # LLMに渡すターン一覧（保存対象のmessagesとは別に持つ）
+        # ・message指定時: messagesにユーザーターンを追記したものをそのまま使う
+        # ・message省略時: 履歴の最後がassistantターンで終わっている場合、Bedrock Converse APIは
+        #   assistantターンで終わる会話を受け付けない（"assistant message prefill"未対応で、
+        #   必ずuserターンで終える必要がある）ため、直前のassistant応答を一時的に取り除いて
+        #   （＝再生成）その手前のuserターンまでで問い合わせる。取り除いた結果は保存しない。
+        llm_input_messages = messages
+
         if has_new_message:
             # ユーザーターンを追記
             user_turn = {
@@ -262,21 +270,21 @@ class ConversationService:
             if ai_service_id and ai_service_id != conversation_default_ai_service_id:
                 user_turn["_service"] = ai_service_id
             messages.append(user_turn)
+            llm_input_messages = messages
         elif not messages:
             # 新規メッセージも既存履歴も無い場合は問い合わせ不可
             raise common.BadRequestException(
                 message_id="400-94107",
                 message="messageが未指定で、会話に既存の履歴もありません",
             )
-        elif messages[-1].get("role") != "user":
-            # BedrockのConverse APIはassistantターンで終わる会話を受け付けない
-            # （"assistant message prefill"未対応のため、必ずuserターンで終える必要がある）。
-            # 履歴の最後がassistant（＝直前のやり取りに既に応答済み）の場合は、
-            # 新たに問い合わせる内容が無いのでエラーとする。
-            raise common.BadRequestException(
-                message_id="400-94108",
-                message="会話の最後が既にアシスタントの応答で終わっているため、messageを省略した問い合わせはできません。新しいmessageを指定してください。",
-            )
+        elif messages[-1].get("role") == "assistant":
+            # 直前のassistant応答を一時的に取り除き、再生成（結果は保存しない）
+            llm_input_messages = messages[:-1]
+            if not llm_input_messages:
+                raise common.BadRequestException(
+                    message_id="400-94108",
+                    message="messageが未指定で、会話に問い合わせ可能なユーザーメッセージがありません",
+                )
 
         # Bedrockを呼び出し
         try:
@@ -376,11 +384,12 @@ class ConversationService:
                         f"Failed to load menu prompt for menu_id={menu_id}: {e}"
                     )
 
-            # 会話メッセージ（ユーザーターン追記済み）からBedrock用messagesを構築
+            # 会話メッセージ（ユーザーターン追記済み、または再生成用に末尾assistantを除いたもの）
+            # からBedrock用messagesを構築する。
             # ai_assistant_client.js / amazon_bedrock.jsと同じく、textタイプのcontentのみを渡す
             # （サーバー側のこのエンドポイントはツール呼び出しを行わないシンプルなテキスト対話のため）
             bedrock_messages = []
-            for turn in messages:
+            for turn in llm_input_messages:
                 text = _extract_text(turn)
                 if not text:
                     continue
