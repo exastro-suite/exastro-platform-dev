@@ -2246,10 +2246,14 @@ components:
           type: string
         service_id:
           type: string
-          description: サービスID（AgenticAI/LLMEditor）
+          description: |-
+            サービスID（AgenticAI/LLMEditor）
+            Service ID (AgenticAI/LLMEditor)
         ai_service_id:
           type: string
-          description: AIサービスID（bedrock/bedrock-cache/openai等）
+          description: |-
+            AIサービスID（bedrock/bedrock-cache/openai等）
+            AI service ID (bedrock/bedrock-cache/openai, etc.)
         title:
           type: string
         status:

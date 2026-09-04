@@ -364,20 +364,20 @@ SQL_WORKSPACE_CREATE_TABLES = [
     )ENGINE = InnoDB, CHARSET = utf8mb4, COLLATE = utf8mb4_unicode_ci;
     """,
     """
-    CREATE TABLE IF NOT EXISTS T_CHAT_HISTORY
+    CREATE TABLE IF NOT EXISTS T_CHAT_MESSAGE
     (
-        HISTORY_ID                      VARCHAR(36) NOT NULL,                           -- History ID (ULID)
+        MESSAGE_ID                      VARCHAR(36) NOT NULL,                           -- Message ID (ULID)
         CONVERSATION_ID                 VARCHAR(36) NOT NULL,                           -- Conversation ID
-        HISTORY_SEQ                     INT NOT NULL,                                   -- 履歴順序番号
+        MESSAGE_SEQ                     INT NOT NULL,                                   -- メッセージ順序番号
         CONTENTS                        LONGTEXT NOT NULL,                              -- コンテンツ（JSON配列）
         CREATE_TIMESTAMP                DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,    -- 作成日時
         CREATE_USER                     VARCHAR(40),                                    -- 作成者
         LAST_UPDATE_TIMESTAMP           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,    -- 最終更新日時
         LAST_UPDATE_USER                VARCHAR(40),                                    -- 最終更新ユーザー
-        PRIMARY KEY (HISTORY_ID),
-        UNIQUE KEY UK_CONV_HIST_SEQ (CONVERSATION_ID, HISTORY_SEQ),
-        INDEX IDX_CONV_HISTORY (CONVERSATION_ID),
-        CONSTRAINT FK_HISTORY_CONVERSATION FOREIGN KEY (CONVERSATION_ID)
+        PRIMARY KEY (MESSAGE_ID),
+        UNIQUE KEY UK_CONV_MSG_SEQ (CONVERSATION_ID, MESSAGE_SEQ),
+        INDEX IDX_CONV_MESSAGE (CONVERSATION_ID),
+        CONSTRAINT FK_MESSAGE_CONVERSATION FOREIGN KEY (CONVERSATION_ID)
             REFERENCES T_CHAT_CONVERSATION(CONVERSATION_ID) ON DELETE CASCADE
     )ENGINE = InnoDB, CHARSET = utf8mb4, COLLATE = utf8mb4_unicode_ci;
     """

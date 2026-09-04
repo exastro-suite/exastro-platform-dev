@@ -28,7 +28,7 @@ from services.ai_assistant.conversation_service import (
     get_conversation_service,
     ConversationNotFound,
 )
-from services.ai_assistant.history_service import get_history_service
+from services.ai_assistant.message_service import get_message_service
 
 import globals
 
@@ -207,19 +207,11 @@ def create_completion(body, conversation_id, organization_id, workspace_id):
     user_id = r.headers.get("User-id")
 
     body = r.get_json()
+    # message省略時は、会話の既存履歴(T_CHAT_MESSAGE)のみでAIに問い合わせる（結果は保存しない）
     message_text = body.get("message")
     ai_service_id = body.get("ai_service_id")  # メッセージ固有のAIサービスID（任意、会話のデフォルトをオーバーライド）
     model_id = body.get("model_id", "anthropic.claude-3-5-sonnet-20240620-v1:0")
     menu_id = body.get("menu_id")  # ITA画面ID（任意）
-
-    # バリデーション
-    if not message_text:
-        message_id = "400-94006"
-        message = multi_lang.get_text(
-            message_id,
-            "messageは必須です"
-        )
-        raise common.BadRequestException(message_id=message_id, message=message)
 
     try:
         service = get_conversation_service()
@@ -252,7 +244,8 @@ def create_completion(body, conversation_id, organization_id, workspace_id):
         globals.logger.debug(
             f"Completion created: conv={conversation_id}, "
             f"workspace={workspace_id}, "
-            f"history_id={result['history_id']}, "
+            f"saved={result['saved']}, "
+            f"message_id={result['message_id']}, "
             f"user_seq={result['user_message_seq']}, "
             f"assistant_seq={result['assistant_message_seq']}"
         )
@@ -267,6 +260,10 @@ def create_completion(body, conversation_id, organization_id, workspace_id):
         )
         raise common.NotFoundException(message_id=message_id, message=message)
 
+    except common.BadRequestException:
+        # サービス層で判定したバリデーションエラー（message省略時の会話状態チェック等）はそのまま伝播する
+        raise
+
     except Exception as e:
         globals.logger.error(f"Failed to create completion: {e}", exc_info=True)
         message_id = "500-94104"
@@ -279,9 +276,9 @@ def create_completion(body, conversation_id, organization_id, workspace_id):
 
 
 @common.platform_exception_handler
-def create_history(conversation_id, organization_id, workspace_id):
+def create_message(conversation_id, organization_id, workspace_id):
     """
-    会話履歴を作成
+    会話メッセージを作成
 
     Args:
         conversation_id: Conversation ID
@@ -289,9 +286,9 @@ def create_history(conversation_id, organization_id, workspace_id):
         workspace_id: Workspace ID
 
     Returns:
-        作成した履歴レコード
+        作成したメッセージレコード
     """
-    globals.logger.info(f"### func:create_history")
+    globals.logger.info(f"### func:create_message")
 
     user_id = connexion.request.headers.get('User-Id')
     body = connexion.request.get_json()
@@ -315,9 +312,9 @@ def create_history(conversation_id, organization_id, workspace_id):
         raise common.BadRequestException(message_id=message_id, message=message)
 
     try:
-        service = get_history_service()
+        service = get_message_service()
 
-        result = service.create_history(
+        result = service.create_message(
             organization_id=organization_id,
             workspace_id=workspace_id,
             user_id=user_id,
@@ -326,9 +323,9 @@ def create_history(conversation_id, organization_id, workspace_id):
         )
 
         globals.logger.debug(
-            f"History created: conv={conversation_id}, "
-            f"history_id={result['history_id']}, "
-            f"seq={result['history_seq']}"
+            f"Message created: conv={conversation_id}, "
+            f"message_id={result['message_id']}, "
+            f"seq={result['message_seq']}"
         )
 
         return common.response_200_ok(result)
@@ -342,20 +339,20 @@ def create_history(conversation_id, organization_id, workspace_id):
         raise common.NotFoundException(message_id=message_id, message=message)
 
     except Exception as e:
-        globals.logger.error(f"Failed to create history: {e}", exc_info=True)
+        globals.logger.error(f"Failed to create message: {e}", exc_info=True)
         message_id = "500-94204"
         message = multi_lang.get_text(
             message_id,
-            "履歴作成に失敗しました: {}",
+            "メッセージ作成に失敗しました: {}",
             str(e)
         )
         raise common.InternalErrorException(message_id=message_id, message=message)
 
 
 @common.platform_exception_handler
-def list_histories(conversation_id, organization_id, workspace_id, limit=100, offset=0):
+def list_messages(conversation_id, organization_id, workspace_id, limit=100, offset=0):
     """
-    会話履歴一覧を取得
+    会話メッセージ一覧を取得
 
     Args:
         conversation_id: Conversation ID
@@ -365,16 +362,16 @@ def list_histories(conversation_id, organization_id, workspace_id, limit=100, of
         offset: オフセット
 
     Returns:
-        履歴一覧
+        メッセージ一覧
     """
-    globals.logger.info(f"### func:list_histories")
+    globals.logger.info(f"### func:list_messages")
 
     user_id = connexion.request.headers.get('User-Id')
 
     try:
-        service = get_history_service()
+        service = get_message_service()
 
-        histories = service.list_histories(
+        messages = service.list_messages(
             organization_id=organization_id,
             workspace_id=workspace_id,
             user_id=user_id,
@@ -384,12 +381,12 @@ def list_histories(conversation_id, organization_id, workspace_id, limit=100, of
         )
 
         globals.logger.debug(
-            f"Listed {len(histories)} histories: conv={conversation_id}"
+            f"Listed {len(messages)} messages: conv={conversation_id}"
         )
 
         return common.response_200_ok({
-            "histories": histories,
-            "count": len(histories),
+            "messages": messages,
+            "count": len(messages),
             "conversation_id": conversation_id,
         })
 
@@ -402,22 +399,22 @@ def list_histories(conversation_id, organization_id, workspace_id, limit=100, of
         raise common.NotFoundException(message_id=message_id, message=message)
 
     except Exception as e:
-        globals.logger.error(f"Failed to list histories: {e}", exc_info=True)
+        globals.logger.error(f"Failed to list messages: {e}", exc_info=True)
         message_id = "500-94205"
         message = multi_lang.get_text(
             message_id,
-            "履歴一覧取得に失敗しました: {}",
+            "メッセージ一覧取得に失敗しました: {}",
             str(e)
         )
         raise common.InternalErrorException(message_id=message_id, message=message)
 
 
 @common.platform_exception_handler
-def replace_histories(conversation_id, organization_id, workspace_id):
+def replace_messages(conversation_id, organization_id, workspace_id):
     """
-    会話履歴を全置き換え
+    会話メッセージを全置き換え
 
-    GETで取得できる内容をそのまま置き換えるイメージ。既存の履歴は全て削除され、
+    GETで取得できる内容をそのまま置き換えるイメージ。既存のメッセージは全て削除され、
     リクエストで指定した内容に入れ替わる。
 
     Args:
@@ -426,60 +423,60 @@ def replace_histories(conversation_id, organization_id, workspace_id):
         workspace_id: Workspace ID
 
     Returns:
-        置き換え後の履歴一覧
+        置き換え後のメッセージ一覧
     """
-    globals.logger.info(f"### func:replace_histories")
+    globals.logger.info(f"### func:replace_messages")
 
     user_id = connexion.request.headers.get('User-Id')
     body = connexion.request.get_json()
 
-    # バリデーション：historiesフィールド（JSON配列）が必須
-    if 'histories' not in body:
+    # バリデーション：messagesフィールド（JSON配列）が必須
+    if 'messages' not in body:
         message_id = "400-94206"
         message = multi_lang.get_text(
             message_id,
-            "必須フィールドが不足しています: histories"
+            "必須フィールドが不足しています: messages"
         )
         raise common.BadRequestException(message_id=message_id, message=message)
 
-    if not isinstance(body['histories'], list):
+    if not isinstance(body['messages'], list):
         message_id = "400-94207"
         message = multi_lang.get_text(
             message_id,
-            "historiesはJSON配列である必要があります"
+            "messagesはJSON配列である必要があります"
         )
         raise common.BadRequestException(message_id=message_id, message=message)
 
     # 各要素のcontents（JSON配列）を取り出す
     contents_list = []
-    for item in body['histories']:
+    for item in body['messages']:
         if not isinstance(item, dict) or not isinstance(item.get('contents'), list):
             message_id = "400-94207"
             message = multi_lang.get_text(
                 message_id,
-                "historiesの各要素はcontents(JSON配列)を持つ必要があります"
+                "messagesの各要素はcontents(JSON配列)を持つ必要があります"
             )
             raise common.BadRequestException(message_id=message_id, message=message)
         contents_list.append(item['contents'])
 
     try:
-        service = get_history_service()
+        service = get_message_service()
 
-        histories = service.replace_histories(
+        messages = service.replace_messages(
             organization_id=organization_id,
             workspace_id=workspace_id,
             user_id=user_id,
             conversation_id=conversation_id,
-            histories=contents_list,
+            messages=contents_list,
         )
 
         globals.logger.debug(
-            f"Replaced histories: conv={conversation_id}, count={len(histories)}"
+            f"Replaced messages: conv={conversation_id}, count={len(messages)}"
         )
 
         return common.response_200_ok({
-            "histories": histories,
-            "count": len(histories),
+            "messages": messages,
+            "count": len(messages),
             "conversation_id": conversation_id,
         })
 
@@ -492,20 +489,20 @@ def replace_histories(conversation_id, organization_id, workspace_id):
         raise common.NotFoundException(message_id=message_id, message=message)
 
     except Exception as e:
-        globals.logger.error(f"Failed to replace histories: {e}", exc_info=True)
+        globals.logger.error(f"Failed to replace messages: {e}", exc_info=True)
         message_id = "500-94209"
         message = multi_lang.get_text(
             message_id,
-            "履歴の置き換えに失敗しました: {}",
+            "メッセージの置き換えに失敗しました: {}",
             str(e)
         )
         raise common.InternalErrorException(message_id=message_id, message=message)
 
 
 @common.platform_exception_handler
-def delete_histories(conversation_id, organization_id, workspace_id):
+def delete_messages(conversation_id, organization_id, workspace_id):
     """
-    会話履歴を全削除
+    会話メッセージを全削除
 
     Args:
         conversation_id: Conversation ID
@@ -515,14 +512,14 @@ def delete_histories(conversation_id, organization_id, workspace_id):
     Returns:
         削除結果
     """
-    globals.logger.info(f"### func:delete_histories")
+    globals.logger.info(f"### func:delete_messages")
 
     user_id = connexion.request.headers.get('User-Id')
 
     try:
-        service = get_history_service()
+        service = get_message_service()
 
-        deleted_count = service.delete_histories(
+        deleted_count = service.delete_messages(
             organization_id=organization_id,
             workspace_id=workspace_id,
             user_id=user_id,
@@ -530,7 +527,7 @@ def delete_histories(conversation_id, organization_id, workspace_id):
         )
 
         globals.logger.debug(
-            f"Deleted histories: conv={conversation_id}, count={deleted_count}"
+            f"Deleted messages: conv={conversation_id}, count={deleted_count}"
         )
 
         return common.response_200_ok({
@@ -547,11 +544,11 @@ def delete_histories(conversation_id, organization_id, workspace_id):
         raise common.NotFoundException(message_id=message_id, message=message)
 
     except Exception as e:
-        globals.logger.error(f"Failed to delete histories: {e}", exc_info=True)
+        globals.logger.error(f"Failed to delete messages: {e}", exc_info=True)
         message_id = "500-94211"
         message = multi_lang.get_text(
             message_id,
-            "履歴の削除に失敗しました: {}",
+            "メッセージの削除に失敗しました: {}",
             str(e)
         )
         raise common.InternalErrorException(message_id=message_id, message=message)

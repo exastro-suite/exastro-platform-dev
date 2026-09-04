@@ -107,8 +107,8 @@ paths:
       $ref: './paths/workspaces.workspace_id.conversations.yaml'
   "/api/{organization_id}/platform/workspaces/{workspace_id}/conversations/{conversation_id}/completions":
       $ref: './paths/workspaces.workspace_id.conversations.conversation_id.completions.yaml'
-  "/api/{organization_id}/platform/workspaces/{workspace_id}/conversations/{conversation_id}/histories":
-      $ref: './paths/workspaces.workspace_id.conversations.conversation_id.histories.yaml'
+  "/api/{organization_id}/platform/workspaces/{workspace_id}/conversations/{conversation_id}/messages":
+      $ref: './paths/workspaces.workspace_id.conversations.conversation_id.messages.yaml'
 
   "/api/{organization_id}/platform/users":
       $ref: './paths/users.yaml'

@@ -15,8 +15,12 @@
 post:
   tags:
     - AIAssistantService
-  summary: 会話を作成
-  description: 新しいチャット会話を作成する
+  summary: |-
+    会話を作成
+    Create a conversation
+  description: |-
+    新しいチャット会話を作成する
+    Create a new chat conversation.
   operationId: create_conversation
   x-openapi-router-controller: controllers.ai_assistant_service_controller
   parameters:
@@ -41,11 +45,15 @@ post:
           properties:
             title:
               type: string
-              description: 会話タイトル
+              description: |-
+                会話タイトル
+                Conversation title
               example: "Bedrockとのチャット"
             service_id:
               type: string
-              description: サービスID（システムプロンプト切り替え用）
+              description: |-
+                サービスID（システムプロンプト切り替え用）
+                Service ID (used to switch the system prompt)
               default: "LLMEditor"
               enum:
                 - LLMEditor
@@ -53,7 +61,9 @@ post:
               example: "LLMEditor"
   responses:
     200:
-      description: 会話作成成功
+      description: |-
+        会話作成成功
+        Conversation created successfully
       content:
         application/json:
           schema:
@@ -68,22 +78,30 @@ post:
                         type: string
                       service_id:
                         type: string
-                        description: サービスID
+                        description: |-
+                          サービスID
+                          Service ID
                       ai_service_id:
                         type: string
-                        description: AIサービスID（ユーザーのCredentialから自動取得）
+                        description: |-
+                          AIサービスID（ユーザーのCredentialから自動取得）
+                          AI service ID (automatically retrieved from the user's credential)
                       title:
                         type: string
                       status:
                         type: string
     400:
-      description: バリデーションエラー
+      description: |-
+        バリデーションエラー
+        Validation error
       content:
         application/json:
           schema:
             $ref: '../schemas/runtimeError.yaml'
     500:
-      description: サーバーエラー
+      description: |-
+        サーバーエラー
+        Server error
       content:
         application/json:
           schema:
@@ -92,8 +110,12 @@ post:
 get:
   tags:
     - AIAssistantService
-  summary: 会話一覧を取得
-  description: ユーザーの会話一覧を取得する
+  summary: |-
+    会話一覧を取得
+    Get the list of conversations
+  description: |-
+    ユーザーの会話一覧を取得する
+    Get the list of the user's conversations.
   operationId: list_conversations
   x-openapi-router-controller: controllers.ai_assistant_service_controller
   parameters:
@@ -113,24 +135,32 @@ get:
       schema:
         type: string
         enum: [active, closed, archived]
-      description: ステータスフィルター
+      description: |-
+        ステータスフィルター
+        Status filter
     - name: limit
       in: query
       required: false
       schema:
         type: integer
         default: 50
-      description: 取得件数
+      description: |-
+        取得件数
+        Number of items to retrieve
     - name: offset
       in: query
       required: false
       schema:
         type: integer
         default: 0
-      description: オフセット
+      description: |-
+        オフセット
+        Offset
   responses:
     200:
-      description: 成功
+      description: |-
+        成功
+        Success
       content:
         application/json:
           schema:

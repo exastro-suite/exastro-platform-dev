@@ -15,10 +15,12 @@
 post:
   tags:
     - AIAssistantService
-  summary: AI応答を生成
-  description: >-
-    ユーザーメッセージを送信し、AIとの会話を1ターン進めて応答を取得する。
-    会話全体はT_CHAT_HISTORYにJSON配列(ターン一覧)のスナップショットとして保存される(T_CHAT_MESSAGEは使用しない)。
+  summary: |-
+    AI応答を生成
+    Generate an AI response
+  description: |-
+    ユーザーメッセージを送信し、AIとの会話を1ターン進めて応答を取得する。messageは省略可能で、省略した場合は会話の既存履歴(T_CHAT_MESSAGE)のみでAIに問い合わせる。その場合、新規ターンは追加されず応答結果もT_CHAT_MESSAGEに保存されない（問い合わせのみ）。なお、Bedrock Converse APIの制約上、会話はuserターンで終わっている必要があるため、履歴が空、または履歴の最後がassistantターンで終わっている（＝直前のやり取りに既に応答済み）状態でmessageを省略すると400エラーになる。
+    Send a user message and advance the conversation with the AI by one turn to get a response. The message field is optional; if omitted, the AI is queried using only the conversation's existing history (T_CHAT_MESSAGE). In that case, no new turn is added and the response is not saved to T_CHAT_MESSAGE (query only). Note that, due to a constraint of the Bedrock Converse API, the conversation must end with a user turn; omitting message when the history is empty or already ends with an assistant turn (i.e. the previous exchange was already answered) results in a 400 error.
   operationId: create_completion
   x-openapi-router-controller: controllers.ai_assistant_service_controller
   parameters:
@@ -43,29 +45,37 @@ post:
       application/json:
         schema:
           type: object
-          required:
-            - message
           properties:
             message:
               type: string
-              description: ユーザーメッセージ
+              description: |-
+                ユーザーメッセージ(省略可。省略時は会話の既存履歴のみで問い合わせ、結果は保存されない)
+                User message (optional; if omitted, queries using only the conversation's existing history and the result is not saved)
               example: "こんにちは、Bedrockのテストです"
             ai_service_id:
               type: string
-              description: AIサービスID(メッセージ固有、会話のデフォルトをオーバーライド、省略時は会話のAI_SERVICE_IDを使用)
+              description: |-
+                AIサービスID(メッセージ固有、会話のデフォルトをオーバーライド、省略時は会話のAI_SERVICE_IDを使用)
+                AI service ID (specific to this message, overrides the conversation default; if omitted, the conversation's AI_SERVICE_ID is used)
               enum: [bedrock-cache, bedrock, openai, anthropic]
               example: "bedrock-cache"
             model_id:
               type: string
-              description: 使用するモデルID(メッセージごとに変更可能、省略時はデフォルト)
+              description: |-
+                使用するモデルID(メッセージごとに変更可能、省略時はデフォルト)
+                Model ID to use (can be changed per message; if omitted, the default is used)
               example: "anthropic.claude-3-5-sonnet-20240620-v1:0"
             menu_id:
               type: string
-              description: ITA画面ID(指定時はメニュー固有のシステムプロンプトを追加)
+              description: |-
+                ITA画面ID(指定時はメニュー固有のシステムプロンプトを追加)
+                ITA screen ID (when specified, a menu-specific system prompt is appended)
               example: "menu_001"
   responses:
     200:
-      description: AI応答の生成成功
+      description: |-
+        AI応答の生成成功
+        AI response generated successfully
       content:
         application/json:
           schema:
@@ -78,18 +88,34 @@ post:
                     properties:
                       conversation_id:
                         type: string
-                      history_id:
+                      message_id:
                         type: string
-                        description: 保存されたT_CHAT_HISTORYスナップショットのID
+                        nullable: true
+                        description: |-
+                          保存されたメッセージID(messageを省略し結果を保存しなかった場合はnull)
+                          Saved message ID (null when message was omitted and the result was not saved)
                       user_message_seq:
                         type: integer
-                        description: スナップショット内でのユーザーメッセージの順序番号(1始まり)
+                        nullable: true
+                        description: |-
+                          スナップショット内でのユーザーメッセージの順序番号(1始まり、messageを省略した場合はnull)
+                          Sequence number of the user message within the snapshot (1-based; null when message was omitted)
                       assistant_message_seq:
                         type: integer
-                        description: スナップショット内でのアシスタントメッセージの順序番号(1始まり)
+                        nullable: true
+                        description: |-
+                          スナップショット内でのアシスタントメッセージの順序番号(1始まり、messageを省略した場合はnull)
+                          Sequence number of the assistant message within the snapshot (1-based; null when message was omitted)
                       content:
                         type: string
-                        description: AIの応答
+                        description: |-
+                          AIの応答
+                          AI response
+                      saved:
+                        type: boolean
+                        description: |-
+                          応答結果をT_CHAT_MESSAGEに保存したかどうか(messageを省略した場合はfalse)
+                          Whether the response was saved to T_CHAT_MESSAGE (false when message was omitted)
                       usage:
                         type: object
                         properties:
@@ -100,19 +126,25 @@ post:
                           total_tokens:
                             type: integer
     400:
-      description: バリデーションエラー
+      description: |-
+        バリデーションエラー
+        Validation error
       content:
         application/json:
           schema:
             $ref: '../schemas/runtimeError.yaml'
     404:
-      description: 会話が見つからない
+      description: |-
+        会話が見つからない
+        Conversation not found
       content:
         application/json:
           schema:
             $ref: '../schemas/runtimeError.yaml'
     500:
-      description: サーバーエラー
+      description: |-
+        サーバーエラー
+        Server error
       content:
         application/json:
           schema:

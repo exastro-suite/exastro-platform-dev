@@ -15,9 +15,13 @@
 get:
   tags:
     - AIAssistantService
-  summary: 会話履歴一覧を取得
-  description: 会話の履歴（UI用）を取得する
-  operationId: list_histories
+  summary: |-
+    会話メッセージ一覧を取得
+    Get the list of conversation messages
+  description: |-
+    会話のメッセージ（UI用）を取得する
+    Get the messages (for UI use) of a conversation.
+  operationId: list_messages
   x-openapi-router-controller: controllers.ai_assistant_service_controller
   parameters:
     - name: organization_id
@@ -41,17 +45,23 @@ get:
       schema:
         type: integer
         default: 100
-      description: 取得件数
+      description: |-
+        取得件数
+        Number of items to retrieve
     - name: offset
       in: query
       required: false
       schema:
         type: integer
         default: 0
-      description: オフセット(history_seq基準)
+      description: |-
+        オフセット(message_seq基準)
+        Offset (based on message_seq)
   responses:
     200:
-      description: 成功
+      description: |-
+        成功
+        Success
       content:
         application/json:
           schema:
@@ -62,16 +72,18 @@ get:
                   data:
                     type: object
                     properties:
-                      histories:
+                      messages:
                         type: array
                         items:
-                          $ref: '../schemas/historyInfo.yaml'
+                          $ref: '../schemas/messageInfo.yaml'
                       count:
                         type: integer
                       conversation_id:
                         type: string
     404:
-      description: 会話が見つからない
+      description: |-
+        会話が見つからない
+        Conversation not found
       content:
         application/json:
           schema:
@@ -86,9 +98,13 @@ get:
 post:
   tags:
     - AIAssistantService
-  summary: 会話履歴を作成
-  description: UIからの応答を会話履歴として保存する(T_CHAT_HISTORYへのスナップショット保存)
-  operationId: create_history
+  summary: |-
+    会話メッセージを作成
+    Create a conversation message
+  description: |-
+    UIからの応答を会話メッセージとして保存する(T_CHAT_MESSAGEへのスナップショット保存)
+    Save a UI response as a conversation message (saved as a snapshot in T_CHAT_MESSAGE).
+  operationId: create_message
   x-openapi-router-controller: controllers.ai_assistant_service_controller
   parameters:
     - name: organization_id
@@ -117,7 +133,9 @@ post:
           properties:
             contents:
               type: array
-              description: 会話履歴JSON配列（各要素にrole, content, _timestamp等を含む）
+              description: |-
+                会話メッセージJSON配列（各要素にrole, content, _timestamp等を含む）
+                JSON array of conversation messages (each element contains role, content, _timestamp, etc.)
               items:
                 type: object
                 properties:
@@ -150,7 +168,9 @@ post:
                   _model: "global.anthropic.claude-opus-5"
   responses:
     200:
-      description: 作成成功
+      description: |-
+        作成成功
+        Created successfully
       content:
         application/json:
           schema:
@@ -159,21 +179,27 @@ post:
               - type: object
                 properties:
                   data:
-                    $ref: '../schemas/historyInfo.yaml'
+                    $ref: '../schemas/messageInfo.yaml'
     400:
-      description: バリデーションエラー
+      description: |-
+        バリデーションエラー
+        Validation error
       content:
         application/json:
           schema:
             $ref: '../schemas/runtimeError.yaml'
     404:
-      description: 会話が見つからない
+      description: |-
+        会話が見つからない
+        Conversation not found
       content:
         application/json:
           schema:
             $ref: '../schemas/runtimeError.yaml'
     500:
-      description: サーバーエラー
+      description: |-
+        サーバーエラー
+        Server error
       content:
         application/json:
           schema:
@@ -182,11 +208,13 @@ post:
 put:
   tags:
     - AIAssistantService
-  summary: 会話履歴を全置き換え
-  description: >-
-    GETで取得できる内容をそのまま置き換える。既存の履歴レコードは全て削除され、
-    リクエストで指定したhistoriesの内容にすべて入れ替わる（部分更新ではなく全置換）。
-  operationId: replace_histories
+  summary: |-
+    会話メッセージを全置き換え
+    Replace all conversation messages
+  description: |-
+    GETで取得できる内容をそのまま置き換える。既存のメッセージレコードは全て削除され、リクエストで指定したmessagesの内容にすべて入れ替わる（部分更新ではなく全置換）。
+    Replace the content returned by GET entirely. All existing message records are deleted and replaced with the content of the messages specified in the request (a full replacement, not a partial update).
+  operationId: replace_messages
   x-openapi-router-controller: controllers.ai_assistant_service_controller
   parameters:
     - name: organization_id
@@ -211,11 +239,13 @@ put:
         schema:
           type: object
           required:
-            - histories
+            - messages
           properties:
-            histories:
+            messages:
               type: array
-              description: 置き換え後の履歴レコード一覧(GETレスポンスのhistoriesと同じ形)
+              description: |-
+                置き換え後のメッセージレコード一覧(GETレスポンスのmessagesと同じ形)
+                List of message records after replacement (same shape as the messages field in the GET response)
               items:
                 type: object
                 required:
@@ -223,11 +253,13 @@ put:
                 properties:
                   contents:
                     type: array
-                    description: 会話履歴JSON配列（各要素にrole, content, _timestamp等を含む）
+                    description: |-
+                      会話メッセージJSON配列（各要素にrole, content, _timestamp等を含む）
+                      JSON array of conversation messages (each element contains role, content, _timestamp, etc.)
                     items:
                       type: object
               example:
-                histories:
+                messages:
                   - contents:
                       - role: "user"
                         content:
@@ -243,7 +275,9 @@ put:
                         _model: "global.anthropic.claude-opus-5"
   responses:
     200:
-      description: 置き換え成功
+      description: |-
+        置き換え成功
+        Replaced successfully
       content:
         application/json:
           schema:
@@ -254,28 +288,34 @@ put:
                   data:
                     type: object
                     properties:
-                      histories:
+                      messages:
                         type: array
                         items:
-                          $ref: '../schemas/historyInfo.yaml'
+                          $ref: '../schemas/messageInfo.yaml'
                       count:
                         type: integer
                       conversation_id:
                         type: string
     400:
-      description: バリデーションエラー
+      description: |-
+        バリデーションエラー
+        Validation error
       content:
         application/json:
           schema:
             $ref: '../schemas/runtimeError.yaml'
     404:
-      description: 会話が見つからない
+      description: |-
+        会話が見つからない
+        Conversation not found
       content:
         application/json:
           schema:
             $ref: '../schemas/runtimeError.yaml'
     500:
-      description: サーバーエラー
+      description: |-
+        サーバーエラー
+        Server error
       content:
         application/json:
           schema:
@@ -284,9 +324,13 @@ put:
 delete:
   tags:
     - AIAssistantService
-  summary: 会話履歴を全削除
-  description: 会話に紐づく履歴レコードを全て削除する
-  operationId: delete_histories
+  summary: |-
+    会話メッセージを全削除
+    Delete all conversation messages
+  description: |-
+    会話に紐づくメッセージレコードを全て削除する
+    Delete all message records associated with the conversation.
+  operationId: delete_messages
   x-openapi-router-controller: controllers.ai_assistant_service_controller
   parameters:
     - name: organization_id
@@ -306,7 +350,9 @@ delete:
         type: string
   responses:
     200:
-      description: 削除成功
+      description: |-
+        削除成功
+        Deleted successfully
       content:
         application/json:
           schema:
@@ -321,15 +367,21 @@ delete:
                         type: string
                       deleted_count:
                         type: integer
-                        description: 削除した履歴レコード件数
+                        description: |-
+                          削除したメッセージレコード件数
+                          Number of deleted message records
     404:
-      description: 会話が見つからない
+      description: |-
+        会話が見つからない
+        Conversation not found
       content:
         application/json:
           schema:
             $ref: '../schemas/runtimeError.yaml'
     500:
-      description: サーバーエラー
+      description: |-
+        サーバーエラー
+        Server error
       content:
         application/json:
           schema:
