@@ -19,8 +19,8 @@ post:
     AI応答を生成
     Generate an AI response
   description: |-
-    ユーザーメッセージを送信し、AIとの会話を1ターン進めて応答を取得する。messageは省略可能で、省略した場合は会話の既存履歴(T_CHAT_MESSAGE)のみでAIに問い合わせる（新規ターンは追加されず、応答結果もT_CHAT_MESSAGEに保存されない＝問い合わせのみ）。なお、Bedrock Converse APIの制約上、会話はuserターンで終わっている必要があるため、履歴の最後がassistantターンで終わっている（＝直前のやり取りに既に応答済み）状態でmessageを省略した場合は、直前のassistant応答を一時的に取り除いた上でその手前のuserターンまでで再度問い合わせる（＝応答の再生成）。会話に既存の履歴が全く無い場合、または再生成のためにassistantターンを取り除いた結果userターンも残らない場合は400エラーになる。
-    Send a user message and advance the conversation with the AI by one turn to get a response. The message field is optional; if omitted, the AI is queried using only the conversation's existing history (T_CHAT_MESSAGE) (no new turn is added and the response is not saved to T_CHAT_MESSAGE — query only). Note that, due to a constraint of the Bedrock Converse API, the conversation must end with a user turn; if the history already ends with an assistant turn (i.e. the previous exchange was already answered) and message is omitted, the trailing assistant turn is temporarily dropped and the AI is queried again up to the preceding user turn (i.e. the response is regenerated). A 400 error is returned if the conversation has no existing history at all, or if no user turn remains after dropping the trailing assistant turn.
+    ユーザーメッセージを送信し、AIとの会話を1ターン進めて応答を取得する。messageは省略可能で、省略した場合は会話の既存履歴(T_CHAT_MESSAGE)のみでAIサービスに問い合わせる（新規ターンは追加されず、応答結果もT_CHAT_MESSAGEに保存されない＝問い合わせのみ）。なお、多くの生成AIサービスのAPIでは会話がuserターンで終わっている必要があるため、履歴の最後がassistantターンで終わっている（＝直前のやり取りに既に応答済み）状態でmessageを省略した場合は、直前のassistant応答を一時的に取り除いた上でその手前のuserターンまでで再度問い合わせる（＝応答の再生成）。会話に既存の履歴が全く無い場合、または再生成のためにassistantターンを取り除いた結果userターンも残らない場合は400エラーになる。
+    Send a user message and advance the conversation with the AI by one turn to get a response. The message field is optional; if omitted, the AI service is queried using only the conversation's existing history (T_CHAT_MESSAGE) (no new turn is added and the response is not saved to T_CHAT_MESSAGE — query only). Note that many generative AI service APIs require the conversation to end with a user turn; if the history already ends with an assistant turn (i.e. the previous exchange was already answered) and message is omitted, the trailing assistant turn is temporarily dropped and the AI is queried again up to the preceding user turn (i.e. the response is regenerated). A 400 error is returned if the conversation has no existing history at all, or if no user turn remains after dropping the trailing assistant turn.
   operationId: create_completion
   x-openapi-router-controller: controllers.ai_assistant_service_controller
   parameters:
@@ -116,6 +116,11 @@ post:
                         description: |-
                           応答結果をT_CHAT_MESSAGEに保存したかどうか(messageを省略した場合はfalse)
                           Whether the response was saved to T_CHAT_MESSAGE (false when message was omitted)
+                      ai_status_code:
+                        type: integer
+                        description: |-
+                          AIサービスのAPIが返したHTTPステータスコード(通常200)。リトライ判断等に利用できる。
+                          The HTTP status code returned by the AI service's API (normally 200). Can be used for retry decisions, etc.
                       usage:
                         type: object
                         properties:
@@ -145,6 +150,15 @@ post:
       description: |-
         サーバーエラー
         Server error
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/runtimeError.yaml'
+    default:
+      description: >-
+        AIサービスのAPIがエラー時に返したHTTPステータスコードをそのまま返す(例: 408, 429, 500, 503等)。
+        リトライ可否の判断はこのステータスコードを基準に行うこと。
+        Returns the HTTP status code exactly as returned by the AI service's API on error (e.g. 408, 429, 500, 503, etc.). Retry decisions should be based on this status code.
       content:
         application/json:
           schema:

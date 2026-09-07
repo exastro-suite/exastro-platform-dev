@@ -128,6 +128,8 @@ class MessageService:
         try:
             return json.loads(row["CONTENTS"])
         except (json.JSONDecodeError, TypeError):
+            # CONTENTSが破損している場合はエラーにせずNone扱いにし、新規会話と同様に空履歴から開始させる
+            # If CONTENTS is corrupted, treat it as None instead of raising, so the conversation starts fresh with empty history
             return None
 
     def list_messages(
@@ -181,6 +183,8 @@ class MessageService:
                     try:
                         contents = json.loads(row["CONTENTS"])
                     except (json.JSONDecodeError, TypeError):
+                        # 1件が破損していても一覧全体は返したいため、その要素だけ空配列にして続行する
+                        # Even if one record is corrupted, keep returning the full list by substituting an empty array for that item only
                         contents = []
 
                     message_dict = {

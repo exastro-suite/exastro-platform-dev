@@ -29,6 +29,12 @@ from datetime import datetime, timezone
 from typing import Optional, List, Dict
 from contextlib import closing
 import ulid
+from botocore.exceptions import (
+    ClientError,
+    BotoCoreError,
+    ConnectTimeoutError,
+    ReadTimeoutError,
+)
 
 from common_library.common.db import DBconnector
 from common_library.common import common
@@ -41,10 +47,6 @@ from services.ai_assistant.aws_session_manager import (
     create_bedrock_session_from_credential_data,
 )
 from services.ai_assistant.message_service import get_message_service
-from ai_providers.base import (
-    AIProviderTimeoutError,
-    AIProviderValidationError,
-)
 
 import globals
 
@@ -224,6 +226,8 @@ class ConversationService:
         Raises:
             ConversationNotFound: 会話が見つからない
         """
+        # message_textの有無で「新規発言して保存する」か「既存履歴のみで問い合わせて保存しない」かの動作が分岐する
+        # Whether message_text is provided branches behavior: "post a new message and save" vs. "query using only existing history without saving"
         has_new_message = bool(message_text)
         with closing(DBconnector().connect_workspacedb(organization_id, workspace_id)) as conn:
             with closing(conn.cursor()) as cursor:
@@ -261,26 +265,32 @@ class ConversationService:
 
         if has_new_message:
             # ユーザーターンを追記
+            # Append the new user turn
             user_turn = {
                 "role": "user",
                 "content": [{"type": "text", "text": message_text}],
                 "_timestamp": _now_iso(),
             }
             # 会話のデフォルトと異なるAIサービスが指定された場合のみ記録する（オーバーライドの記録）
+            # Record the override only when the specified AI service differs from the conversation's default
             if ai_service_id and ai_service_id != conversation_default_ai_service_id:
                 user_turn["_service"] = ai_service_id
             messages.append(user_turn)
             llm_input_messages = messages
         elif not messages:
             # 新規メッセージも既存履歴も無い場合は問い合わせ不可
+            # Cannot query when there is neither a new message nor any existing history
             raise common.BadRequestException(
                 message_id="400-94107",
                 message="messageが未指定で、会話に既存の履歴もありません",
             )
         elif messages[-1].get("role") == "assistant":
             # 直前のassistant応答を一時的に取り除き、再生成（結果は保存しない）
+            # Temporarily drop the trailing assistant turn and regenerate the response (the result is not saved)
             llm_input_messages = messages[:-1]
             if not llm_input_messages:
+                # assistantターンを除いた結果userターンも残らない＝問い合わせ可能な発言が無いため400エラー
+                # No user turn remains after removing the assistant turn, i.e. nothing to query, so raise a 400 error
                 raise common.BadRequestException(
                     message_id="400-94108",
                     message="messageが未指定で、会話に問い合わせ可能なユーザーメッセージがありません",
@@ -295,6 +305,7 @@ class ConversationService:
 
             if effective_ai_service_id == "bedrock-cache":
                 # AWS Login Cache方式（DBから取得、自動トークン更新）
+                # AWS login cache method (retrieved from the DB, with automatic token refresh)
                 globals.logger.debug("Using AWS login cache credential for Bedrock authentication")
 
                 credential_service = get_ai_credential_service()
@@ -314,6 +325,7 @@ class ConversationService:
 
             elif effective_ai_service_id == "bedrock":
                 # 手動Credential方式（固定トークン）
+                # Manual credential method (fixed/static token)
                 globals.logger.debug("Using manual credential for Bedrock authentication")
 
                 credential_service = get_ai_credential_service()
@@ -348,6 +360,8 @@ class ConversationService:
                 )
 
             else:
+                # bedrock-cache/bedrock以外のai_service_idは現時点で未対応（将来、他AIプロバイダー対応時に分岐を追加）
+                # Any ai_service_id other than bedrock-cache/bedrock is currently unsupported (add a branch here when other AI providers are supported)
                 raise ValueError(f"Unsupported ai_service_id for Bedrock: {effective_ai_service_id}")
 
             # システムプロンプトを読み込み
@@ -367,6 +381,7 @@ class ConversationService:
                 system_prompt = None
 
             # menu_idが指定されている場合は追加プロンプトを読み込み
+            # Load the additional prompt only when menu_id is specified
             if menu_id:
                 try:
                     menu_prompt = load_menu_prompt(menu_id, user_language)
@@ -413,11 +428,25 @@ class ConversationService:
             response = bedrock_client.converse(**converse_params)
             thinking_ms = round((time.monotonic() - request_start) * 1000)
 
-            assistant_content = response["output"]["message"]["content"][0]["text"]
+            # AIサービスが返したHTTPステータスコードをそのまま呼び出し元に返す
+            # （ai_assistant_client.js / amazon_bedrock.jsのfetchWithRetryと同様、
+            # 呼び出し側でステータスコードに基づくリトライ判断ができるようにするため。
+            # 将来的にBedrock以外のAIサービスに対応した場合も同じキーで返せるよう汎用名にしている）
+            ai_status_code = response.get("ResponseMetadata", {}).get("HTTPStatusCode")
+
+            # 拡張思考対応モデルはcontent[0]がreasoningContentブロックになる場合があり、必ずしもtextブロックとは限らないため、textキーを持つブロックのみ連結して取り出す
+            # Extended-thinking-capable models may put a reasoningContent block at content[0], so it isn't always the text block — concatenate only the blocks that have a text key
+            assistant_content = "".join(
+                block.get("text", "")
+                for block in response["output"]["message"]["content"]
+                if "text" in block
+            )
             input_tokens = response["usage"]["inputTokens"]
             output_tokens = response["usage"]["outputTokens"]
 
             if has_new_message:
+                # 新規発言がある場合のみ、応答をT_CHAT_MESSAGEに保存しトークン数を更新する
+                # Only when there is a new user message do we save the response to T_CHAT_MESSAGE and update the token count
                 # アシスタントターンを追記
                 assistant_turn = {
                     "role": "assistant",
@@ -462,6 +491,7 @@ class ConversationService:
                 )
             else:
                 # messageを指定しない問い合わせ：既存履歴のみで応答を取得し、保存は行わない
+                # Query without a message: get the response using only existing history, and do not persist it
                 saved_message_id = None
                 user_message_seq = None
                 assistant_message_seq = None
@@ -473,6 +503,8 @@ class ConversationService:
 
             # 最終使用日時とトークン更新（Bedrock呼び出し後）
             if credential_service and credential:
+                # bedrock-cache方式のみ呼び出し中に自動更新されたトークンをDBへ書き戻す（bedrock方式は固定トークンのため対象外）
+                # Only the bedrock-cache method writes the auto-refreshed token back to the DB (not applicable to the fixed-token bedrock method)
                 if effective_ai_service_id == "bedrock-cache" and aws_session:
                     latest_token = aws_session.get_current_token()
                     if latest_token:
@@ -482,6 +514,8 @@ class ConversationService:
                             credential_data=latest_token
                         )
                     else:
+                        # トークンが更新されていない（取得できない）場合は最終使用日時のみ更新
+                        # If no refreshed token is available, update only the last-used timestamp
                         credential_service.update_last_used(
                             organization_id=organization_id,
                             credential_id=credential.credential_id
@@ -499,6 +533,7 @@ class ConversationService:
                 "assistant_message_seq": assistant_message_seq,
                 "content": assistant_content,
                 "saved": has_new_message,
+                "ai_status_code": ai_status_code,
                 "usage": {
                     "input_tokens": input_tokens,
                     "output_tokens": output_tokens,
@@ -506,29 +541,42 @@ class ConversationService:
                 },
             }
 
-        except AIProviderTimeoutError as e:
-            # タイムアウト → InternalError
-            globals.logger.error(f"Bedrock request timeout: {e}")
-            message_id = "500-94105"
-            message = f"AI サービスへのリクエストがタイムアウトしました: {str(e)}"
-            raise common.InternalErrorException(
-                message_id=message_id, message=message
+        except ClientError as e:
+            # BedrockがHTTPエラーとして返したステータスコードを400/500等にまとめず、そのまま呼び出し元に伝播する（JS版のリトライ判断に合わせる）
+            # Propagate the HTTP status code Bedrock returned as-is to the caller instead of collapsing it into 400/500 (matches the JS client's retry logic)
+            response_metadata = e.response.get("ResponseMetadata", {})
+            status_code = response_metadata.get("HTTPStatusCode", 500)
+            error_info = e.response.get("Error", {})
+            error_code = error_info.get("Code", "Unknown")
+            error_message = error_info.get("Message", str(e))
+            globals.logger.error(
+                f"Bedrock ClientError: status={status_code}, code={error_code}, message={error_message}"
+            )
+            raise common.OtherException(
+                status_code=status_code,
+                message_id=f"{status_code}-94109",
+                message=f"AIサービスAPIエラー ({error_code}): {error_message}",
             ) from e
 
-        except AIProviderValidationError as e:
-            # maxTokens 超過などのバリデーションエラー → 413
-            error_message = str(e)
-            if "maxTokens" in error_message or "token" in error_message.lower():
-                globals.logger.error(f"Bedrock payload too large: {e}")
-                message_id = "400-94106"
-                message = f"リクエストのペイロードが大きすぎます: {str(e)}"
-                raise common.BadRequestException(
-                    message_id=message_id, message=message
-                ) from e
-            else:
-                # その他のバリデーションエラーは 400
-                globals.logger.error(f"Bedrock validation error: {e}")
-                raise
+        except (ReadTimeoutError, ConnectTimeoutError) as e:
+            # HTTPステータスが存在しないネットワークタイムアウトのため、JS版のtimeoutStatuses([408, 504])に合わせて408として返す
+            # No HTTP status exists for a network-level timeout, so return 408 to match the JS client's timeoutStatuses ([408, 504])
+            globals.logger.error(f"Bedrock request timeout: {e}")
+            raise common.OtherException(
+                status_code=408,
+                message_id="408-94110",
+                message=f"AIサービスへのリクエストがタイムアウトしました: {str(e)}",
+            ) from e
+
+        except BotoCoreError as e:
+            # Bedrock自体からのHTTPステータスコードが得られないその他の接続エラー（DNS失敗等）は503として返す
+            # Other connection-level errors with no HTTP status code from Bedrock itself (e.g. DNS failure) are returned as 503
+            globals.logger.error(f"Bedrock request failed (connection error): {e}")
+            raise common.OtherException(
+                status_code=503,
+                message_id="503-94111",
+                message=f"AIサービスへの接続に失敗しました: {str(e)}",
+            ) from e
 
         except CredentialNotFound as e:
             globals.logger.error(f"Credential not found: {e}")

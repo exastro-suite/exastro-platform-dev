@@ -217,8 +217,11 @@ def create_completion(body, conversation_id, organization_id, workspace_id):
         service = get_conversation_service()
 
         # ユーザー言語を取得 (Accept-Languageヘッダーから)
+        # Determine the user's language from the Accept-Language header
         user_language = None
         accept_language = connexion.request.headers.get('Accept-Language', '')
+        # "ja"/"jp"を含む部分一致で判定（"ja-JP"等の地域付き表記もカバーするため）。該当しなければenを見る
+        # Match by substring on "ja"/"jp" (to also cover region variants like "ja-JP"); fall back to checking for en
         if 'ja' in accept_language or 'jp' in accept_language:
             user_language = 'jp'
         elif 'en' in accept_language:
@@ -261,7 +264,13 @@ def create_completion(body, conversation_id, organization_id, workspace_id):
         raise common.NotFoundException(message_id=message_id, message=message)
 
     except common.BadRequestException:
-        # サービス層で判定したバリデーションエラー（message省略時の会話状態チェック等）はそのまま伝播する
+        # サービス層で判定したバリデーションエラー（message省略時の会話状態チェック等）を500に潰さずそのまま伝播させる
+        # Re-raise validation errors detected in the service layer (e.g. conversation-state checks when message is omitted) instead of collapsing them into 500
+        raise
+
+    except common.OtherException:
+        # AIサービスが返した実際のHTTPステータスコードを500に潰さずそのまま伝播させる（呼び出し元でリトライ判断に使うため）
+        # Re-raise the actual HTTP status code returned by the AI service instead of collapsing it into 500 (the caller uses it for retry decisions)
         raise
 
     except Exception as e:
@@ -448,8 +457,11 @@ def replace_messages(conversation_id, organization_id, workspace_id):
         raise common.BadRequestException(message_id=message_id, message=message)
 
     # 各要素のcontents（JSON配列）を取り出す
+    # Extract each element's contents (JSON array)
     contents_list = []
     for item in body['messages']:
+        # messagesの各要素はcontentsキーを持つオブジェクトである必要がある（GETのレスポンス形式に合わせる）
+        # Each element of messages must be an object with a contents key (matches the GET response shape)
         if not isinstance(item, dict) or not isinstance(item.get('contents'), list):
             message_id = "400-94207"
             message = multi_lang.get_text(
