@@ -57,6 +57,8 @@ tags:
     description: 監査ログに関する操作
   - name: ServiceAccountUsersService
     description: サービスアカウントユーザーに関する操作
+  - name: AIAssistantService
+    description: AIアシスタントに関する操作
   - name: InternalCommonService
     description: 共通(内部用)
   - name: InternalPlanService
@@ -847,6 +849,522 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/runtimeError'
+  '/api/{organization_id}/platform/users/_current/{credential_type}/credentials':
+    post:
+      tags:
+        - UsersService
+      summary: Credentialを登録
+      description: 外部サービスのCredentialを登録する
+      operationId: register_credential
+      x-openapi-router-controller: controllers.users_service_controller
+      parameters:
+        - name: organization_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: credential_type
+          in: path
+          required: true
+          schema:
+            type: string
+            enum:
+              - bedrock-cache
+              - bedrock
+              - openai
+              - anthropic
+          description: |
+            Credentialタイプ
+            - bedrock-cache: AWS Login Cache (自動トークン更新、credential_data: {"enabled": true})
+            - bedrock: AWS Bedrock (手動Credential登録)
+            - openai: OpenAI API
+            - anthropic: Anthropic API
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - credential_name
+                - credential_data
+              properties:
+                credential_name:
+                  type: string
+                  description: Credential名
+                  example: My Bedrock Credential
+                credential_data:
+                  type: object
+                  description: |
+                    Credentialデータ(JSON形式、サービスごとに異なる)
+
+                    bedrock-cache の例:
+                      {"enabled": true}
+
+                    bedrock の例:
+                      {
+                        "access_key_id": "ASIA...",
+                        "secret_access_key": "...",
+                        "session_token": "...",
+                        "region": "ap-northeast-1",
+                        "expires_at": "2026-08-17T15:00:00Z"
+                      }
+                  example:
+                    enabled: true
+                notes:
+                  type: string
+                  description: 備考
+      responses:
+        '200':
+          description: 登録成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/responseOk'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          credential_id:
+                            type: string
+                          credential_type:
+                            type: string
+                          credential_name:
+                            type: string
+                          status:
+                            type: string
+                          message:
+                            type: string
+        '400':
+          description: バリデーションエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/runtimeError'
+        '500':
+          description: サーバーエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/runtimeError'
+    get:
+      tags:
+        - UsersService
+      summary: Credential一覧を取得
+      description: ユーザーのCredential一覧を取得する
+      operationId: list_credentials
+      x-openapi-router-controller: controllers.users_service_controller
+      parameters:
+        - name: organization_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: credential_type
+          in: path
+          required: true
+          schema:
+            type: string
+            enum:
+              - bedrock-cache
+              - bedrock
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - active
+              - expired
+              - disabled
+          description: ステータスフィルター
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/responseOk'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          credentials:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/aiCredentialInfo'
+                          count:
+                            type: integer
+                          credential_type:
+                            type: string
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/runtimeError'
+  '/api/{organization_id}/platform/users/_current/{credential_type}/credentials/{credential_id}':
+    get:
+      tags:
+        - UsersService
+      summary: Credential詳細を取得
+      description: 特定のCredential詳細を取得する(Credentialデータはマスクされる)
+      operationId: get_credential
+      x-openapi-router-controller: controllers.users_service_controller
+      parameters:
+        - name: organization_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: credential_type
+          in: path
+          required: true
+          schema:
+            type: string
+            enum:
+              - bedrock-cache
+              - bedrock
+        - name: credential_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/responseOk'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          credential_id:
+                            type: string
+                          credential_type:
+                            type: string
+                          credential_name:
+                            type: string
+                          status:
+                            type: string
+                          expires_at:
+                            type: string
+                            format: date-time
+                          last_used_at:
+                            type: string
+                            format: date-time
+                          credential_data_keys:
+                            type: array
+                            items:
+                              type: string
+                            description: Credentialデータに含まれるキー一覧
+        '404':
+          description: Credentialが見つからない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/runtimeError'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/runtimeError'
+    put:
+      tags:
+        - UsersService
+      summary: Credentialを更新
+      description: 既存のCredentialを全体更新する
+      operationId: update_credential
+      x-openapi-router-controller: controllers.users_service_controller
+      parameters:
+        - name: organization_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: credential_type
+          in: path
+          required: true
+          schema:
+            type: string
+            enum:
+              - bedrock-cache
+              - bedrock
+              - openai
+              - anthropic
+        - name: credential_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - credential_name
+                - credential_data
+              properties:
+                credential_name:
+                  type: string
+                  description: Credential名
+                credential_data:
+                  type: object
+                  description: Credentialデータ
+                notes:
+                  type: string
+                  description: 備考(任意)
+            examples:
+              update_cache:
+                summary: キャッシュファイルを更新
+                value:
+                  credential_data:
+                    accessToken:
+                      accessKeyId: ASIA...
+                      secretAccessKey: ...
+                      sessionToken: ...
+                      expiresAt: '2026-08-19T12:00:00Z'
+                    refreshToken: ...
+                    idToken: ...
+              update_name:
+                summary: Credential名だけ更新
+                value:
+                  credential_name: 新しい名前
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/responseOk'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          credential_id:
+                            type: string
+                          credential_type:
+                            type: string
+                          credential_name:
+                            type: string
+                          status:
+                            type: string
+                          message:
+                            type: string
+        '400':
+          description: バリデーションエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/runtimeError'
+        '404':
+          description: Credentialが見つからない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/runtimeError'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/runtimeError'
+    delete:
+      tags:
+        - UsersService
+      summary: Credentialを削除
+      description: Credentialを削除する
+      operationId: delete_credential
+      x-openapi-router-controller: controllers.users_service_controller
+      parameters:
+        - name: organization_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: credential_type
+          in: path
+          required: true
+          schema:
+            type: string
+            enum:
+              - bedrock-cache
+              - bedrock
+        - name: credential_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 削除成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/responseOk'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          credential_id:
+                            type: string
+                          message:
+                            type: string
+        '404':
+          description: Credentialが見つからない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/runtimeError'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/runtimeError'
+  '/api/{organization_id}/platform/users/_current/{credential_type}/credentials/{credential_id}/verify':
+    post:
+      tags:
+        - UsersService
+      summary: Credentialを検証
+      description: Credentialが有効かどうかを検証する
+      operationId: verify_credential
+      x-openapi-router-controller: controllers.users_service_controller
+      parameters:
+        - name: organization_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: credential_type
+          in: path
+          required: true
+          schema:
+            type: string
+            enum:
+              - bedrock-cache
+              - bedrock
+              - openai
+              - anthropic
+        - name: credential_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 検証結果
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/responseOk'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          valid:
+                            type: boolean
+                          message:
+                            type: string
+                          account_id:
+                            type: string
+                            description: AWSアカウントID(Bedrockの場合)
+                          user_id:
+                            type: string
+                            description: AWS User ID(Bedrockの場合)
+        '404':
+          description: Credentialが見つからない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/runtimeError'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/runtimeError'
+  '/api/{organization_id}/platform/users/_current/{credential_type}/models':
+    get:
+      tags:
+        - UsersService
+      summary: 使用可能なモデル一覧を取得
+      description: 登録されたCredentialを使用して、AIサービスで利用可能なモデル一覧を取得する
+      operationId: list_models
+      x-openapi-router-controller: controllers.users_service_controller
+      parameters:
+        - name: organization_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: credential_type
+          in: path
+          required: true
+          schema:
+            type: string
+            enum:
+              - bedrock-cache
+              - bedrock
+          description: AIサービスID(現在はbedrock-cacheとbedrockのみ対応)
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/responseOk'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          models:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/modelInfo'
+                          count:
+                            type: integer
+                            description: モデル数
+                          credential_type:
+                            type: string
+                            description: AIサービスID
+        '400':
+          description: バリデーションエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/runtimeError'
+        '404':
+          description: Credentialが見つからない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/runtimeError'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/runtimeError'
   '/api/{organization_id}/platform/workspaces':
     get:
       tags:
@@ -1626,6 +2144,761 @@ paths:
                         example: null
         default:
           description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/runtimeError'
+  '/api/{organization_id}/platform/workspaces/{workspace_id}/conversations':
+    post:
+      tags:
+        - AIAssistantService
+      summary: |-
+        会話を作成
+        Create a conversation
+      description: |-
+        新しいチャット会話を作成する
+        Create a new chat conversation.
+      operationId: create_conversation
+      x-openapi-router-controller: controllers.ai_assistant_service_controller
+      parameters:
+        - name: organization_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: workspace_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - title
+              properties:
+                title:
+                  type: string
+                  description: |-
+                    会話タイトル
+                    Conversation title
+                  example: Bedrockとのチャット
+                service_id:
+                  type: string
+                  description: |-
+                    サービスID（システムプロンプト切り替え用）
+                    Service ID (used to switch the system prompt)
+                  default: LLMEditor
+                  enum:
+                    - LLMEditor
+                    - AgenticAI
+                  example: LLMEditor
+      responses:
+        '200':
+          description: |-
+            会話作成成功
+            Conversation created successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/responseOk'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          conversation_id:
+                            type: string
+                          service_id:
+                            type: string
+                            description: |-
+                              サービスID
+                              Service ID
+                          ai_service_id:
+                            type: string
+                            description: |-
+                              AIサービスID（ユーザーのCredentialから自動取得）
+                              AI service ID (automatically retrieved from the user's credential)
+                          title:
+                            type: string
+                          status:
+                            type: string
+        '400':
+          description: |-
+            バリデーションエラー
+            Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/runtimeError'
+        '500':
+          description: |-
+            サーバーエラー
+            Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/runtimeError'
+    get:
+      tags:
+        - AIAssistantService
+      summary: |-
+        会話一覧を取得
+        Get the list of conversations
+      description: |-
+        ユーザーの会話一覧を取得する
+        Get the list of the user's conversations.
+      operationId: list_conversations
+      x-openapi-router-controller: controllers.ai_assistant_service_controller
+      parameters:
+        - name: organization_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: workspace_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - active
+              - closed
+              - archived
+          description: |-
+            ステータスフィルター
+            Status filter
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+          description: |-
+            取得件数
+            Number of items to retrieve
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+          description: |-
+            オフセット
+            Offset
+      responses:
+        '200':
+          description: |-
+            成功
+            Success
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/responseOk'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          conversations:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/conversationInfo'
+                          count:
+                            type: integer
+                          total_count:
+                            type: integer
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/runtimeError'
+  '/api/{organization_id}/platform/workspaces/{workspace_id}/conversations/{conversation_id}/completions':
+    post:
+      tags:
+        - AIAssistantService
+      summary: |-
+        AI応答を生成
+        Generate an AI response
+      description: |-
+        ユーザーメッセージを送信し、AIとの会話を1ターン進めて応答を取得する。messageは省略可能で、省略した場合は会話の既存履歴(T_CHAT_MESSAGE)のみでAIサービスに問い合わせる（新規ターンは追加されず、応答結果もT_CHAT_MESSAGEに保存されない＝問い合わせのみ）。なお、多くの生成AIサービスのAPIでは会話がuserターンで終わっている必要があるため、履歴の最後がassistantターンで終わっている（＝直前のやり取りに既に応答済み）状態でmessageを省略した場合は、直前のassistant応答を一時的に取り除いた上でその手前のuserターンまでで再度問い合わせる（＝応答の再生成）。会話に既存の履歴が全く無い場合、または再生成のためにassistantターンを取り除いた結果userターンも残らない場合は400エラーになる。
+        Send a user message and advance the conversation with the AI by one turn to get a response. The message field is optional; if omitted, the AI service is queried using only the conversation's existing history (T_CHAT_MESSAGE) (no new turn is added and the response is not saved to T_CHAT_MESSAGE — query only). Note that many generative AI service APIs require the conversation to end with a user turn; if the history already ends with an assistant turn (i.e. the previous exchange was already answered) and message is omitted, the trailing assistant turn is temporarily dropped and the AI is queried again up to the preceding user turn (i.e. the response is regenerated). A 400 error is returned if the conversation has no existing history at all, or if no user turn remains after dropping the trailing assistant turn.
+      operationId: create_completion
+      x-openapi-router-controller: controllers.ai_assistant_service_controller
+      parameters:
+        - name: organization_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: workspace_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: conversation_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+                  description: |-
+                    ユーザーメッセージ(省略可。省略時は会話の既存履歴のみで問い合わせ、結果は保存されない)
+                    User message (optional; if omitted, queries using only the conversation's existing history and the result is not saved)
+                  example: こんにちは、Bedrockのテストです
+                ai_service_id:
+                  type: string
+                  description: |-
+                    AIサービスID(メッセージ固有、会話のデフォルトをオーバーライド、省略時は会話のAI_SERVICE_IDを使用)
+                    AI service ID (specific to this message, overrides the conversation default; if omitted, the conversation's AI_SERVICE_ID is used)
+                  enum:
+                    - bedrock-cache
+                    - bedrock
+                    - openai
+                    - anthropic
+                  example: bedrock-cache
+                model_id:
+                  type: string
+                  description: |-
+                    使用するモデルID(メッセージごとに変更可能、省略時はデフォルト)
+                    Model ID to use (can be changed per message; if omitted, the default is used)
+                  example: 'anthropic.claude-3-5-sonnet-20240620-v1:0'
+                menu_id:
+                  type: string
+                  description: |-
+                    ITA画面ID(指定時はメニュー固有のシステムプロンプトを追加)
+                    ITA screen ID (when specified, a menu-specific system prompt is appended)
+                  example: menu_001
+      responses:
+        '200':
+          description: |-
+            AI応答の生成成功
+            AI response generated successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/responseOk'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          conversation_id:
+                            type: string
+                          message_id:
+                            type: string
+                            nullable: true
+                            description: |-
+                              保存されたメッセージID(messageを省略し結果を保存しなかった場合はnull)
+                              Saved message ID (null when message was omitted and the result was not saved)
+                          user_message_seq:
+                            type: integer
+                            nullable: true
+                            description: |-
+                              スナップショット内でのユーザーメッセージの順序番号(1始まり、messageを省略した場合はnull)
+                              Sequence number of the user message within the snapshot (1-based; null when message was omitted)
+                          assistant_message_seq:
+                            type: integer
+                            nullable: true
+                            description: |-
+                              スナップショット内でのアシスタントメッセージの順序番号(1始まり、messageを省略した場合はnull)
+                              Sequence number of the assistant message within the snapshot (1-based; null when message was omitted)
+                          content:
+                            type: string
+                            description: |-
+                              AIの応答
+                              AI response
+                          saved:
+                            type: boolean
+                            description: |-
+                              応答結果をT_CHAT_MESSAGEに保存したかどうか(messageを省略した場合はfalse)
+                              Whether the response was saved to T_CHAT_MESSAGE (false when message was omitted)
+                          ai_status_code:
+                            type: integer
+                            description: |-
+                              AIサービスのAPIが返したHTTPステータスコード(通常200)。リトライ判断等に利用できる。
+                              The HTTP status code returned by the AI service's API (normally 200). Can be used for retry decisions, etc.
+                          usage:
+                            type: object
+                            properties:
+                              input_tokens:
+                                type: integer
+                              output_tokens:
+                                type: integer
+                              total_tokens:
+                                type: integer
+        '400':
+          description: |-
+            バリデーションエラー
+            Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/runtimeError'
+        '404':
+          description: |-
+            会話が見つからない
+            Conversation not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/runtimeError'
+        '500':
+          description: |-
+            サーバーエラー
+            Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/runtimeError'
+        default:
+          description: 'AIサービスのAPIがエラー時に返したHTTPステータスコードをそのまま返す(例: 408, 429, 500, 503等)。 リトライ可否の判断はこのステータスコードを基準に行うこと。 Returns the HTTP status code exactly as returned by the AI service''s API on error (e.g. 408, 429, 500, 503, etc.). Retry decisions should be based on this status code.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/runtimeError'
+  '/api/{organization_id}/platform/workspaces/{workspace_id}/conversations/{conversation_id}/messages':
+    get:
+      tags:
+        - AIAssistantService
+      summary: |-
+        会話メッセージ一覧を取得
+        Get the list of conversation messages
+      description: |-
+        会話のメッセージ（UI用）を取得する
+        Get the messages (for UI use) of a conversation.
+      operationId: list_messages
+      x-openapi-router-controller: controllers.ai_assistant_service_controller
+      parameters:
+        - name: organization_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: workspace_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: conversation_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+          description: |-
+            取得件数
+            Number of items to retrieve
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+          description: |-
+            オフセット(message_seq基準)
+            Offset (based on message_seq)
+      responses:
+        '200':
+          description: |-
+            成功
+            Success
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/responseOk'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          messages:
+                            type: array
+                            items:
+                              $ref: '#/paths/~1api~1%7Borganization_id%7D~1platform~1workspaces~1%7Bworkspace_id%7D~1conversations~1%7Bconversation_id%7D~1messages/post/responses/200/content/application~1json/schema/allOf/1/properties/data'
+                          count:
+                            type: integer
+                          conversation_id:
+                            type: string
+        '404':
+          description: |-
+            会話が見つからない
+            Conversation not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/runtimeError'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/runtimeError'
+    post:
+      tags:
+        - AIAssistantService
+      summary: |-
+        会話メッセージを作成
+        Create a conversation message
+      description: |-
+        UIからの応答を会話メッセージとして保存する(T_CHAT_MESSAGEへのスナップショット保存)
+        Save a UI response as a conversation message (saved as a snapshot in T_CHAT_MESSAGE).
+      operationId: create_message
+      x-openapi-router-controller: controllers.ai_assistant_service_controller
+      parameters:
+        - name: organization_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: workspace_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: conversation_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - contents
+              properties:
+                contents:
+                  type: array
+                  description: |-
+                    会話メッセージJSON配列（各要素にrole, content, _timestamp等を含む）
+                    JSON array of conversation messages (each element contains role, content, _timestamp, etc.)
+                  items:
+                    type: object
+                    properties:
+                      role:
+                        type: string
+                        enum:
+                          - user
+                          - assistant
+                      content:
+                        type: array
+                        items:
+                          type: object
+                      _timestamp:
+                        type: string
+                        format: date-time
+                      _thinkingMs:
+                        type: integer
+                      _model:
+                        type: string
+                  example:
+                    - role: user
+                      content:
+                        - type: text
+                          text: お天気情報システムの全貌を調べて！
+                      _timestamp: '2026-08-27T07:10:56.261Z'
+                    - role: assistant
+                      content:
+                        - text: お天気情報システムに関する資産をExastro内で調査します。
+                          type: text
+                      _timestamp: '2026-08-27T07:11:01.226Z'
+                      _thinkingMs: 4448
+                      _model: global.anthropic.claude-opus-5
+      responses:
+        '200':
+          description: |-
+            作成成功
+            Created successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/responseOk'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          message_id:
+                            type: string
+                            description: |-
+                              メッセージID
+                              Message ID
+                          conversation_id:
+                            type: string
+                            description: |-
+                              会話ID
+                              Conversation ID
+                          message_seq:
+                            type: integer
+                            description: |-
+                              メッセージ順序番号
+                              Message sequence number
+                          contents:
+                            type: array
+                            description: |-
+                              会話メッセージJSON配列（各要素にrole, content, _timestamp等を含む）
+                              JSON array of conversation messages (each element contains role, content, _timestamp, etc.)
+                            items:
+                              type: object
+                              properties:
+                                role:
+                                  type: string
+                                  enum:
+                                    - user
+                                    - assistant
+                                content:
+                                  type: array
+                                  items:
+                                    type: object
+                                _timestamp:
+                                  type: string
+                                  format: date-time
+                                _thinkingMs:
+                                  type: integer
+                                _model:
+                                  type: string
+                          created_at:
+                            type: string
+                            format: date-time
+                            description: |-
+                              作成日時
+                              Created timestamp
+                          updated_at:
+                            type: string
+                            format: date-time
+                            description: |-
+                              最終更新日時
+                              Last updated timestamp
+        '400':
+          description: |-
+            バリデーションエラー
+            Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/runtimeError'
+        '404':
+          description: |-
+            会話が見つからない
+            Conversation not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/runtimeError'
+        '500':
+          description: |-
+            サーバーエラー
+            Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/runtimeError'
+    put:
+      tags:
+        - AIAssistantService
+      summary: |-
+        会話メッセージを全置き換え
+        Replace all conversation messages
+      description: |-
+        GETで取得できる内容をそのまま置き換える。既存のメッセージレコードは全て削除され、リクエストで指定したmessagesの内容にすべて入れ替わる（部分更新ではなく全置換）。
+        Replace the content returned by GET entirely. All existing message records are deleted and replaced with the content of the messages specified in the request (a full replacement, not a partial update).
+      operationId: replace_messages
+      x-openapi-router-controller: controllers.ai_assistant_service_controller
+      parameters:
+        - name: organization_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: workspace_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: conversation_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - messages
+              properties:
+                messages:
+                  type: array
+                  description: |-
+                    置き換え後のメッセージレコード一覧(GETレスポンスのmessagesと同じ形)
+                    List of message records after replacement (same shape as the messages field in the GET response)
+                  items:
+                    type: object
+                    required:
+                      - contents
+                    properties:
+                      contents:
+                        type: array
+                        description: |-
+                          会話メッセージJSON配列（各要素にrole, content, _timestamp等を含む）
+                          JSON array of conversation messages (each element contains role, content, _timestamp, etc.)
+                        items:
+                          type: object
+                  example:
+                    messages:
+                      - contents:
+                          - role: user
+                            content:
+                              - type: text
+                                text: お天気情報システムの全貌を調べて！
+                            _timestamp: '2026-08-27T07:10:56.261Z'
+                          - role: assistant
+                            content:
+                              - text: お天気情報システムに関する資産をExastro内で調査します。
+                                type: text
+                            _timestamp: '2026-08-27T07:11:01.226Z'
+                            _thinkingMs: 4448
+                            _model: global.anthropic.claude-opus-5
+      responses:
+        '200':
+          description: |-
+            置き換え成功
+            Replaced successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/responseOk'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          messages:
+                            type: array
+                            items:
+                              $ref: '#/paths/~1api~1%7Borganization_id%7D~1platform~1workspaces~1%7Bworkspace_id%7D~1conversations~1%7Bconversation_id%7D~1messages/post/responses/200/content/application~1json/schema/allOf/1/properties/data'
+                          count:
+                            type: integer
+                          conversation_id:
+                            type: string
+        '400':
+          description: |-
+            バリデーションエラー
+            Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/runtimeError'
+        '404':
+          description: |-
+            会話が見つからない
+            Conversation not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/runtimeError'
+        '500':
+          description: |-
+            サーバーエラー
+            Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/runtimeError'
+    delete:
+      tags:
+        - AIAssistantService
+      summary: |-
+        会話メッセージを全削除
+        Delete all conversation messages
+      description: |-
+        会話に紐づくメッセージレコードを全て削除する
+        Delete all message records associated with the conversation.
+      operationId: delete_messages
+      x-openapi-router-controller: controllers.ai_assistant_service_controller
+      parameters:
+        - name: organization_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: workspace_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: conversation_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: |-
+            削除成功
+            Deleted successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/responseOk'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          conversation_id:
+                            type: string
+                          deleted_count:
+                            type: integer
+                            description: |-
+                              削除したメッセージレコード件数
+                              Number of deleted message records
+        '404':
+          description: |-
+            会話が見つからない
+            Conversation not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/runtimeError'
+        '500':
+          description: |-
+            サーバーエラー
+            Server error
           content:
             application/json:
               schema:
@@ -5695,6 +6968,96 @@ components:
                 format: uuid
               create_user_name:
                 type: string
+    aiCredentialInfo:
+      type: object
+      properties:
+        credential_id:
+          type: string
+        credential_type:
+          type: string
+          enum:
+            - bedrock-cache
+            - bedrock
+            - openai
+            - anthropic
+        credential_name:
+          type: string
+        status:
+          type: string
+          enum:
+            - active
+            - expired
+            - disabled
+        expires_at:
+          type: string
+          format: date-time
+        last_validated_at:
+          type: string
+          format: date-time
+        last_used_at:
+          type: string
+          format: date-time
+        validation_error:
+          type: string
+        notes:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    modelInfo:
+      type: object
+      properties:
+        id:
+          type: string
+          description: モデルID
+        name:
+          type: string
+          description: モデル名
+        description:
+          type: string
+          description: モデル説明
+        type:
+          type: string
+          description: プロバイダータイプ
+        status:
+          type: string
+          description: ステータス
+    conversationInfo:
+      type: object
+      properties:
+        conversation_id:
+          type: string
+        service_id:
+          type: string
+          description: |-
+            サービスID（AgenticAI/LLMEditor）
+            Service ID (AgenticAI/LLMEditor)
+        ai_service_id:
+          type: string
+          description: |-
+            AIサービスID（bedrock/bedrock-cache/openai等）
+            AI service ID (bedrock/bedrock-cache/openai, etc.)
+        title:
+          type: string
+        status:
+          type: string
+          enum:
+            - active
+            - closed
+            - archived
+        current_token_count:
+          type: integer
+        message_count:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
   examples:
     settingsDestinationSubDestinationInformationsExampleMail:
       value:

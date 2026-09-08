@@ -2182,6 +2182,96 @@ components:
                 format: uuid
               create_user_name:
                 type: string
+    aiCredentialInfo:
+      type: object
+      properties:
+        credential_id:
+          type: string
+        credential_type:
+          type: string
+          enum:
+            - bedrock-cache
+            - bedrock
+            - openai
+            - anthropic
+        credential_name:
+          type: string
+        status:
+          type: string
+          enum:
+            - active
+            - expired
+            - disabled
+        expires_at:
+          type: string
+          format: date-time
+        last_validated_at:
+          type: string
+          format: date-time
+        last_used_at:
+          type: string
+          format: date-time
+        validation_error:
+          type: string
+        notes:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    modelInfo:
+      type: object
+      properties:
+        id:
+          type: string
+          description: モデルID
+        name:
+          type: string
+          description: モデル名
+        description:
+          type: string
+          description: モデル説明
+        type:
+          type: string
+          description: プロバイダータイプ
+        status:
+          type: string
+          description: ステータス
+    conversationInfo:
+      type: object
+      properties:
+        conversation_id:
+          type: string
+        service_id:
+          type: string
+          description: |-
+            サービスID（AgenticAI/LLMEditor）
+            Service ID (AgenticAI/LLMEditor)
+        ai_service_id:
+          type: string
+          description: |-
+            AIサービスID（bedrock/bedrock-cache/openai等）
+            AI service ID (bedrock/bedrock-cache/openai, etc.)
+        title:
+          type: string
+        status:
+          type: string
+          enum:
+            - active
+            - closed
+            - archived
+        current_token_count:
+          type: integer
+        message_count:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
   securitySchemes:
     BearerAuth:
       description: Credentials or access token for API

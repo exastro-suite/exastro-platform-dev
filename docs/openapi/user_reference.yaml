@@ -72,6 +72,8 @@ tags:
   description: 監査ログに関する操作
 - name: CommonService
   description: システム設定に関する操作
+- name: AIAssistantService
+  description: AIアシスタントに関する操作
 
 paths:
   "/auth/realms/{organization_id}/protocol/openid-connect/token":
@@ -100,6 +102,13 @@ paths:
 
   "/api/{organization_id}/platform/workspaces/{workspace_id}/notifications":
       $ref: './paths/workspaces.workspace_id.notifications.yaml'
+
+  "/api/{organization_id}/platform/workspaces/{workspace_id}/conversations":
+      $ref: './paths/workspaces.workspace_id.conversations.yaml'
+  "/api/{organization_id}/platform/workspaces/{workspace_id}/conversations/{conversation_id}/completions":
+      $ref: './paths/workspaces.workspace_id.conversations.conversation_id.completions.yaml'
+  "/api/{organization_id}/platform/workspaces/{workspace_id}/conversations/{conversation_id}/messages":
+      $ref: './paths/workspaces.workspace_id.conversations.conversation_id.messages.yaml'
 
   "/api/{organization_id}/platform/users":
       $ref: './paths/users.yaml'
@@ -160,6 +169,15 @@ paths:
 
   "/api/{organization_id}/platform/settings/common/{config_key}":
       $ref: './paths/common.settings.organizations.common.config.yaml'
+
+  "/api/{organization_id}/platform/users/_current/{credential_type}/credentials":
+      $ref: './paths/users._current.credential_type.credentials.yaml'
+  "/api/{organization_id}/platform/users/_current/{credential_type}/credentials/{credential_id}":
+      $ref: './paths/users._current.credential_type.credentials.credential_id.yaml'
+  "/api/{organization_id}/platform/users/_current/{credential_type}/credentials/{credential_id}/verify":
+      $ref: './paths/users._current.credential_type.credentials.credential_id.verify.yaml'
+  "/api/{organization_id}/platform/users/_current/{credential_type}/models":
+      $ref: './paths/users._current.credential_type.models.yaml'
 
 components:
   schemas:
