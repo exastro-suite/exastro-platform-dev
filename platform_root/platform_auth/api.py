@@ -753,9 +753,10 @@ def platform_api_call(organization_id, subpath):
         return common.response_server_error(e)
 
 
+@app.route('/api/<string:organization_id>/workspaces/<string:workspace_id>/<string:function>', methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTION"])  # noqa: E501
 @app.route('/api/<string:organization_id>/workspaces/<string:workspace_id>/<string:function>/<path:subpath>', methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTION"])  # noqa: E501
 # @common.platform_exception_handler
-def ita_workspace_api_call(organization_id, workspace_id, function, subpath):
+def ita_workspace_api_call(organization_id, workspace_id, function, subpath=''):
     """Call the IT-automation API after authorization - 認可後にIT-automation APIを呼び出します
 
     Args:
@@ -790,6 +791,16 @@ def ita_workspace_api_call(organization_id, workspace_id, function, subpath):
             # Ansible Automation Platform Call
             dest_url = "{}://{}:{}/api/{}/workspaces/{}/aap/{}".format(
                 os.environ['ITA_API_ANSIBLE_EXECUTION_RECEIVER_PROTOCOL'], os.environ['ITA_API_ANSIBLE_EXECUTION_RECEIVER_HOST'], os.environ['ITA_API_ANSIBLE_EXECUTION_RECEIVER_PORT'], organization_id, workspace_id, subpath)
+        elif function == "mcp":
+            # MCP Server Call - subpathが無い場合はmcp自体(JSON-RPC)、
+            # ある場合はファイル添付など専用エンドポイントを呼び出す
+            # - If there is no subpath, call mcp itself (JSON-RPC);
+            #   if there is one, call a dedicated endpoint such as file attachment
+            mcp_path = "/api/{}/workspaces/{}/mcp".format(organization_id, workspace_id)
+            if subpath:
+                mcp_path = "{}/{}".format(mcp_path, subpath)
+            dest_url = "{}://{}:{}{}".format(
+                os.environ['ITA_API_MCP_SERVER_PROTOCOL'], os.environ['ITA_API_MCP_SERVER_HOST'], os.environ['ITA_API_MCP_SERVER_PORT'], mcp_path)
         else:
             # Page Not Found
             return common.response_status_direct(404, None, None, None)
@@ -834,8 +845,29 @@ def ita_workspace_api_call(organization_id, workspace_id, function, subpath):
         extra['username'] = response_json.get("user_info").get("username")
         extra['request_user_headers'] = response_json.get("data")
 
+        if function == "mcp":
+            api_headers = dict(response_json.get("data"))
+
+            # mcp専用: JWTの resource_access.{organization_id}-workspaces.roles 配下の
+            # ロール一覧(organization/workspaceに分割する前の全ロール)を、"Roles"と同じ形式
+            # (改行区切り+Base64エンコード)で "Role-Detail" ヘッダーとして追加する。
+            # 他のfunction(ita/oase_agent等)には影響しない、mcp限定の処理とする。
+            # - mcp only: add the roles under
+            #   resource_access.{organization_id}-workspaces.roles in the JWT (the
+            #   full role list, before it is split into organization/workspace
+            #   roles) as a "Role-Detail" header, using the same format as "Roles"
+            #   (newline-separated, then Base64-encoded). This is intentionally
+            #   scoped to function == "mcp" only and must not affect the other
+            #   functions (ita/oase_agent/etc).
+            role_detail_roles = proxy.token_decode.get("resource_access", {}).get(
+                "{}-workspaces".format(organization_id), {}
+            ).get("roles", [])
+            api_headers["Role-Detail"] = base64.b64encode("\n".join(role_detail_roles).encode()).decode()
+        else:
+            api_headers = response_json.get("data")
+
         # api呼び出し call api
-        return_api = proxy.call_api(dest_url, response_json.get("data"), stream=stream, multipart_mode=multipart_mode)
+        return_api = proxy.call_api(dest_url, api_headers, stream=stream, multipart_mode=multipart_mode)
 
         if stream:
             # stream形式の場合は、独自の返却を実施する
@@ -853,8 +885,16 @@ def ita_workspace_api_call(organization_id, workspace_id, function, subpath):
             try:
                 res_json = json.loads(return_api.text)
 
-                extra['message_id'] = res_json.get("result")
-                extra['message_text'] = res_json.get("message")
+                if function == "mcp" and not subpath:
+                    # mcp本体(JSON-RPC)呼び出し時のみ。mcp配下のファイル添付等の
+                    # サブパスエンドポイントはJSON-RPC形式のレスポンスではないため対象外。
+                    # - Only for the mcp itself (JSON-RPC) call. Sub-path endpoints
+                    #   under mcp (e.g. file attachment) are not JSON-RPC-shaped
+                    #   responses, so they are excluded.
+                    set_mcp_audit_extra(res_json, return_api, extra)
+                else:
+                    extra['message_id'] = res_json.get("result")
+                    extra['message_text'] = res_json.get("message")
             except Exception:
                 pass
             for key, value in return_api.headers.items():
@@ -917,223 +957,72 @@ def ita_workspace_api_call(organization_id, workspace_id, function, subpath):
         return common.response_server_error(e)
 
 
-@app.route('/api/<string:organization_id>/workspaces/<string:workspace_id>/mcp', methods=["POST"])  # noqa: E501
-def mcp_tool_call(organization_id, workspace_id):
-    """Call the mcp tool after authorization - 認可後にmcp toolを呼び出します
+def set_mcp_audit_extra(res_json, return_api, extra):
+    """Set audit extra fields from an mcp JSON-RPC response - mcpのJSON-RPCレスポンスからaudit用の項目を設定します
+
+    JSON-RPCの"result"の中身はメソッドによって形が異なるため、メソッド毎に
+    message_id/message_textの組み立て方を分ける
+    (message_idはDB上VARCHAR(10)のため、dictをそのまま入れない)
+    - The shape of the JSON-RPC "result" differs per method, so build
+      message_id/message_text separately per method.
+      (message_id is VARCHAR(10) in the DB, so a raw dict must never be
+      stored there)
 
     Args:
-        organization_id (str): organization_id
-        workspace_id (str): workspace_id
-
-    Returns:
-        Response: HTTP Response
+        res_json (dict): parsed JSON-RPC response body
+        return_api (Response): response from the mcp server call
+        extra (dict): audit extra dict to update in place
     """
+    rpc_error = res_json.get("error")
+    rpc_result = res_json.get("result")
+
+    # リクエストボディからJSON-RPCのmethodを取得する
+    # (request.get_json()はキャッシュされるため、後続のリクエスト転送処理に影響しない)
+    # - Get the JSON-RPC method from the request body
+    #   (request.get_json() is cached by Flask, so this does not
+    #   affect the later request-forwarding logic)
+    rpc_method = None
     try:
-        extra = extra_init(organization_id=organization_id, workspace_id=workspace_id, multipart_mode=False)
-        globals.logger.info(f"### start func:{inspect.currentframe().f_code.co_name} {request.method=} {organization_id=} {workspace_id=}")
+        rpc_method = (request.get_json(silent=True) or {}).get("method")
+    except Exception:
+        rpc_method = None
 
-        # Destination URL settings - 宛先URLの設定
-        dest_url = "{}://{}:{}/api/{}/workspaces/{}/mcp".format(
-            os.environ['ITA_API_MCP_SERVER_PROTOCOL'], os.environ['ITA_API_MCP_SERVER_HOST'], os.environ['ITA_API_MCP_SERVER_PORT'], organization_id, workspace_id)
+    extra['status_code'] = return_api.status_code
 
-        # Common authorization proxy processing call - 共通の認可proxy処理呼び出し
+    if rpc_error:
+        # JSON-RPCプロトコルレベルのエラー(例: メソッド未定義、不正なパラメータ)
+        # - JSON-RPC protocol-level error (e.g. method not found, invalid params)
+        extra['message_id'] = str(rpc_error.get("code"))
+        extra['message_text'] = rpc_error.get("message")
+        extra['status_code'] = return_api.status_code
 
-        # サービスアカウントを使うためにClientのSercretを取得
-        # Get Client Sercret to use service account
-        db = DBconnector()
-        private = db.get_organization_private(organization_id)
+    elif rpc_method == "initialize":
+        # initialize: resultにはサーバー情報(serverInfo)が入る
+        # - initialize: result contains the server information (serverInfo)
+        server_info = (rpc_result or {}).get("serverInfo", {})
+        extra['message_id'] = '000-00000'
+        extra['message_text'] = "initialize: name={}, version={}".format(
+            server_info.get("name"), server_info.get("version"))
 
-        # 取得できない場合は、エラー
-        # If you cannot get it, an error
-        if not private:
-            message_id = "500-11001"
-            message = multi_lang.get_text(message_id,
-                                          "organization private情報の取得に失敗しました")
-            raise common.InternalErrorException(message_id=message_id, message=message)
+    elif rpc_method == "tools/list":
+        # tools/list: resultにはツール一覧(tools)が入る
+        # - tools/list: result contains the tool list (tools)
+        tool_list = (rpc_result or {}).get("tools", [])
+        extra['message_id'] = '000-00000'
+        extra['message_text'] = "tools/list: {} tools".format(len(tool_list))
 
-        # ストリームモードのあるURLかチェックする
-        # Check if the URL has stream mode
-        if is_stream_mode(dest_url, request.method):
-            stream = True
-        else:
-            stream = False
-
-        # get chunk byte
-        response_chunk_byte = get_response_chunk_byte(extra)
-
-        # organization idをrealm名として設定
-        # Set organization id as realm name
-        proxy = auth_proxy.auth_proxy(
-            organization_id,
-            private.token_check_client_clientid,
-            private.token_check_client_secret,
-            private.user_token_client_clientid,
-            None,
-            response_chunk_byte)
-
-        # 各種チェック check
-        response_json = proxy.check_authorization(stream)
-
-        extra['user_id'] = response_json.get("user_info").get("user_id")
-        extra['username'] = response_json.get("user_info").get("username")
-        extra['request_user_headers'] = response_json.get("data")
-
-        api_headers = {
-            **response_json.get("data"),
-            **{
-                "X-Forwarded-Host": urllib.parse.urlparse(os.environ.get('EXTERNAL_URL')).netloc,
-                "X-Forwarded-Proto": urllib.parse.urlparse(os.environ.get('EXTERNAL_URL')).scheme
-            }
-        }
-
-        # mcp_tool_call専用: JWTの resource_access.{organization_id}-workspaces.roles 配下の
-        # ロール一覧(organization/workspaceに分割する前の全ロール)を、"Roles"と同じ形式
-        # (改行区切り+Base64エンコード)で "Role-Detail" ヘッダーとして追加する。
-        # 他のAPI呼び出し関数(ita_workspace_api_call等)には influence しない、
-        # mcp_tool_call限定の処理とする。
-        #
-        # mcp_tool_call only: add the roles under
-        # resource_access.{organization_id}-workspaces.roles in the JWT (the
-        # full role list, before it is split into organization/workspace
-        # roles) as a "Role-Detail" header, using the same format as "Roles"
-        # (newline-separated, then Base64-encoded). This is intentionally
-        # scoped to mcp_tool_call only and must not affect the other API
-        # call functions (e.g. ita_workspace_api_call).
-        role_detail_roles = proxy.token_decode.get("resource_access", {}).get(
-            "{}-workspaces".format(organization_id), {}
-        ).get("roles", [])
-        api_headers["Role-Detail"] = base64.b64encode("\n".join(role_detail_roles).encode()).decode()
-
-        # api呼び出し call api
-        return_api = proxy.call_api(dest_url, api_headers, stream=stream, multipart_mode=False)
-
-        if stream:
-            # stream形式の場合は、独自の返却を実施する
-            # In the case of stream format, implement your own return
-            response = Response(chunk_response(return_api, response_chunk_byte))
-            for key, value in return_api.headers.items():
-                if key.lower().startswith('content-'):
-                    response.headers[key] = value
-        else:
-            # 戻り値をそのまま返却
-            # Return the return value as it is
-            response = make_response()
-            response.status_code = return_api.status_code
-            response.data = return_api.content
-            try:
-                res_json = json.loads(return_api.text)
-
-                # JSON-RPCの"result"の中身はメソッドによって形が異なるため、
-                # メソッド毎にmessage_id/message_textの組み立て方を分ける
-                # (message_idはDB上VARCHAR(10)のため、dictをそのまま入れない)
-                # - The shape of the JSON-RPC "result" differs per method, so
-                #   build message_id/message_text separately per method.
-                #   (message_id is VARCHAR(10) in the DB, so a raw dict must
-                #   never be stored there)
-                rpc_error = res_json.get("error")
-                rpc_result = res_json.get("result")
-
-                # リクエストボディからJSON-RPCのmethodを取得する
-                # (request.get_json()はキャッシュされるため、後続のリクエスト転送処理に影響しない)
-                # - Get the JSON-RPC method from the request body
-                #   (request.get_json() is cached by Flask, so this does not
-                #   affect the later request-forwarding logic)
-                rpc_method = None
-                try:
-                    rpc_method = (request.get_json(silent=True) or {}).get("method")
-                except Exception:
-                    rpc_method = None
-
-                extra['status_code'] = return_api.status_code
-
-                if rpc_error:
-                    # JSON-RPCプロトコルレベルのエラー(例: メソッド未定義、不正なパラメータ)
-                    # - JSON-RPC protocol-level error (e.g. method not found, invalid params)
-                    extra['message_id'] = str(rpc_error.get("code"))
-                    extra['message_text'] = rpc_error.get("message")
-                    extra['status_code'] = return_api.status_code
-
-                elif rpc_method == "initialize":
-                    # initialize: resultにはサーバー情報(serverInfo)が入る
-                    # - initialize: result contains the server information (serverInfo)
-                    server_info = (rpc_result or {}).get("serverInfo", {})
-                    extra['message_id'] = None
-                    extra['message_text'] = "initialize: name={}, version={}".format(
-                        server_info.get("name"), server_info.get("version"))
-
-                elif rpc_method == "tools/list":
-                    # tools/list: resultにはツール一覧(tools)が入る
-                    # - tools/list: result contains the tool list (tools)
-                    tool_list = (rpc_result or {}).get("tools", [])
-                    extra['message_id'] = None
-                    extra['message_text'] = "tools/list: {} tools".format(len(tool_list))
-
-                elif rpc_method == "tools/call":
-                    # Exastro tool(API)のresult, messageを格納する
-                    extra['message_id'] = (rpc_result or {}).get("structuredContent", {}).get("result", {}).get("result", "")
-                    extra['message_text'] = (rpc_result or {}).get("structuredContent", {}).get("result", {}).get("message", "")
-                    extra['status_code'] = (rpc_result or {}).get("structuredContent", {}).get("status_code", return_api.status_code) 
-                else:
-                    # 想定外のmethod(または取得できなかった場合)は、
-                    # dictをそのままmessage_idに入れないよう安全側に倒す
-                    # - Unknown method (or the method could not be resolved):
-                    #   fail safe and never store a raw dict in message_id
-                    extra['message_id'] = None
-                    extra['message_text'] = json.dumps(rpc_result) if isinstance(rpc_result, (dict, list)) else rpc_result
-            except Exception:
-                pass
-
-            for key, value in return_api.headers.items():
-                if key.lower().startswith('content-'):
-                    response.headers[key] = value
-
-        globals.audit.info(f'audit: response. {response.status_code}', extra=extra)
-        globals.logger.info(f"### end func:{inspect.currentframe().f_code.co_name} {response.status_code=}")
-
-        return response
-
-    except (common.BadRequestException, common.NotFoundException) as err:
-        globals.logger.info(f'exception handler:\n status_code:[{err.status_code}]\n message_id:[{err.message_id}]')
-        extra['status_code'] = err.status_code
-        extra['message_id'] = err.message_id
-        extra['message_text'] = err.message
-        globals.audit.info(f'audit: response. {err.status_code}', extra=extra)
-        return common.response_status(err.status_code, err.data, err.message_id, err.message)
-
-    except common.InternalErrorException as err:
-        globals.logger.error(f'exception handler:\n status_code:[{err.status_code}]\n message_id:[{err.message_id}]')
-        globals.logger.error(''.join(list(traceback.TracebackException.from_exception(err).format())))
-        extra['status_code'] = err.status_code
-        extra['message_id'] = err.message_id
-        extra['message_text'] = err.message
-        globals.audit.info(f'audit: response. {err.status_code}', extra=extra)
-        return common.response_status(err.status_code, err.data, err.message_id, err.message)
-
-    except common.AuthException as e:
-        globals.logger.info(f'authentication error:{e.args}')
-        message_id = "401-00002"
-        message = multi_lang.get_text(message_id, "認証に失敗しました。")
-        extra['status_code'] = e.status_code
-        extra['message_id'] = message_id
-        extra['message_text'] = message
-        globals.audit.info(f'audit: response. {e.status_code} {e.args=}', extra=extra)
-        return common.response_status(e.status_code, e.data, message_id, message)
-
-    except common.NotAllowedException as e:
-        globals.logger.info(f'permission error:{e.args}')
-        message_id = "403-00001"
-        message = common.multi_lang.get_text(message_id, "permission error")
-        extra['status_code'] = e.status_code
-        extra['message_id'] = message_id
-        extra['message_text'] = message
-        globals.audit.info(f'audit: response. {e.status_code} {e.args=}', extra=extra)
-        return common.response_status(e.status_code, e.data, message_id, message)
-
-    except Exception as e:
-        globals.logger.error(f'exception error:{e.args}')
-        extra['status_code'] = 500
-        globals.audit.error(f'audit: Exception error.[{e=}], [{type(e)=}]:', stack_info=''.join(list(traceback.TracebackException.from_exception(e).format())), extra=extra)
-        return common.response_server_error(e)
+    elif rpc_method == "tools/call":
+        # Exastro tool(API)のresult, messageを格納する
+        extra['message_id'] = (rpc_result or {}).get("structuredContent", {}).get("result", {}).get("result", "")
+        extra['message_text'] = (rpc_result or {}).get("structuredContent", {}).get("result", {}).get("message", "")
+        extra['status_code'] = (rpc_result or {}).get("structuredContent", {}).get("status_code", return_api.status_code)
+    else:
+        # 想定外のmethod(または取得できなかった場合)は、
+        # dictをそのままmessage_idに入れないよう安全側に倒す
+        # - Unknown method (or the method could not be resolved):
+        #   fail safe and never store a raw dict in message_id
+        extra['message_id'] = None
+        extra['message_text'] = json.dumps(rpc_result) if isinstance(rpc_result, (dict, list)) else rpc_result
 
 
 def is_stream_mode(dest_url, method):
