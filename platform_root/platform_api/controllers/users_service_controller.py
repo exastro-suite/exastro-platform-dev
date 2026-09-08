@@ -20,6 +20,7 @@ import os
 from common_library.common import common, api_keycloak_tokens, api_keycloak_users, api_keycloak_roles
 from common_library.common import validation
 from common_library.common import multi_lang
+from common_library.common import organization_options
 from common_library.common.db import DBconnector
 import common_library.common.const as common_const
 from common_library.common import bl_plan_service
@@ -37,6 +38,14 @@ from services.ai_assistant.model_service import (
 )
 from services.users.ai_preference_service import (
     get_ai_preference_service,
+)
+
+# AIアシスタント機能(ai_assistant driver)が有効な組織のみモデル一覧・ai-preferenceのAPIを許可するデコレータ
+# Decorator that only allows the models-list / ai-preference APIs for organizations with the ai_assistant driver enabled
+require_ai_assistant_driver = organization_options.require_ita_driver(
+    "ai_assistant",
+    "403-94212",
+    "AIアシスタント機能が有効になっていません",
 )
 
 MSG_FUNCTION_ID = "25"
@@ -1161,6 +1170,7 @@ def _verify_by_service(credential_type: str, credential_data: dict) -> dict:
 
 
 @common.platform_exception_handler
+@require_ai_assistant_driver
 def list_models(organization_id, credential_type):
     """
     使用可能なモデル一覧を取得
@@ -1221,6 +1231,7 @@ def list_models(organization_id, credential_type):
 
 
 @common.platform_exception_handler
+@require_ai_assistant_driver
 def get_ai_preference(organization_id):
     """
     AI利用設定を取得
@@ -1272,6 +1283,7 @@ def get_ai_preference(organization_id):
 
 
 @common.platform_exception_handler
+@require_ai_assistant_driver
 def update_ai_preference(body, organization_id):
     """
     AI利用設定を保存（全置換）

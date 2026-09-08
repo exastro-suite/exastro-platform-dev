@@ -80,6 +80,14 @@ get:
                         type: integer
                       conversation_id:
                         type: string
+    403:
+      description: |-
+        AIアシスタント機能が有効になっていない
+        The AI assistant feature is not enabled
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/runtimeError.yaml'
     404:
       description: |-
         会話が見つからない
@@ -184,6 +192,14 @@ post:
       description: |-
         バリデーションエラー
         Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/runtimeError.yaml'
+    403:
+      description: |-
+        AIアシスタント機能が有効になっていない
+        The AI assistant feature is not enabled
       content:
         application/json:
           schema:
@@ -304,6 +320,14 @@ put:
         application/json:
           schema:
             $ref: '../schemas/runtimeError.yaml'
+    403:
+      description: |-
+        AIアシスタント機能が有効になっていない
+        The AI assistant feature is not enabled
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/runtimeError.yaml'
     404:
       description: |-
         会話が見つからない
@@ -370,6 +394,14 @@ delete:
                         description: |-
                           削除したメッセージレコード件数
                           Number of deleted message records
+    403:
+      description: |-
+        AIアシスタント機能が有効になっていない
+        The AI assistant feature is not enabled
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/runtimeError.yaml'
     404:
       description: |-
         会話が見つからない

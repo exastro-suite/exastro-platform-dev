@@ -21,7 +21,7 @@ AI Assistant機能で使用するSQLクエリ定義
 # ==================== Conversation ====================
 
 SQL_SELECT_CONVERSATION = """
-SELECT CONVERSATION_ID, AI_SERVICE_ID, MODEL_ID, PROMPT_PROFILE
+SELECT CONVERSATION_ID, AI_SERVICE_ID, MODEL_ID, PROMPT_PROFILE, TOOLS
 FROM T_CHAT_CONVERSATION
 WHERE CONVERSATION_ID = %(conversation_id)s AND USER_ID = %(user_id)s
 """
@@ -35,12 +35,12 @@ WHERE CONVERSATION_ID = %(conversation_id)s
 SQL_INSERT_CONVERSATION = """
 INSERT INTO T_CHAT_CONVERSATION
 (
-    CONVERSATION_ID, PROMPT_PROFILE, USER_ID, AI_SERVICE_ID, MODEL_ID,
+    CONVERSATION_ID, PROMPT_PROFILE, USER_ID, AI_SERVICE_ID, MODEL_ID, TOOLS,
     TITLE, STATUS, CURRENT_TOKEN_COUNT,
     CREATE_TIMESTAMP, CREATE_USER, LAST_UPDATE_TIMESTAMP, LAST_UPDATE_USER
 )
 VALUES (
-    %(conversation_id)s, %(prompt_profile)s, %(user_id)s, %(ai_service_id)s, %(model_id)s,
+    %(conversation_id)s, %(prompt_profile)s, %(user_id)s, %(ai_service_id)s, %(model_id)s, %(tools)s,
     %(title)s, 'active', 0,
     NOW(), %(user_id)s, NOW(), %(user_id)s
 )

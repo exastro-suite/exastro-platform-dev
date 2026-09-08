@@ -20,9 +20,10 @@ AIアシスタントに関する操作
 
 import connexion
 import inspect
+import json
 from contextlib import closing
 
-from common_library.common import common, multi_lang
+from common_library.common import common, multi_lang, organization_options
 from common_library.common.db import DBconnector
 from services.ai_assistant.conversation_service import (
     get_conversation_service,
@@ -31,6 +32,14 @@ from services.ai_assistant.conversation_service import (
 from services.ai_assistant.message_service import get_message_service
 
 import globals
+
+# AIアシスタント機能(ai_assistant driver)が有効な組織のみAIAssistantServiceのAPIを許可するデコレータ
+# Decorator that only allows AIAssistantService APIs for organizations with the ai_assistant driver enabled
+require_ai_assistant_driver = organization_options.require_ita_driver(
+    "ai_assistant",
+    "403-94212",
+    "AIアシスタント機能が有効になっていません",
+)
 
 # 現時点でシステムとして利用可能なAIサービス一覧（固定値。他プロバイダー対応時にここへ追加する）
 # List of AI services currently supported by the system (fixed; add to this when other providers are supported)
@@ -49,6 +58,7 @@ AVAILABLE_AI_SERVICES = [
 
 
 @common.platform_exception_handler
+@require_ai_assistant_driver
 def get_ai_services(organization_id):
     """
     システムとして利用可能なAIサービス一覧を取得
@@ -69,6 +79,7 @@ def get_ai_services(organization_id):
 
 
 @common.platform_exception_handler
+@require_ai_assistant_driver
 def create_conversation(body, organization_id, workspace_id):
     """
     会話を作成
@@ -91,6 +102,7 @@ def create_conversation(body, organization_id, workspace_id):
     title = body.get("title")
     model_id = body.get("model_id")
     prompt_profile = body.get("prompt_profile", "LLMEditor")
+    tools = body.get("tools")  # ツール定義（Anthropic tools形式の配列、任意）
 
     # バリデーション
     if not title:
@@ -111,6 +123,14 @@ def create_conversation(body, organization_id, workspace_id):
         )
         raise common.BadRequestException(message_id=message_id, message=message)
 
+    if tools is not None and not isinstance(tools, list):
+        message_id = "400-94113"
+        message = multi_lang.get_text(
+            message_id,
+            "toolsは配列である必要があります"
+        )
+        raise common.BadRequestException(message_id=message_id, message=message)
+
     try:
         service = get_conversation_service()
 
@@ -121,14 +141,15 @@ def create_conversation(body, organization_id, workspace_id):
             title=title,
             model_id=model_id,
             prompt_profile=prompt_profile,
+            tools=tools,
         )
 
-        # 作成された会話を取得してAI_SERVICE_ID/MODEL_IDを含む完全な情報を返す
+        # 作成された会話を取得してAI_SERVICE_ID/MODEL_ID/TOOLSを含む完全な情報を返す
         with closing(DBconnector().connect_workspacedb(organization_id, workspace_id)) as conn:
             with closing(conn.cursor()) as cursor:
                 cursor.execute(
                     """
-                    SELECT CONVERSATION_ID, PROMPT_PROFILE, AI_SERVICE_ID, MODEL_ID, TITLE, STATUS
+                    SELECT CONVERSATION_ID, PROMPT_PROFILE, AI_SERVICE_ID, MODEL_ID, TOOLS, TITLE, STATUS
                     FROM T_CHAT_CONVERSATION
                     WHERE CONVERSATION_ID = %s
                     """,
@@ -148,6 +169,7 @@ def create_conversation(body, organization_id, workspace_id):
                 "prompt_profile": conversation["PROMPT_PROFILE"],
                 "ai_service_id": conversation["AI_SERVICE_ID"],
                 "model_id": conversation["MODEL_ID"],
+                "tools": json.loads(conversation["TOOLS"]) if conversation["TOOLS"] else [],
                 "title": title,
                 "status": conversation["STATUS"],
             }
@@ -165,6 +187,7 @@ def create_conversation(body, organization_id, workspace_id):
 
 
 @common.platform_exception_handler
+@require_ai_assistant_driver
 def list_conversations(organization_id, workspace_id, prompt_profile, status=None, limit=50, offset=0):
     """
     会話一覧を取得
@@ -238,6 +261,7 @@ def list_conversations(organization_id, workspace_id, prompt_profile, status=Non
 
 
 @common.platform_exception_handler
+@require_ai_assistant_driver
 def create_completion(body, conversation_id, organization_id, workspace_id):
     """
     AI応答を生成（会話を1ターン進める）
@@ -337,6 +361,7 @@ def create_completion(body, conversation_id, organization_id, workspace_id):
 
 
 @common.platform_exception_handler
+@require_ai_assistant_driver
 def create_message(conversation_id, organization_id, workspace_id):
     """
     会話メッセージを作成
@@ -411,6 +436,7 @@ def create_message(conversation_id, organization_id, workspace_id):
 
 
 @common.platform_exception_handler
+@require_ai_assistant_driver
 def list_messages(conversation_id, organization_id, workspace_id, limit=100, offset=0):
     """
     会話メッセージ一覧を取得
@@ -471,6 +497,7 @@ def list_messages(conversation_id, organization_id, workspace_id, limit=100, off
 
 
 @common.platform_exception_handler
+@require_ai_assistant_driver
 def replace_messages(conversation_id, organization_id, workspace_id):
     """
     会話メッセージを全置き換え
@@ -564,6 +591,7 @@ def replace_messages(conversation_id, organization_id, workspace_id):
 
 
 @common.platform_exception_handler
+@require_ai_assistant_driver
 def delete_messages(conversation_id, organization_id, workspace_id):
     """
     会話メッセージを全削除

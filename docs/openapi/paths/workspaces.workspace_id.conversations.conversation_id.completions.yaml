@@ -109,8 +109,14 @@ post:
                       content:
                         type: string
                         description: |-
-                          AIの応答
-                          AI response
+                          AIの応答(テキスト部分のみ。tool_useのみの応答の場合は空文字)
+                          AI response (text portion only; an empty string for a tool_use-only response)
+                      stop_reason:
+                        type: string
+                        nullable: true
+                        description: |-
+                          Bedrockが返した停止理由("end_turn"、会話作成時にtoolsを指定していて且つモデルがツール呼び出しを選択した場合は"tool_use"等)
+                          The stop reason returned by Bedrock (e.g. "end_turn", or "tool_use" when tools were specified at conversation creation and the model chose to call one)
                       saved:
                         type: boolean
                         description: |-
@@ -134,6 +140,14 @@ post:
       description: |-
         バリデーションエラー
         Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/runtimeError.yaml'
+    403:
+      description: |-
+        AIアシスタント機能が有効になっていない
+        The AI assistant feature is not enabled
       content:
         application/json:
           schema:

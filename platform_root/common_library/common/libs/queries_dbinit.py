@@ -363,6 +363,7 @@ SQL_WORKSPACE_CREATE_TABLES = [
         USER_ID                         VARCHAR(256) NOT NULL,                          -- User ID
         AI_SERVICE_ID                   VARCHAR(64) NOT NULL,                           -- AIサービスID: bedrock-cache, bedrock, openai, etc.
         MODEL_ID                        VARCHAR(255) NOT NULL,                          -- デフォルトで使用するモデルID (completionsでmodel_id省略時に使用)
+        TOOLS                           LONGTEXT NULL,                                  -- ツール定義 (JSON配列、Anthropic tools形式。未指定時はNULL)
         TITLE                           VARCHAR(255) NOT NULL,                          -- 会話タイトル
         STATUS                          VARCHAR(32) NOT NULL DEFAULT 'active',          -- ステータス: active/closed/archived
         CURRENT_TOKEN_COUNT             INT DEFAULT 0,                                  -- 現在のトークン数（累積）
