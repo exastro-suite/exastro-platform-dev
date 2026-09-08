@@ -254,7 +254,7 @@ SQL_ORGANIZATION_CREATE_TABLES = [
     CREATE TABLE IF NOT EXISTS T_USER_CREDENTIAL
     (
         CREDENTIAL_ID                   VARCHAR(36) NOT NULL,                           -- Credential ID (ULID)
-        USER_ID                         VARCHAR(256) NOT NULL,                          -- Keycloak User ID
+        USER_ID                         VARCHAR(256) NOT NULL,                          -- User ID
         CREDENTIAL_TYPE                 VARCHAR(64) NOT NULL,                           -- Credentialタイプ: bedrock-cache, bedrock, openai, anthropic, etc.
         CREDENTIAL_NAME                 VARCHAR(255) NOT NULL,                          -- Credential識別名 (ユーザーが設定)
         ENCRYPTED_CREDENTIAL_DATA       LONGTEXT NOT NULL,                              -- 暗号化されたCredentialデータ (JSON形式)
@@ -274,6 +274,21 @@ SQL_ORGANIZATION_CREATE_TABLES = [
         INDEX IDX_TYPE_STATUS (CREDENTIAL_TYPE, STATUS),
         INDEX IDX_EXPIRES (EXPIRES_AT),
         INDEX IDX_LAST_USED (LAST_USED_AT)
+    )ENGINE = InnoDB, CHARSET = utf8mb4, COLLATE = utf8mb4_unicode_ci;
+    """,
+    """
+    -- AI Assistant User Preference / AI アシスタント ユーザー利用設定
+    CREATE TABLE IF NOT EXISTS T_USER_AI_PREFERENCE
+    (
+        USER_ID                         VARCHAR(256) NOT NULL,                          -- User ID
+        AI_SERVICE_ID                   VARCHAR(64) NOT NULL,                           -- デフォルトで使用するAIサービスID (bedrock-cache, bedrock, openai, anthropic, etc.)
+        MODEL_ID                        VARCHAR(255) NOT NULL,                          -- デフォルトで使用するモデルID
+        PICKUP_MODEL_IDS                LONGTEXT NOT NULL,                              -- UIで選択肢を絞り込むためのモデルID一覧 (JSON配列)
+        CREATE_TIMESTAMP                DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,    -- 作成日時
+        CREATE_USER                     VARCHAR(40),                                    -- 作成者
+        LAST_UPDATE_TIMESTAMP           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,    -- 最終更新日時
+        LAST_UPDATE_USER                VARCHAR(40),                                    -- 最終更新者
+        PRIMARY KEY (USER_ID)
     )ENGINE = InnoDB, CHARSET = utf8mb4, COLLATE = utf8mb4_unicode_ci;
     """,
 ]
@@ -344,10 +359,10 @@ SQL_WORKSPACE_CREATE_TABLES = [
     CREATE TABLE IF NOT EXISTS T_CHAT_CONVERSATION
     (
         CONVERSATION_ID                 VARCHAR(36) NOT NULL,                           -- Conversation ID (ULID)
-        SERVICE_ID                      VARCHAR(64) NOT NULL,                           -- サービスID: AgenticAI/LLMEditor (システムプロンプト切り替え用)
-        WORKSPACE_ID                    VARCHAR(36) NOT NULL,                           -- Workspace ID
-        USER_ID                         VARCHAR(256) NOT NULL,                          -- Keycloak User ID
+        PROMPT_PROFILE                  VARCHAR(64) NOT NULL,                           -- プロンプトプロファイル: AgenticAI/LLMEditor (システムプロンプト切り替え用)
+        USER_ID                         VARCHAR(256) NOT NULL,                          -- User ID
         AI_SERVICE_ID                   VARCHAR(64) NOT NULL,                           -- AIサービスID: bedrock-cache, bedrock, openai, etc.
+        MODEL_ID                        VARCHAR(255) NOT NULL,                          -- デフォルトで使用するモデルID (completionsでmodel_id省略時に使用)
         TITLE                           VARCHAR(255) NOT NULL,                          -- 会話タイトル
         STATUS                          VARCHAR(32) NOT NULL DEFAULT 'active',          -- ステータス: active/closed/archived
         CURRENT_TOKEN_COUNT             INT DEFAULT 0,                                  -- 現在のトークン数（累積）
@@ -356,11 +371,7 @@ SQL_WORKSPACE_CREATE_TABLES = [
         LAST_UPDATE_TIMESTAMP           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,    -- 最終更新日時
         LAST_UPDATE_USER                VARCHAR(40),                                    -- 最終更新者
         PRIMARY KEY (CONVERSATION_ID),
-        INDEX IDX_SERVICE (SERVICE_ID),
-        INDEX IDX_WORKSPACE_USER (WORKSPACE_ID, USER_ID),
-        INDEX IDX_AI_SERVICE (AI_SERVICE_ID),
-        INDEX IDX_STATUS (STATUS),
-        INDEX IDX_LAST_UPDATE (LAST_UPDATE_TIMESTAMP)
+        INDEX IDX_USER_PROMPT_UPDATED (USER_ID, PROMPT_PROFILE, LAST_UPDATE_TIMESTAMP)
     )ENGINE = InnoDB, CHARSET = utf8mb4, COLLATE = utf8mb4_unicode_ci;
     """,
     """
@@ -376,7 +387,6 @@ SQL_WORKSPACE_CREATE_TABLES = [
         LAST_UPDATE_USER                VARCHAR(40),                                    -- 最終更新ユーザー
         PRIMARY KEY (MESSAGE_ID),
         UNIQUE KEY UK_CONV_MSG_SEQ (CONVERSATION_ID, MESSAGE_SEQ),
-        INDEX IDX_CONV_MESSAGE (CONVERSATION_ID),
         CONSTRAINT FK_MESSAGE_CONVERSATION FOREIGN KEY (CONVERSATION_ID)
             REFERENCES T_CHAT_CONVERSATION(CONVERSATION_ID) ON DELETE CASCADE
     )ENGINE = InnoDB, CHARSET = utf8mb4, COLLATE = utf8mb4_unicode_ci;

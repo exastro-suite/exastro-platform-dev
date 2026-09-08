@@ -139,6 +139,11 @@ paths:
       $ref: './paths/users._current.credential_type.credentials.credential_id.verify.yaml'
   "/api/{organization_id}/platform/users/_current/{credential_type}/models":
       $ref: './paths/users._current.credential_type.models.yaml'
+  "/api/{organization_id}/platform/users/_current/ai-preference":
+      $ref: './paths/users._current.ai-preference.yaml'
+
+  "/api/{organization_id}/platform/ai-services":
+      $ref: './paths/ai-services.yaml'
 
   "/api/{organization_id}/platform/workspaces":
       $ref: './paths/workspaces.yaml'

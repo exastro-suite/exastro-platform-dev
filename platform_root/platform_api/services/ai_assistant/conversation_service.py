@@ -23,6 +23,7 @@ JSON配列（1会話分のターン一覧）としてスナップショット保
 扱う履歴配列と同じ形式（role, content[], _timestamp, _thinkingMs, _model）に揃えている。
 """
 
+import json
 import os
 import time
 from datetime import datetime, timezone
@@ -61,15 +62,6 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
 
-def _extract_text(turn: Dict) -> str:
-    """ターン(role/content[]形式)からtextブロックのみを連結して取り出す"""
-    return "".join(
-        block.get("text", "")
-        for block in turn.get("content", []) or []
-        if isinstance(block, dict) and block.get("type") == "text"
-    )
-
-
 class ConversationService:
     """
     Conversation Service
@@ -83,7 +75,8 @@ class ConversationService:
         workspace_id: str,
         user_id: str,
         title: str,
-        service_id: str = "LLMEditor",
+        model_id: str,
+        prompt_profile: str = "LLMEditor",
     ) -> str:
         """
         会話を作成
@@ -93,7 +86,8 @@ class ConversationService:
             workspace_id: Workspace ID (DB接続用、テーブルには保存しない)
             user_id: User ID
             title: 会話タイトル
-            service_id: サービスID（AgenticAI/LLMEditor - システムプロンプト切り替え用）
+            model_id: 会話のデフォルトモデルID（completionsでmodel_id省略時に使用）
+            prompt_profile: プロンプトプロファイル（AgenticAI/LLMEditor - システムプロンプト切り替え用）
 
         Returns:
             str: Conversation ID
@@ -126,10 +120,10 @@ class ConversationService:
                     queries_ai_assistant.SQL_INSERT_CONVERSATION,
                     {
                         "conversation_id": conversation_id,
-                        "service_id": service_id,
-                        "workspace_id": workspace_id,
+                        "prompt_profile": prompt_profile,
                         "user_id": user_id,
                         "ai_service_id": ai_service_id,
+                        "model_id": model_id,
                         "title": title,
                     },
                 )
@@ -138,7 +132,7 @@ class ConversationService:
         globals.logger.debug(
             f"Conversation created: id={conversation_id}, "
             f"org={organization_id}, workspace={workspace_id}, user={user_id}, "
-            f"service={service_id}, ai_service={ai_service_id}, title={title}"
+            f"prompt_profile={prompt_profile}, ai_service={ai_service_id}, model={model_id}, title={title}"
         )
 
         return conversation_id
@@ -148,6 +142,7 @@ class ConversationService:
         organization_id: str,
         workspace_id: str,
         user_id: str,
+        prompt_profile: str,
         status: Optional[str] = None,
         limit: int = 50,
         offset: int = 0,
@@ -159,6 +154,7 @@ class ConversationService:
             organization_id: Organization ID (DB接続用、テーブルには保存しない)
             workspace_id: Workspace ID (DB接続用、テーブルには保存しない)
             user_id: User ID
+            prompt_profile: プロンプトプロファイル（会話一覧は常にこの値で絞り込む）
             status: ステータスフィルター (オプション)
             limit: 取得件数
             offset: オフセット
@@ -172,6 +168,7 @@ class ConversationService:
                     queries_ai_assistant.SQL_LIST_CONVERSATIONS,
                     {
                         "user_id": user_id,
+                        "prompt_profile": prompt_profile,
                         "status": status,
                         "limit": limit,
                         "offset": offset,
@@ -181,7 +178,7 @@ class ConversationService:
 
         globals.logger.debug(
             f"Listed {len(conversations)} conversations: "
-            f"org={organization_id}, user={user_id}"
+            f"org={organization_id}, user={user_id}, prompt_profile={prompt_profile}"
         )
 
         return conversations
@@ -194,7 +191,7 @@ class ConversationService:
         conversation_id: str,
         message_text: str = None,
         ai_service_id: str = None,
-        model_id: str = "anthropic.claude-3-5-sonnet-20240620-v1:0",
+        model_id: str = None,
         user_language: str = None,
         menu_id: str = None,
     ) -> Dict:
@@ -216,7 +213,7 @@ class ConversationService:
             conversation_id: Conversation ID
             message_text: ユーザーメッセージ (省略可。省略時は既存履歴のみで問い合わせ、結果を保存しない)
             ai_service_id: AIサービスID (メッセージ固有、Noneの場合は会話のデフォルトを使用)
-            model_id: AIモデルID
+            model_id: AIモデルID (メッセージ固有、Noneの場合は会話のデフォルトを使用)
             user_language: ユーザー言語 (jp, en, None)
             menu_id: メニューID (ITA画面ID、任意)
 
@@ -231,7 +228,7 @@ class ConversationService:
         has_new_message = bool(message_text)
         with closing(DBconnector().connect_workspacedb(organization_id, workspace_id)) as conn:
             with closing(conn.cursor()) as cursor:
-                # 会話の存在確認とAI_SERVICE_ID、SERVICE_IDの取得
+                # 会話の存在確認とAI_SERVICE_ID、PROMPT_PROFILEの取得
                 cursor.execute(
                     queries_ai_assistant.SQL_SELECT_CONVERSATION,
                     {"conversation_id": conversation_id, "user_id": user_id},
@@ -246,7 +243,11 @@ class ConversationService:
                 # AIサービスIDの決定：メッセージで指定されていればそれを使用、なければ会話のデフォルト
                 conversation_default_ai_service_id = conversation["AI_SERVICE_ID"]
                 effective_ai_service_id = ai_service_id if ai_service_id else conversation_default_ai_service_id
-                service_id = conversation["SERVICE_ID"]
+                # モデルIDの決定：メッセージで指定されていればそれを使用、なければ会話作成時に保存したデフォルトを使用
+                # Determine the model ID: use the message-specific value if given, otherwise the default saved when the conversation was created
+                conversation_default_model_id = conversation["MODEL_ID"]
+                effective_model_id = model_id if model_id else conversation_default_model_id
+                prompt_profile = conversation["PROMPT_PROFILE"]
 
         # 直前までの会話ターン一覧を取得（無ければ新規会話として空配列から開始）
         messages = get_message_service().get_latest_message(
@@ -257,7 +258,7 @@ class ConversationService:
 
         # LLMに渡すターン一覧（保存対象のmessagesとは別に持つ）
         # ・message指定時: messagesにユーザーターンを追記したものをそのまま使う
-        # ・message省略時: 履歴の最後がassistantターンで終わっている場合、Bedrock Converse APIは
+        # ・message省略時: 履歴の最後がassistantターンで終わっている場合、Anthropic Messages APIは
         #   assistantターンで終わる会話を受け付けない（"assistant message prefill"未対応で、
         #   必ずuserターンで終える必要がある）ため、直前のassistant応答を一時的に取り除いて
         #   （＝再生成）その手前のuserターンまでで問い合わせる。取り除いた結果は保存しない。
@@ -371,9 +372,9 @@ class ConversationService:
             )
 
             try:
-                system_prompt = load_system_prompt(service_id, user_language)
+                system_prompt = load_system_prompt(prompt_profile, user_language)
                 globals.logger.debug(
-                    f"Loaded system prompt for service_id={service_id}, "
+                    f"Loaded system prompt for prompt_profile={prompt_profile}, "
                     f"user_language={user_language}: {len(system_prompt)} chars"
                 )
             except FileNotFoundError as e:
@@ -400,49 +401,54 @@ class ConversationService:
                     )
 
             # 会話メッセージ（ユーザーターン追記済み、または再生成用に末尾assistantを除いたもの）
-            # からBedrock用messagesを構築する。
-            # ai_assistant_client.js / amazon_bedrock.jsと同じく、textタイプのcontentのみを渡す
-            # （サーバー側のこのエンドポイントはツール呼び出しを行わないシンプルなテキスト対話のため）
-            bedrock_messages = []
-            for turn in llm_input_messages:
-                text = _extract_text(turn)
-                if not text:
-                    continue
-                bedrock_messages.append({
-                    "role": turn["role"],
-                    "content": [{"text": text}],
-                })
+            # からInvokeModel(Anthropic Messages API形式)用messagesを構築する。
+            # 各ターンの"_"始まりのキー（_timestamp/_thinkingMs/_model/_service等、内部管理用メタデータ）はAPIに送らず、
+            # それ以外（contentブロック内の"type"キーを含む）はai_assistant_client.js / amazon_bedrock.jsと同様にそのまま渡す
+            # Build messages for InvokeModel (Anthropic Messages API format) from the conversation turns.
+            # Strip keys starting with "_" (internal metadata such as _timestamp/_thinkingMs/_model/_service) from each turn;
+            # pass everything else through as-is (including the "type" key inside content blocks), matching ai_assistant_client.js / amazon_bedrock.js
+            bedrock_messages = [
+                {k: v for k, v in turn.items() if not k.startswith("_")}
+                for turn in llm_input_messages
+                if turn.get("content")
+            ]
 
-            converse_params = {
-                "modelId": model_id,
+            # Anthropic Messages API(Bedrock InvokeModel経由)のリクエストボディ。amazon_bedrock.jsのthis.modelと同じ形式に揃えている
+            # Anthropic Messages API request body (via Bedrock InvokeModel), matching the same shape as amazon_bedrock.js's this.model
+            request_body = {
+                "anthropic_version": "bedrock-2023-05-31",
+                "max_tokens": 4096,
                 "messages": bedrock_messages,
-                "inferenceConfig": {
-                    "maxTokens": 4096,
-                },
             }
-
             if system_prompt:
-                converse_params["system"] = [{"text": system_prompt}]
+                request_body["system"] = system_prompt
 
             request_start = time.monotonic()
-            response = bedrock_client.converse(**converse_params)
+            raw_response = bedrock_client.invoke_model(
+                modelId=effective_model_id,
+                body=json.dumps(request_body),
+                contentType="application/json",
+                accept="application/json",
+            )
             thinking_ms = round((time.monotonic() - request_start) * 1000)
 
             # AIサービスが返したHTTPステータスコードをそのまま呼び出し元に返す
             # （ai_assistant_client.js / amazon_bedrock.jsのfetchWithRetryと同様、
             # 呼び出し側でステータスコードに基づくリトライ判断ができるようにするため。
             # 将来的にBedrock以外のAIサービスに対応した場合も同じキーで返せるよう汎用名にしている）
-            ai_status_code = response.get("ResponseMetadata", {}).get("HTTPStatusCode")
+            ai_status_code = raw_response.get("ResponseMetadata", {}).get("HTTPStatusCode")
 
-            # 拡張思考対応モデルはcontent[0]がreasoningContentブロックになる場合があり、必ずしもtextブロックとは限らないため、textキーを持つブロックのみ連結して取り出す
-            # Extended-thinking-capable models may put a reasoningContent block at content[0], so it isn't always the text block — concatenate only the blocks that have a text key
+            response = json.loads(raw_response["body"].read())
+
+            # 拡張思考モデルはcontentに"thinking"タイプのブロックを含む場合があり、必ずしもtextブロックとは限らないため、textタイプのブロックのみ連結して取り出す
+            # Extended-thinking models may include a "thinking"-type block in content, so concatenate only the "text"-type blocks
             assistant_content = "".join(
                 block.get("text", "")
-                for block in response["output"]["message"]["content"]
-                if "text" in block
+                for block in response.get("content", [])
+                if isinstance(block, dict) and block.get("type") == "text"
             )
-            input_tokens = response["usage"]["inputTokens"]
-            output_tokens = response["usage"]["outputTokens"]
+            input_tokens = response["usage"]["input_tokens"]
+            output_tokens = response["usage"]["output_tokens"]
 
             if has_new_message:
                 # 新規発言がある場合のみ、応答をT_CHAT_MESSAGEに保存しトークン数を更新する
@@ -453,7 +459,7 @@ class ConversationService:
                     "content": [{"type": "text", "text": assistant_content}],
                     "_timestamp": _now_iso(),
                     "_thinkingMs": thinking_ms,
-                    "_model": model_id,
+                    "_model": effective_model_id,
                 }
                 messages.append(assistant_turn)
 

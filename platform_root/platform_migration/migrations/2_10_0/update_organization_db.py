@@ -180,6 +180,35 @@ class update_organization_db:
                                                       organization_id)
                         raise common.InternalErrorException(message_id=message_id, message=message)
 
+                    # T_USER_AI_PREFERENCE テーブル作成（オーガナイゼーション単位）
+                    try:
+                        globals.logger.info(f"[{self.step_count}/{self.step_max}] - create table T_USER_AI_PREFERENCE: organization_id:[{organization_id}]")
+
+                        # テーブル存在確認
+                        cursor.execute(queries_db_organizations.CHECK_TABLE_EXISTS, ('T_USER_AI_PREFERENCE',))
+                        result = cursor.fetchone()
+
+                        if result['count'] == 0:
+                            query = queries_db_organizations.CREATE_TABLE_USER_AI_PREFERENCE
+                            globals.logger.debug(f'EXECUTE SQL:{query}')
+                            cursor.execute(query)
+                            globals.logger.info(f"[{self.step_count}/{self.step_max}] -- OK: create table T_USER_AI_PREFERENCE: organization_id:[{organization_id}]")
+                            self.ok_count += 1
+                        else:
+                            globals.logger.info(f"[{self.step_count}/{self.step_max}] -- SKIP: table T_USER_AI_PREFERENCE already exists: organization_id:[{organization_id}]")
+                            self.skip_count += 1
+
+                        conn.commit()
+
+                    except Exception as e:
+                        globals.logger.info(f"[{self.step_count}/{self.step_max}] -- NG: create table T_USER_AI_PREFERENCE: organization_id:[{organization_id}]")
+                        globals.logger.error(f"exception:{e.args}")
+                        message_id = "500-90034"
+                        message = multi_lang.get_text(message_id,
+                                                      "organization_db create table T_USER_AI_PREFERENCE failed. organization_id:[{0}]",
+                                                      organization_id)
+                        raise common.InternalErrorException(message_id=message_id, message=message)
+
         globals.logger.info(f"[{self.step_count}/{self.step_max}] ### Succeed func:{inspect.currentframe().f_code.co_name}")
 
         return

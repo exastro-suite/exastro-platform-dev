@@ -2244,16 +2244,21 @@ components:
       properties:
         conversation_id:
           type: string
-        service_id:
+        prompt_profile:
           type: string
           description: |-
-            サービスID（AgenticAI/LLMEditor）
-            Service ID (AgenticAI/LLMEditor)
+            プロンプトプロファイル（AgenticAI/LLMEditor）
+            Prompt profile (AgenticAI/LLMEditor)
         ai_service_id:
           type: string
           description: |-
             AIサービスID（bedrock/bedrock-cache/openai等）
             AI service ID (bedrock/bedrock-cache/openai, etc.)
+        model_id:
+          type: string
+          description: |-
+            会話のデフォルトモデルID(completionsでmodel_id省略時に使用)
+            Default model ID for the conversation (used when model_id is omitted in completions)
         title:
           type: string
         status:
@@ -2272,6 +2277,62 @@ components:
         updated_at:
           type: string
           format: date-time
+    aiPreferenceInfo:
+      type: object
+      properties:
+        ai_service_id:
+          type: string
+          nullable: true
+          description: |-
+            デフォルトで使用するAIサービスID(一度も保存していない場合はnull)
+            Default AI service ID to use (null if never saved)
+          enum:
+            - bedrock-cache
+            - bedrock
+            - openai
+            - anthropic
+          example: bedrock-cache
+        model_id:
+          type: string
+          nullable: true
+          description: |-
+            デフォルトで使用するモデルID(一度も保存していない場合はnull)
+            Default model ID to use (null if never saved)
+          example: 'anthropic.claude-3-5-sonnet-20240620-v1:0'
+        pickup_model_ids:
+          type: array
+          description: |-
+            UIでモデル選択の候補を絞り込むためにピックアップしたモデルID一覧(選択肢が多すぎる問題への対処用)
+            List of model IDs picked to narrow down the model choices shown in the UI (addresses having too many models to choose from)
+          items:
+            type: string
+          example:
+            - 'anthropic.claude-3-5-sonnet-20240620-v1:0'
+            - global.anthropic.claude-sonnet-5
+    aiServiceInfo:
+      type: object
+      properties:
+        ai_service_id:
+          type: string
+          description: |-
+            AIサービスID
+            AI service ID
+          enum:
+            - bedrock-cache
+            - bedrock
+          example: bedrock-cache
+        ai_service_name:
+          type: string
+          description: |-
+            AIサービスの表示名
+            Display name of the AI service
+          example: Amazon Bedrock (Login Cache)
+        description:
+          type: string
+          description: |-
+            AIサービスの説明(認証方式の違いなど)
+            Description of the AI service (e.g. differences in authentication method)
+          example: AWS Login Cacheを使用し、トークンを自動更新する認証方式
   securitySchemes:
     BearerAuth:
       description: Credentials or access token for API

@@ -21,13 +21,13 @@ AI Assistant機能で使用するSQLクエリ定義
 # ==================== Conversation ====================
 
 SQL_SELECT_CONVERSATION = """
-SELECT CONVERSATION_ID, AI_SERVICE_ID, SERVICE_ID
+SELECT CONVERSATION_ID, AI_SERVICE_ID, MODEL_ID, PROMPT_PROFILE
 FROM T_CHAT_CONVERSATION
 WHERE CONVERSATION_ID = %(conversation_id)s AND USER_ID = %(user_id)s
 """
 
 SQL_SELECT_CONVERSATION_FOR_CREATE = """
-SELECT CONVERSATION_ID, SERVICE_ID, AI_SERVICE_ID, TITLE, STATUS
+SELECT CONVERSATION_ID, PROMPT_PROFILE, AI_SERVICE_ID, MODEL_ID, TITLE, STATUS
 FROM T_CHAT_CONVERSATION
 WHERE CONVERSATION_ID = %(conversation_id)s
 """
@@ -35,12 +35,12 @@ WHERE CONVERSATION_ID = %(conversation_id)s
 SQL_INSERT_CONVERSATION = """
 INSERT INTO T_CHAT_CONVERSATION
 (
-    CONVERSATION_ID, SERVICE_ID, WORKSPACE_ID, USER_ID, AI_SERVICE_ID,
+    CONVERSATION_ID, PROMPT_PROFILE, USER_ID, AI_SERVICE_ID, MODEL_ID,
     TITLE, STATUS, CURRENT_TOKEN_COUNT,
     CREATE_TIMESTAMP, CREATE_USER, LAST_UPDATE_TIMESTAMP, LAST_UPDATE_USER
 )
 VALUES (
-    %(conversation_id)s, %(service_id)s, %(workspace_id)s, %(user_id)s, %(ai_service_id)s,
+    %(conversation_id)s, %(prompt_profile)s, %(user_id)s, %(ai_service_id)s, %(model_id)s,
     %(title)s, 'active', 0,
     NOW(), %(user_id)s, NOW(), %(user_id)s
 )
@@ -56,7 +56,7 @@ LIMIT 1
 
 SQL_LIST_CONVERSATIONS = """
 SELECT
-    c.CONVERSATION_ID, c.SERVICE_ID, c.AI_SERVICE_ID, c.TITLE, c.STATUS,
+    c.CONVERSATION_ID, c.PROMPT_PROFILE, c.AI_SERVICE_ID, c.MODEL_ID, c.TITLE, c.STATUS,
     c.CURRENT_TOKEN_COUNT, c.CREATE_TIMESTAMP, c.LAST_UPDATE_TIMESTAMP,
     (
         SELECT JSON_LENGTH(m.CONTENTS)
@@ -67,6 +67,7 @@ SELECT
     ) AS MESSAGE_COUNT
 FROM T_CHAT_CONVERSATION c
 WHERE c.USER_ID = %(user_id)s
+  AND c.PROMPT_PROFILE = %(prompt_profile)s
   AND (%(status)s IS NULL OR c.STATUS = %(status)s)
 ORDER BY c.LAST_UPDATE_TIMESTAMP DESC
 LIMIT %(limit)s OFFSET %(offset)s
@@ -226,4 +227,32 @@ WHERE USER_ID = %(user_id)s
   AND CREDENTIAL_TYPE = %(credential_type)s
   AND STATUS = %(status)s
 ORDER BY CREATE_TIMESTAMP DESC
+"""
+
+# ==================== AI Preference ====================
+
+SQL_SELECT_USER_AI_PREFERENCE = """
+SELECT AI_SERVICE_ID, MODEL_ID, PICKUP_MODEL_IDS, CREATE_TIMESTAMP, LAST_UPDATE_TIMESTAMP
+FROM T_USER_AI_PREFERENCE
+WHERE USER_ID = %(user_id)s
+"""
+
+# 行が存在すればUPDATE、無ければINSERTを1クエリで行う（PUTの全置換をアトミックに実現するため）
+# Performs UPDATE if the row exists, otherwise INSERT, in a single query (keeps the PUT's full-replace semantics atomic)
+SQL_UPSERT_USER_AI_PREFERENCE = """
+INSERT INTO T_USER_AI_PREFERENCE
+(
+    USER_ID, AI_SERVICE_ID, MODEL_ID, PICKUP_MODEL_IDS,
+    CREATE_TIMESTAMP, CREATE_USER, LAST_UPDATE_TIMESTAMP, LAST_UPDATE_USER
+)
+VALUES (
+    %(user_id)s, %(ai_service_id)s, %(model_id)s, %(pickup_model_ids)s,
+    NOW(), %(user_id)s, NOW(), %(user_id)s
+)
+ON DUPLICATE KEY UPDATE
+    AI_SERVICE_ID = %(ai_service_id)s,
+    MODEL_ID = %(model_id)s,
+    PICKUP_MODEL_IDS = %(pickup_model_ids)s,
+    LAST_UPDATE_TIMESTAMP = NOW(),
+    LAST_UPDATE_USER = %(user_id)s
 """

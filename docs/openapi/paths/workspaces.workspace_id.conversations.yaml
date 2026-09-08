@@ -42,6 +42,7 @@ post:
           type: object
           required:
             - title
+            - model_id
           properties:
             title:
               type: string
@@ -49,15 +50,23 @@ post:
                 会話タイトル
                 Conversation title
               example: "Bedrockとのチャット"
-            service_id:
+            model_id:
               type: string
               description: |-
-                サービスID（システムプロンプト切り替え用）
-                Service ID (used to switch the system prompt)
+                会話のデフォルトモデルID(completionsでmodel_idを省略した際にこの値が使用される)
+                Default model ID for the conversation (used when model_id is omitted in completions)
+              example: "anthropic.claude-3-5-sonnet-20240620-v1:0"
+            prompt_profile:
+              type: string
+              description: |-
+                プロンプトプロファイル（システムプロンプト切り替え用）
+                Prompt profile (used to switch the system prompt)
               default: "LLMEditor"
               enum:
                 - LLMEditor
                 - AgenticAI
+                - Lessons
+                - Aggregation
               example: "LLMEditor"
   responses:
     200:
@@ -76,16 +85,21 @@ post:
                     properties:
                       conversation_id:
                         type: string
-                      service_id:
+                      prompt_profile:
                         type: string
                         description: |-
-                          サービスID
-                          Service ID
+                          プロンプトプロファイル
+                          Prompt profile
                       ai_service_id:
                         type: string
                         description: |-
                           AIサービスID（ユーザーのCredentialから自動取得）
                           AI service ID (automatically retrieved from the user's credential)
+                      model_id:
+                        type: string
+                        description: |-
+                          会話のデフォルトモデルID
+                          Default model ID for the conversation
                       title:
                         type: string
                       status:
@@ -129,6 +143,15 @@ get:
       required: true
       schema:
         type: string
+    - name: prompt_profile
+      in: query
+      required: true
+      schema:
+        type: string
+        enum: [LLMEditor, AgenticAI]
+      description: |-
+        プロンプトプロファイル（会話一覧は常にこの値で絞り込む）
+        Prompt profile (the conversation list is always filtered by this value)
     - name: status
       in: query
       required: false
