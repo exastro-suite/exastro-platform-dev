@@ -32,6 +32,41 @@ from services.ai_assistant.message_service import get_message_service
 
 import globals
 
+# 現時点でシステムとして利用可能なAIサービス一覧（固定値。他プロバイダー対応時にここへ追加する）
+# List of AI services currently supported by the system (fixed; add to this when other providers are supported)
+AVAILABLE_AI_SERVICES = [
+    {
+        "ai_service_id": "bedrock-cache",
+        "ai_service_name": "Amazon Bedrock (Login Cache)",
+        "description": "AWS Login Cacheを使用し、トークンを自動更新する認証方式",
+    },
+    {
+        "ai_service_id": "bedrock",
+        "ai_service_name": "Amazon Bedrock",
+        "description": "手動登録したアクセスキー等の固定Credentialを使用する認証方式",
+    },
+]
+
+
+@common.platform_exception_handler
+def get_ai_services(organization_id):
+    """
+    システムとして利用可能なAIサービス一覧を取得
+
+    :param organization_id:
+    :type organization_id: str
+
+    :rtype: dict
+    """
+    globals.logger.info(f"### func:{inspect.currentframe().f_code.co_name}")
+
+    return common.response_200_ok(
+        {
+            "ai_services": AVAILABLE_AI_SERVICES,
+            "count": len(AVAILABLE_AI_SERVICES),
+        }
+    )
+
 
 @common.platform_exception_handler
 def create_conversation(body, organization_id, workspace_id):
@@ -54,7 +89,8 @@ def create_conversation(body, organization_id, workspace_id):
 
     body = r.get_json()
     title = body.get("title")
-    service_id = body.get("service_id", "LLMEditor")
+    model_id = body.get("model_id")
+    prompt_profile = body.get("prompt_profile", "LLMEditor")
 
     # バリデーション
     if not title:
@@ -62,6 +98,16 @@ def create_conversation(body, organization_id, workspace_id):
         message = multi_lang.get_text(
             message_id,
             "titleは必須です"
+        )
+        raise common.BadRequestException(message_id=message_id, message=message)
+
+    # completionsでmodel_idを省略した際のデフォルトとして使うため、会話作成時に必須とする
+    # Required at conversation creation time, since it becomes the default used when model_id is omitted in completions
+    if not model_id:
+        message_id = "400-94112"
+        message = multi_lang.get_text(
+            message_id,
+            "model_idは必須です"
         )
         raise common.BadRequestException(message_id=message_id, message=message)
 
@@ -73,15 +119,16 @@ def create_conversation(body, organization_id, workspace_id):
             workspace_id=workspace_id,
             user_id=user_id,
             title=title,
-            service_id=service_id,
+            model_id=model_id,
+            prompt_profile=prompt_profile,
         )
 
-        # 作成された会話を取得してAI_SERVICE_IDを含む完全な情報を返す
+        # 作成された会話を取得してAI_SERVICE_ID/MODEL_IDを含む完全な情報を返す
         with closing(DBconnector().connect_workspacedb(organization_id, workspace_id)) as conn:
             with closing(conn.cursor()) as cursor:
                 cursor.execute(
                     """
-                    SELECT CONVERSATION_ID, SERVICE_ID, AI_SERVICE_ID, TITLE, STATUS
+                    SELECT CONVERSATION_ID, PROMPT_PROFILE, AI_SERVICE_ID, MODEL_ID, TITLE, STATUS
                     FROM T_CHAT_CONVERSATION
                     WHERE CONVERSATION_ID = %s
                     """,
@@ -91,15 +138,16 @@ def create_conversation(body, organization_id, workspace_id):
 
         globals.logger.debug(
             f"Conversation created: id={conversation_id}, "
-            f"service={service_id}, ai_service={conversation['AI_SERVICE_ID']}, "
+            f"prompt_profile={prompt_profile}, ai_service={conversation['AI_SERVICE_ID']}, model={conversation['MODEL_ID']}, "
             f"org={organization_id}, workspace={workspace_id}, user={user_id}"
         )
 
         return common.response_200_ok(
             {
                 "conversation_id": conversation_id,
-                "service_id": conversation["SERVICE_ID"],
+                "prompt_profile": conversation["PROMPT_PROFILE"],
                 "ai_service_id": conversation["AI_SERVICE_ID"],
+                "model_id": conversation["MODEL_ID"],
                 "title": title,
                 "status": conversation["STATUS"],
             }
@@ -117,7 +165,7 @@ def create_conversation(body, organization_id, workspace_id):
 
 
 @common.platform_exception_handler
-def list_conversations(organization_id, workspace_id, status=None, limit=50, offset=0):
+def list_conversations(organization_id, workspace_id, prompt_profile, status=None, limit=50, offset=0):
     """
     会話一覧を取得
 
@@ -125,6 +173,8 @@ def list_conversations(organization_id, workspace_id, status=None, limit=50, off
     :type organization_id: str
     :param workspace_id:
     :type workspace_id: str
+    :param prompt_profile:
+    :type prompt_profile: str
     :param status:
     :type status: str
     :param limit:
@@ -146,6 +196,7 @@ def list_conversations(organization_id, workspace_id, status=None, limit=50, off
             organization_id=organization_id,
             workspace_id=workspace_id,
             user_id=user_id,
+            prompt_profile=prompt_profile,
             status=status,
             limit=limit,
             offset=offset,
@@ -156,8 +207,9 @@ def list_conversations(organization_id, workspace_id, status=None, limit=50, off
         for conv in conversations:
             conversations_data.append({
                 "conversation_id": conv["CONVERSATION_ID"],
-                "service_id": conv["SERVICE_ID"],
+                "prompt_profile": conv["PROMPT_PROFILE"],
                 "ai_service_id": conv["AI_SERVICE_ID"],
+                "model_id": conv["MODEL_ID"],
                 "title": conv["TITLE"],
                 "status": conv["STATUS"],
                 "current_token_count": conv["CURRENT_TOKEN_COUNT"] or 0,
@@ -210,7 +262,7 @@ def create_completion(body, conversation_id, organization_id, workspace_id):
     # message省略時は、会話の既存履歴(T_CHAT_MESSAGE)のみでAIに問い合わせる（結果は保存しない）
     message_text = body.get("message")
     ai_service_id = body.get("ai_service_id")  # メッセージ固有のAIサービスID（任意、会話のデフォルトをオーバーライド）
-    model_id = body.get("model_id", "anthropic.claude-3-5-sonnet-20240620-v1:0")
+    model_id = body.get("model_id")  # メッセージ固有のモデルID（任意、省略時は会話作成時に保存したデフォルトを使用）
     menu_id = body.get("menu_id")  # ITA画面ID（任意）
 
     try:

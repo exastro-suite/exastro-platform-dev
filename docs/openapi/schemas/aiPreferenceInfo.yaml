@@ -1,0 +1,41 @@
+#   Copyright 2026 NEC Corporation
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
+
+type: object
+properties:
+  ai_service_id:
+    type: string
+    nullable: true
+    description: |-
+      デフォルトで使用するAIサービスID(一度も保存していない場合はnull)
+      Default AI service ID to use (null if never saved)
+    enum: [bedrock-cache, bedrock, openai, anthropic]
+    example: "bedrock-cache"
+  model_id:
+    type: string
+    nullable: true
+    description: |-
+      デフォルトで使用するモデルID(一度も保存していない場合はnull)
+      Default model ID to use (null if never saved)
+    example: "anthropic.claude-3-5-sonnet-20240620-v1:0"
+  pickup_model_ids:
+    type: array
+    description: |-
+      UIでモデル選択の候補を絞り込むためにピックアップしたモデルID一覧(選択肢が多すぎる問題への対処用)
+      List of model IDs picked to narrow down the model choices shown in the UI (addresses having too many models to choose from)
+    items:
+      type: string
+    example:
+      - "anthropic.claude-3-5-sonnet-20240620-v1:0"
+      - "global.anthropic.claude-sonnet-5"

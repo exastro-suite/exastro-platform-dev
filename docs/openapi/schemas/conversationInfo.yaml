@@ -16,16 +16,21 @@ type: object
 properties:
   conversation_id:
     type: string
-  service_id:
+  prompt_profile:
     type: string
     description: |-
-      サービスID（AgenticAI/LLMEditor）
-      Service ID (AgenticAI/LLMEditor)
+      プロンプトプロファイル（AgenticAI/LLMEditor）
+      Prompt profile (AgenticAI/LLMEditor)
   ai_service_id:
     type: string
     description: |-
       AIサービスID（bedrock/bedrock-cache/openai等）
       AI service ID (bedrock/bedrock-cache/openai, etc.)
+  model_id:
+    type: string
+    description: |-
+      会話のデフォルトモデルID(completionsでmodel_id省略時に使用)
+      Default model ID for the conversation (used when model_id is omitted in completions)
   title:
     type: string
   status:

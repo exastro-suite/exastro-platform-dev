@@ -15,7 +15,7 @@
 """
 System Prompt Loader
 
-service_id と user_language に基づいてシステムプロンプトを読み込む
+prompt_profile と user_language に基づいてシステムプロンプトを読み込む
 """
 
 import os
@@ -30,9 +30,9 @@ class SystemPromptLoader:
     システムプロンプトローダー
 
     ファイル命名規則:
-    - {service_id}_base.txt: 基本プロンプト
-    - {service_id}_jp.txt: 日本語用プロンプト
-    - {service_id}_en.txt: 英語用プロンプト
+    - {prompt_profile}_base.txt: 基本プロンプト
+    - {prompt_profile}_jp.txt: 日本語用プロンプト
+    - {prompt_profile}_en.txt: 英語用プロンプト
     """
 
     def __init__(self, prompts_dir: Optional[str] = None):
@@ -58,13 +58,13 @@ class SystemPromptLoader:
         )
 
     def load_prompt(
-        self, service_id: str, user_language: Optional[str] = None
+        self, prompt_profile: str, user_language: Optional[str] = None
     ) -> str:
         """
         システムプロンプトを読み込む
 
         Args:
-            service_id: サービスID (LLMEditor, AgenticAI)
+            prompt_profile: プロンプトプロファイル (LLMEditor, AgenticAI)
             user_language: ユーザー言語 (jp, en, None)
 
         Returns:
@@ -73,12 +73,12 @@ class SystemPromptLoader:
         Raises:
             FileNotFoundError: プロンプトファイルが見つからない場合
         """
-        # service_id を小文字に正規化
-        service_id_lower = service_id.lower()
+        # prompt_profile を小文字に正規化
+        prompt_profile_lower = prompt_profile.lower()
 
         # 言語別プロンプトを優先的に読み込み
         if user_language:
-            lang_file = self.prompts_dir / f"{service_id_lower}_{user_language}.txt"
+            lang_file = self.prompts_dir / f"{prompt_profile_lower}_{user_language}.txt"
             if lang_file.exists():
                 globals.logger.debug(
                     f"Loading language-specific prompt: {lang_file}"
@@ -86,14 +86,14 @@ class SystemPromptLoader:
                 return self._read_file(lang_file)
 
         # 言語別プロンプトがない場合はベースプロンプトを使用
-        base_file = self.prompts_dir / f"{service_id_lower}_base.txt"
+        base_file = self.prompts_dir / f"{prompt_profile_lower}_base.txt"
         if base_file.exists():
             globals.logger.debug(f"Loading base prompt: {base_file}")
             return self._read_file(base_file)
 
         # どちらも見つからない場合はエラー
         raise FileNotFoundError(
-            f"System prompt not found for service_id={service_id}, "
+            f"System prompt not found for prompt_profile={prompt_profile}, "
             f"user_language={user_language}. "
             f"Expected files: {base_file} or {lang_file if user_language else 'N/A'}"
         )
@@ -159,16 +159,16 @@ class SystemPromptLoader:
 
     def get_available_services(self) -> list[str]:
         """
-        利用可能なサービスIDのリストを取得
+        利用可能なプロンプトプロファイルのリストを取得
 
         Returns:
-            サービスIDのリスト
+            プロンプトプロファイルのリスト
         """
         services = set()
         if self.prompts_dir.exists():
             for file_path in self.prompts_dir.glob("*_base.txt"):
-                service_id = file_path.stem.replace("_base", "")
-                services.add(service_id)
+                prompt_profile = file_path.stem.replace("_base", "")
+                services.add(prompt_profile)
 
         return sorted(services)
 
@@ -191,20 +191,20 @@ def get_system_prompt_loader() -> SystemPromptLoader:
 
 
 def load_system_prompt(
-    service_id: str, user_language: Optional[str] = None
+    prompt_profile: str, user_language: Optional[str] = None
 ) -> str:
     """
     システムプロンプトを読み込む（ショートカット関数）
 
     Args:
-        service_id: サービスID
+        prompt_profile: プロンプトプロファイル
         user_language: ユーザー言語
 
     Returns:
         システムプロンプト文字列
     """
     loader = get_system_prompt_loader()
-    return loader.load_prompt(service_id, user_language)
+    return loader.load_prompt(prompt_profile, user_language)
 
 
 def load_menu_prompt(

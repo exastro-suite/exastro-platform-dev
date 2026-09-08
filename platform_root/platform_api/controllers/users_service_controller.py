@@ -35,6 +35,9 @@ from services.users.ai_credential_service import (
 from services.ai_assistant.model_service import (
     get_model_service,
 )
+from services.users.ai_preference_service import (
+    get_ai_preference_service,
+)
 
 MSG_FUNCTION_ID = "25"
 
@@ -1213,6 +1216,131 @@ def list_models(organization_id, credential_type):
         message_id = "500-94007"
         message = multi_lang.get_text(
             message_id, "モデル一覧取得に失敗しました: {}", str(e)
+        )
+        raise common.InternalErrorException(message_id=message_id, message=message)
+
+
+@common.platform_exception_handler
+def get_ai_preference(organization_id):
+    """
+    AI利用設定を取得
+
+    :param organization_id:
+    :type organization_id: str
+
+    :rtype: dict
+    """
+    globals.logger.info(f"### func:{inspect.currentframe().f_code.co_name}")
+
+    r = connexion.request
+    user_id = r.headers.get("User-id")
+
+    try:
+        service = get_ai_preference_service()
+
+        preference = service.get_preference(
+            organization_id=organization_id,
+            user_id=user_id,
+        )
+
+        if preference is None:
+            # 一度も保存されていない場合は404にせず、空の設定を返す（UIの初回表示をシンプルに扱えるようにする）
+            # Return an empty preference instead of 404 when nothing has been saved yet (keeps the UI's first-time view simple)
+            return common.response_200_ok(
+                {
+                    "ai_service_id": None,
+                    "model_id": None,
+                    "pickup_model_ids": [],
+                }
+            )
+
+        return common.response_200_ok(
+            {
+                "ai_service_id": preference.ai_service_id,
+                "model_id": preference.model_id,
+                "pickup_model_ids": preference.pickup_model_ids,
+            }
+        )
+
+    except Exception as e:
+        globals.logger.error(f"Failed to get AI preference: {e}", exc_info=True)
+        message_id = "500-94019"
+        message = multi_lang.get_text(
+            message_id, "AI利用設定の取得に失敗しました: {}", str(e)
+        )
+        raise common.InternalErrorException(message_id=message_id, message=message)
+
+
+@common.platform_exception_handler
+def update_ai_preference(body, organization_id):
+    """
+    AI利用設定を保存（全置換）
+
+    :param body:
+    :type body: dict
+    :param organization_id:
+    :type organization_id: str
+
+    :rtype: dict
+    """
+    globals.logger.info(f"### func:{inspect.currentframe().f_code.co_name}")
+
+    r = connexion.request
+    user_id = r.headers.get("User-id")
+
+    body = r.get_json()
+    ai_service_id = body.get("ai_service_id")
+    model_id = body.get("model_id")
+    pickup_model_ids = body.get("pickup_model_ids", [])
+
+    # バリデーション（PUTは全置換前提のため、ai_service_id/model_idは毎回必須）
+    # Validation (since PUT is a full replace, ai_service_id/model_id are required every time)
+    if not ai_service_id:
+        message_id = "400-94015"
+        message = multi_lang.get_text(message_id, "ai_service_idは必須です")
+        raise common.BadRequestException(message_id=message_id, message=message)
+
+    if not model_id:
+        message_id = "400-94016"
+        message = multi_lang.get_text(message_id, "model_idは必須です")
+        raise common.BadRequestException(message_id=message_id, message=message)
+
+    if not isinstance(pickup_model_ids, list):
+        message_id = "400-94017"
+        message = multi_lang.get_text(
+            message_id, "pickup_model_idsはJSON配列である必要があります"
+        )
+        raise common.BadRequestException(message_id=message_id, message=message)
+
+    try:
+        service = get_ai_preference_service()
+
+        service.save_preference(
+            organization_id=organization_id,
+            user_id=user_id,
+            ai_service_id=ai_service_id,
+            model_id=model_id,
+            pickup_model_ids=pickup_model_ids,
+        )
+
+        globals.logger.debug(
+            f"AI preference updated: org={organization_id}, user={user_id}, "
+            f"ai_service={ai_service_id}, model={model_id}"
+        )
+
+        return common.response_200_ok(
+            {
+                "ai_service_id": ai_service_id,
+                "model_id": model_id,
+                "pickup_model_ids": pickup_model_ids,
+            }
+        )
+
+    except Exception as e:
+        globals.logger.error(f"Failed to update AI preference: {e}", exc_info=True)
+        message_id = "500-94020"
+        message = multi_lang.get_text(
+            message_id, "AI利用設定の保存に失敗しました: {}", str(e)
         )
         raise common.InternalErrorException(message_id=message_id, message=message)
 

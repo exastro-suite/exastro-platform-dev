@@ -62,8 +62,8 @@ post:
             model_id:
               type: string
               description: |-
-                使用するモデルID(メッセージごとに変更可能、省略時はデフォルト)
-                Model ID to use (can be changed per message; if omitted, the default is used)
+                使用するモデルID(メッセージ固有、会話のデフォルトをオーバーライド、省略時は会話作成時に指定したデフォルトモデルIDを使用)
+                Model ID to use (specific to this message, overrides the conversation default; if omitted, the default model ID specified when the conversation was created is used)
               example: "anthropic.claude-3-5-sonnet-20240620-v1:0"
             menu_id:
               type: string
