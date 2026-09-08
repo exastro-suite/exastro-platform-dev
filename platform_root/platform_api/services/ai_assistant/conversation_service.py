@@ -77,6 +77,7 @@ class ConversationService:
         title: str,
         model_id: str,
         prompt_profile: str = "LLMEditor",
+        tools: Optional[List[Dict]] = None,
     ) -> str:
         """
         会話を作成
@@ -88,6 +89,7 @@ class ConversationService:
             title: 会話タイトル
             model_id: 会話のデフォルトモデルID（completionsでmodel_id省略時に使用）
             prompt_profile: プロンプトプロファイル（AgenticAI/LLMEditor - システムプロンプト切り替え用）
+            tools: ツール定義（Anthropic tools形式の配列。省略時はツール未使用の会話になる）
 
         Returns:
             str: Conversation ID
@@ -124,6 +126,7 @@ class ConversationService:
                         "user_id": user_id,
                         "ai_service_id": ai_service_id,
                         "model_id": model_id,
+                        "tools": json.dumps(tools) if tools else None,
                         "title": title,
                     },
                 )
@@ -248,6 +251,9 @@ class ConversationService:
                 conversation_default_model_id = conversation["MODEL_ID"]
                 effective_model_id = model_id if model_id else conversation_default_model_id
                 prompt_profile = conversation["PROMPT_PROFILE"]
+                # ツール定義（Anthropic tools形式）。会話作成時に指定されていなければNone(ツール未使用)
+                # Tool definitions (Anthropic tools format). None (no tools) unless specified at conversation creation
+                tools = json.loads(conversation["TOOLS"]) if conversation["TOOLS"] else None
 
         # 直前までの会話ターン一覧を取得（無ければ新規会話として空配列から開始）
         messages = get_message_service().get_latest_message(
@@ -422,6 +428,11 @@ class ConversationService:
             }
             if system_prompt:
                 request_body["system"] = system_prompt
+            # 会話作成時にtoolsが指定されている場合のみ付与する（amazon_bedrock.jsのthis.model.tools/tool_choiceと同様）
+            # Only attach tools when specified at conversation creation (matching this.model.tools/tool_choice in amazon_bedrock.js)
+            if tools:
+                request_body["tools"] = tools
+                request_body["tool_choice"] = {"type": "auto"}
 
             request_start = time.monotonic()
             raw_response = bedrock_client.invoke_model(
@@ -440,13 +451,21 @@ class ConversationService:
 
             response = json.loads(raw_response["body"].read())
 
-            # 拡張思考モデルはcontentに"thinking"タイプのブロックを含む場合があり、必ずしもtextブロックとは限らないため、textタイプのブロックのみ連結して取り出す
-            # Extended-thinking models may include a "thinking"-type block in content, so concatenate only the "text"-type blocks
+            # 応答のcontentブロック一覧（text/tool_use/thinking等）。toolsを渡した場合、モデルはtool_useブロックで応答することがあるため、
+            # 保存・返却するcontentはtext以外のブロックも含めて丸ごと保持する（textのみ抜き出すと呼び出し側でtool呼び出しが消えてしまう）
+            # The response's content blocks (text/tool_use/thinking, etc.). When tools are passed, the model may respond with a tool_use block,
+            # so keep all blocks (not just text) when saving/returning content — extracting only text would silently drop tool calls.
+            response_content_blocks = response.get("content", [])
+            # 表示用の文字列はtextタイプのブロックのみ連結して取り出す（tool_useのみの応答では空文字になる）
+            # The display string only concatenates text-type blocks (it is an empty string for a tool_use-only response)
             assistant_content = "".join(
                 block.get("text", "")
-                for block in response.get("content", [])
+                for block in response_content_blocks
                 if isinstance(block, dict) and block.get("type") == "text"
             )
+            # stop_reasonが"tool_use"の場合、呼び出し元はtool_useブロックを見て後続のtool実行を行う想定
+            # When stop_reason is "tool_use", the caller is expected to inspect the tool_use block(s) and run the corresponding tool
+            stop_reason = response.get("stop_reason")
             input_tokens = response["usage"]["input_tokens"]
             output_tokens = response["usage"]["output_tokens"]
 
@@ -456,7 +475,7 @@ class ConversationService:
                 # アシスタントターンを追記
                 assistant_turn = {
                     "role": "assistant",
-                    "content": [{"type": "text", "text": assistant_content}],
+                    "content": response_content_blocks,
                     "_timestamp": _now_iso(),
                     "_thinkingMs": thinking_ms,
                     "_model": effective_model_id,
@@ -538,6 +557,7 @@ class ConversationService:
                 "user_message_seq": user_message_seq,
                 "assistant_message_seq": assistant_message_seq,
                 "content": assistant_content,
+                "stop_reason": stop_reason,
                 "saved": has_new_message,
                 "ai_status_code": ai_status_code,
                 "usage": {

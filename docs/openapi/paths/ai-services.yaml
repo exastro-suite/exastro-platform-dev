@@ -53,3 +53,11 @@ get:
                           $ref: '../schemas/aiServiceInfo.yaml'
                       count:
                         type: integer
+    403:
+      description: |-
+        AIアシスタント機能が有効になっていない
+        The AI assistant feature is not enabled
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/runtimeError.yaml'

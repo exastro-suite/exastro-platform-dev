@@ -43,6 +43,14 @@ get:
                 properties:
                   data:
                     $ref: '../schemas/aiPreferenceInfo.yaml'
+    403:
+      description: |-
+        AIアシスタント機能が有効になっていない
+        The AI assistant feature is not enabled
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/runtimeError.yaml'
     500:
       description: |-
         サーバーエラー
@@ -120,6 +128,14 @@ put:
       description: |-
         バリデーションエラー
         Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/runtimeError.yaml'
+    403:
+      description: |-
+        AIアシスタント機能が有効になっていない
+        The AI assistant feature is not enabled
       content:
         application/json:
           schema:

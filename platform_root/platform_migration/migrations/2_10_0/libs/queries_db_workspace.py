@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS T_CHAT_CONVERSATION
   USER_ID VARCHAR(256) NOT NULL COMMENT 'User ID',
   AI_SERVICE_ID VARCHAR(64) NOT NULL COMMENT 'AIサービスID: bedrock-cache, bedrock, openai, etc.',
   MODEL_ID VARCHAR(255) NOT NULL COMMENT 'デフォルトで使用するモデルID (completionsでmodel_id省略時に使用)',
+  TOOLS LONGTEXT NULL COMMENT 'ツール定義 (JSON配列、Anthropic tools形式。未指定時はNULL)',
   TITLE VARCHAR(255) NOT NULL COMMENT '会話タイトル',
   STATUS VARCHAR(32) NOT NULL DEFAULT 'active' COMMENT 'ステータス: active/closed/archived',
   CURRENT_TOKEN_COUNT INT DEFAULT 0 COMMENT '現在のトークン数（累積）',

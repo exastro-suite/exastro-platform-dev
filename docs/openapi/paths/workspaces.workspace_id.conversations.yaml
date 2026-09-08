@@ -68,6 +68,22 @@ post:
                 - Lessons
                 - Aggregation
               example: "LLMEditor"
+            tools:
+              type: array
+              description: |-
+                ツール定義（Anthropic tools形式の配列。省略時はツール未使用の会話になる。会話単位で固定し、completionsの都度指定はしない）
+                Tool definitions (an array in Anthropic tools format; omit for a conversation without tools. Fixed per conversation, not specified per completions call)
+              items:
+                type: object
+              example:
+                - name: "get_weather"
+                  description: "指定した地域の現在の天気を取得する"
+                  input_schema:
+                    type: object
+                    properties:
+                      location:
+                        type: string
+                    required: ["location"]
   responses:
     200:
       description: |-
@@ -100,6 +116,13 @@ post:
                         description: |-
                           会話のデフォルトモデルID
                           Default model ID for the conversation
+                      tools:
+                        type: array
+                        description: |-
+                          ツール定義（未指定の場合は空配列）
+                          Tool definitions (an empty array when not specified)
+                        items:
+                          type: object
                       title:
                         type: string
                       status:
@@ -108,6 +131,14 @@ post:
       description: |-
         バリデーションエラー
         Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/runtimeError.yaml'
+    403:
+      description: |-
+        AIアシスタント機能が有効になっていない
+        The AI assistant feature is not enabled
       content:
         application/json:
           schema:
@@ -202,6 +233,14 @@ get:
                         type: integer
                       total_count:
                         type: integer
+    403:
+      description: |-
+        AIアシスタント機能が有効になっていない
+        The AI assistant feature is not enabled
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/runtimeError.yaml'
     default:
       description: An unexpected error response.
       content:

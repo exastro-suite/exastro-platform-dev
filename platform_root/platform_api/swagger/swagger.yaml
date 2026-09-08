@@ -1175,6 +1175,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/runtimeError"
+        "403":
+          description: |-
+            AIアシスタント機能が有効になっていない
+            The AI assistant feature is not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/runtimeError"
         "404":
           description: Credentialが見つからない
           content:
@@ -1216,6 +1224,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/inline_response_200_20"
+        "403":
+          description: |-
+            AIアシスタント機能が有効になっていない
+            The AI assistant feature is not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/runtimeError"
         "500":
           description: |-
             サーバーエラー
@@ -1266,6 +1282,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/runtimeError"
+        "403":
+          description: |-
+            AIアシスタント機能が有効になっていない
+            The AI assistant feature is not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/runtimeError"
         "500":
           description: |-
             サーバーエラー
@@ -1303,6 +1327,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/inline_response_200_21"
+        "403":
+          description: |-
+            AIアシスタント機能が有効になっていない
+            The AI assistant feature is not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/runtimeError"
       x-openapi-router-controller: controllers.ai_assistant_service_controller
   /api/{organization_id}/platform/workspaces:
     get:
@@ -2205,6 +2237,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/inline_response_200_27"
+        "403":
+          description: |-
+            AIアシスタント機能が有効になっていない
+            The AI assistant feature is not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/runtimeError"
         default:
           description: An unexpected error response.
           content:
@@ -2256,6 +2296,14 @@ paths:
           description: |-
             バリデーションエラー
             Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/runtimeError"
+        "403":
+          description: |-
+            AIアシスタント機能が有効になっていない
+            The AI assistant feature is not enabled
           content:
             application/json:
               schema:
@@ -2321,6 +2369,14 @@ paths:
           description: |-
             バリデーションエラー
             Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/runtimeError"
+        "403":
+          description: |-
+            AIアシスタント機能が有効になっていない
+            The AI assistant feature is not enabled
           content:
             application/json:
               schema:
@@ -2415,6 +2471,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/inline_response_200_30"
+        "403":
+          description: |-
+            AIアシスタント機能が有効になっていない
+            The AI assistant feature is not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/runtimeError"
         "404":
           description: |-
             会話が見つからない
@@ -2481,6 +2545,14 @@ paths:
           description: |-
             バリデーションエラー
             Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/runtimeError"
+        "403":
+          description: |-
+            AIアシスタント機能が有効になっていない
+            The AI assistant feature is not enabled
           content:
             application/json:
               schema:
@@ -2557,6 +2629,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/runtimeError"
+        "403":
+          description: |-
+            AIアシスタント機能が有効になっていない
+            The AI assistant feature is not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/runtimeError"
         "404":
           description: |-
             会話が見つからない
@@ -2615,6 +2695,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/inline_response_200_32"
+        "403":
+          description: |-
+            AIアシスタント機能が有効になっていない
+            The AI assistant feature is not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/runtimeError"
         "404":
           description: |-
             会話が見つからない
@@ -6949,6 +7037,25 @@ components:
           enum:
           - LLMEditor
           - AgenticAI
+          - Lessons
+          - Aggregation
+        tools:
+          type: array
+          description: |-
+            ツール定義（Anthropic tools形式の配列。省略時はツール未使用の会話になる。会話単位で固定し、completionsの都度指定はしない）
+            Tool definitions (an array in Anthropic tools format; omit for a conversation without tools. Fixed per conversation, not specified per completions call)
+          example:
+          - name: get_weather
+            description: 指定した地域の現在の天気を取得する
+            input_schema:
+              type: object
+              properties:
+                location:
+                  type: string
+              required:
+              - location
+          items:
+            type: object
     inline_response_200_28:
       allOf:
       - $ref: "#/components/schemas/responseOk"
@@ -7644,6 +7751,13 @@ components:
           description: |-
             会話のデフォルトモデルID
             Default model ID for the conversation
+        tools:
+          type: array
+          description: |-
+            ツール定義（未指定の場合は空配列）
+            Tool definitions (an empty array when not specified)
+          items:
+            type: object
         title:
           type: string
         status:
@@ -7683,8 +7797,14 @@ components:
         content:
           type: string
           description: |-
-            AIの応答
-            AI response
+            AIの応答(テキスト部分のみ。tool_useのみの応答の場合は空文字)
+            AI response (text portion only; an empty string for a tool_use-only response)
+        stop_reason:
+          type: string
+          description: |-
+            Bedrockが返した停止理由("end_turn"、会話作成時にtoolsを指定していて且つモデルがツール呼び出しを選択した場合は"tool_use"等)
+            The stop reason returned by Bedrock (e.g. "end_turn", or "tool_use" when tools were specified at conversation creation and the model chose to call one)
+          nullable: true
         saved:
           type: boolean
           description: |-

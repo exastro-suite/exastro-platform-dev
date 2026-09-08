@@ -30,9 +30,9 @@ class SystemPromptLoader:
     システムプロンプトローダー
 
     ファイル命名規則:
-    - {prompt_profile}_base.txt: 基本プロンプト
-    - {prompt_profile}_jp.txt: 日本語用プロンプト
-    - {prompt_profile}_en.txt: 英語用プロンプト
+    - {prompt_profile}_base.md: 基本プロンプト
+    - {prompt_profile}_jp.md: 日本語用プロンプト
+    - {prompt_profile}_en.md: 英語用プロンプト
     """
 
     def __init__(self, prompts_dir: Optional[str] = None):
@@ -78,7 +78,7 @@ class SystemPromptLoader:
 
         # 言語別プロンプトを優先的に読み込み
         if user_language:
-            lang_file = self.prompts_dir / f"{prompt_profile_lower}_{user_language}.txt"
+            lang_file = self.prompts_dir / f"{prompt_profile_lower}_{user_language}.md"
             if lang_file.exists():
                 globals.logger.debug(
                     f"Loading language-specific prompt: {lang_file}"
@@ -86,7 +86,7 @@ class SystemPromptLoader:
                 return self._read_file(lang_file)
 
         # 言語別プロンプトがない場合はベースプロンプトを使用
-        base_file = self.prompts_dir / f"{prompt_profile_lower}_base.txt"
+        base_file = self.prompts_dir / f"{prompt_profile_lower}_base.md"
         if base_file.exists():
             globals.logger.debug(f"Loading base prompt: {base_file}")
             return self._read_file(base_file)
@@ -137,7 +137,7 @@ class SystemPromptLoader:
 
         # 言語別プロンプトを優先的に読み込み
         if user_language:
-            lang_file = self.menu_prompts_dir / f"{menu_id_lower}_{user_language}.txt"
+            lang_file = self.menu_prompts_dir / f"{menu_id_lower}_{user_language}.md"
             if lang_file.exists():
                 globals.logger.debug(
                     f"Loading menu-specific prompt (language): {lang_file}"
@@ -145,7 +145,7 @@ class SystemPromptLoader:
                 return self._read_file(lang_file)
 
         # 言語別プロンプトがない場合はベースプロンプトを使用
-        base_file = self.menu_prompts_dir / f"{menu_id_lower}_base.txt"
+        base_file = self.menu_prompts_dir / f"{menu_id_lower}_base.md"
         if base_file.exists():
             globals.logger.debug(f"Loading menu-specific prompt (base): {base_file}")
             return self._read_file(base_file)
@@ -166,7 +166,7 @@ class SystemPromptLoader:
         """
         services = set()
         if self.prompts_dir.exists():
-            for file_path in self.prompts_dir.glob("*_base.txt"):
+            for file_path in self.prompts_dir.glob("*_base.md"):
                 prompt_profile = file_path.stem.replace("_base", "")
                 services.add(prompt_profile)
 
