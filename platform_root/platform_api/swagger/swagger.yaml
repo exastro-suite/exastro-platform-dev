@@ -2237,6 +2237,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/runtimeError"
+        "404":
+          description: |-
+            指定したai_service_idのactiveなCredentialが登録されていない
+            No active credential is registered for the specified ai_service_id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/runtimeError"
         "500":
           description: |-
             サーバーエラー
@@ -6947,6 +6955,7 @@ components:
             $ref: "#/components/schemas/inline_response_200_26_data"
     workspace_id_conversations_body:
       required:
+      - ai_service_id
       - model_id
       - title
       type: object
@@ -6963,6 +6972,15 @@ components:
             会話のデフォルトモデルID(completionsでmodel_idを省略した際にこの値が使用される)
             Default model ID for the conversation (used when model_id is omitted in completions)
           example: anthropic.claude-3-5-sonnet-20240620-v1:0
+        ai_service_id:
+          type: string
+          description: |-
+            使用するAIサービスID(自動推定はしない。指定したサービスのactiveなCredentialが登録済みである必要がある)
+            AI service ID to use (no auto-detection; an active credential for the specified service must already be registered)
+          example: bedrock-cache
+          enum:
+          - bedrock-cache
+          - bedrock
         prompt_profile:
           type: string
           description: |-
@@ -7704,8 +7722,8 @@ components:
         ai_service_id:
           type: string
           description: |-
-            AIサービスID（ユーザーのCredentialから自動取得）
-            AI service ID (automatically retrieved from the user's credential)
+            AIサービスID（リクエストで指定した値）
+            AI service ID (the value specified in the request)
         model_id:
           type: string
           description: |-

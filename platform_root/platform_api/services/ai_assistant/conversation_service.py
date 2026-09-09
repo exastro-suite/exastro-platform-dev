@@ -76,6 +76,7 @@ class ConversationService:
         user_id: str,
         title: str,
         model_id: str,
+        ai_service_id: str,
         prompt_profile: str = "LLMEditor",
         tools: Optional[List[Dict]] = None,
     ) -> str:
@@ -88,6 +89,7 @@ class ConversationService:
             user_id: User ID
             title: 会話タイトル
             model_id: 会話のデフォルトモデルID（completionsでmodel_id省略時に使用）
+            ai_service_id: 使用するAIサービスID（bedrock-cache/bedrock。指定したサービスのactiveなCredentialが必要）
             prompt_profile: プロンプトプロファイル（AgenticAI/LLMEditor - システムプロンプト切り替え用）
             tools: ツール定義（Anthropic tools形式の配列。省略時はツール未使用の会話になる）
 
@@ -95,24 +97,17 @@ class ConversationService:
             str: Conversation ID
 
         Raises:
-            CredentialNotFound: ユーザーがCredentialを登録していない
+            CredentialNotFound: 指定したai_service_idのactiveなCredentialが登録されていない
         """
-        # T_USER_CREDENTIALから最新のactiveなCredentialを取得してAI_SERVICE_IDを決定
-        with closing(DBconnector().connect_orgdb(organization_id)) as conn:
-            with closing(conn.cursor()) as cursor:
-                cursor.execute(
-                    queries_ai_assistant.SQL_SELECT_USER_ACTIVE_CREDENTIAL,
-                    {"user_id": user_id},
-                )
-                row = cursor.fetchone()
-
-                if not row:
-                    raise CredentialNotFound(
-                        f"No active credential found for user: {user_id}. "
-                        "Please register a credential first."
-                    )
-
-                ai_service_id = row["CREDENTIAL_TYPE"]
+        # 指定されたai_service_id（credential_type）にactiveなCredentialが登録されているか確認する
+        # (自動推定はせず、呼び出し側が明示したサービスのCredentialが必要)
+        # Verify that an active credential is registered for the specified ai_service_id (credential_type)
+        # (no auto-detection; the caller-specified service must have a matching credential)
+        get_ai_credential_service().get_active_credential(
+            organization_id=organization_id,
+            user_id=user_id,
+            credential_type=ai_service_id,
+        )
 
         conversation_id = ulid.new().str
 
