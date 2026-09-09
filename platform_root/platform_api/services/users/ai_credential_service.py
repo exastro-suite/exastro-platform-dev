@@ -19,11 +19,12 @@ AI Credential Service
 """
 
 import json
-from typing import Optional, List, Dict, Any
+from typing import Optional, Dict, Any
 from dataclasses import dataclass
 from contextlib import closing
 from datetime import datetime
 import ulid
+import pymysql
 
 from common_library.common.db import DBconnector
 from common_library.common import encrypt
@@ -46,6 +47,11 @@ class AiCredential:
 
 class CredentialNotFound(Exception):
     """Credentialが見つからない"""
+    pass
+
+
+class CredentialAlreadyExists(Exception):
+    """このcredential_typeには既にCredentialが登録済み(1credential_typeにつき1件のみ)"""
     pass
 
 
@@ -85,30 +91,29 @@ class AiCredentialService:
         credential_json = json.dumps(credential_data)
         encrypted_data = encrypt.encrypt_str(credential_json)
 
-        # expires_atを抽出（存在する場合）
-        expires_at = None
-        if "expires_at" in credential_data:
-            try:
-                expires_at = datetime.fromisoformat(
-                    credential_data["expires_at"].replace("Z", "+00:00")
-                )
-            except Exception as e:
-                globals.logger.warning(f"Failed to parse expires_at: {e}")
-
         with closing(DBconnector().connect_orgdb(organization_id)) as conn:
             with closing(conn.cursor()) as cursor:
-                cursor.execute(
-                    queries_ai_assistant.SQL_INSERT_USER_CREDENTIAL,
-                    {
-                        "credential_id": credential_id,
-                        "user_id": user_id,
-                        "credential_type": credential_type,
-                        "credential_name": credential_name,
-                        "encrypted_credential_data": encrypted_data,
-                        "expires_at": expires_at,
-                        "notes": notes,
-                    },
-                )
+                try:
+                    cursor.execute(
+                        queries_ai_assistant.SQL_INSERT_USER_CREDENTIAL,
+                        {
+                            "credential_id": credential_id,
+                            "user_id": user_id,
+                            "credential_type": credential_type,
+                            "credential_name": credential_name,
+                            "encrypted_credential_data": encrypted_data,
+                            # EXPIRES_ATは入力項目として受け付けない(常にNULL。カラム自体は残す)
+                            # EXPIRES_AT is not accepted as an input field (always NULL; the column itself is kept)
+                            "expires_at": None,
+                            "notes": notes,
+                        },
+                    )
+                except pymysql.err.IntegrityError:
+                    # UK_USER_TYPE(USER_ID, CREDENTIAL_TYPE)違反＝このcredential_typeは既に登録済み
+                    # UK_USER_TYPE(USER_ID, CREDENTIAL_TYPE) violation = a credential is already registered for this credential_type
+                    raise CredentialAlreadyExists(
+                        f"Credential already registered: service={credential_type}, user={user_id}"
+                    )
                 conn.commit()
 
         globals.logger.debug(
@@ -123,16 +128,14 @@ class AiCredentialService:
         organization_id: str,
         user_id: str,
         credential_type: str,
-        credential_id: Optional[str] = None,
     ) -> AiCredential:
         """
-        Credentialを取得
+        Credentialを取得（ステータスを問わない。1credential_typeにつき1件のみのため常に0〜1件）
 
         Args:
             organization_id: Organization ID (DB接続用、テーブルには保存しない)
             user_id: User ID
             credential_type: AIサービスID
-            credential_id: Credential ID（省略時は最新のactiveなものを取得）
 
         Returns:
             AiCredential
@@ -142,26 +145,13 @@ class AiCredentialService:
         """
         with closing(DBconnector().connect_orgdb(organization_id)) as conn:
             with closing(conn.cursor()) as cursor:
-                if credential_id:
-                    # 特定のCredentialを取得
-                    cursor.execute(
-                        queries_ai_assistant.SQL_SELECT_USER_CREDENTIAL_BY_ID,
-                        {
-                            "credential_id": credential_id,
-                            "user_id": user_id,
-                            "credential_type": credential_type,
-                        },
-                    )
-                else:
-                    # 最新のactiveなCredentialを取得
-                    cursor.execute(
-                        queries_ai_assistant.SQL_SELECT_USER_ACTIVE_CREDENTIAL_BY_SERVICE,
-                        {
-                            "user_id": user_id,
-                            "credential_type": credential_type,
-                        },
-                    )
-
+                cursor.execute(
+                    queries_ai_assistant.SQL_SELECT_USER_CREDENTIAL_BY_TYPE,
+                    {
+                        "user_id": user_id,
+                        "credential_type": credential_type,
+                    },
+                )
                 row = cursor.fetchone()
 
                 if not row:
@@ -170,69 +160,69 @@ class AiCredentialService:
                         f"user={user_id}"
                     )
 
-                # Credentialデータを復号化
-                encrypted_data = row["ENCRYPTED_CREDENTIAL_DATA"]
-                decrypted_json = encrypt.decrypt_str(encrypted_data)
-                credential_data = json.loads(decrypted_json)
+                return self._row_to_credential(row)
 
-                return AiCredential(
-                    credential_id=row["CREDENTIAL_ID"],
-                    credential_type=row["CREDENTIAL_TYPE"],
-                    credential_name=row["CREDENTIAL_NAME"],
-                    credential_data=credential_data,
-                    status=row["STATUS"],
-                    expires_at=row["EXPIRES_AT"],
-                    last_used_at=row["LAST_USED_AT"],
-                )
-
-    def list_credentials(
+    def get_active_credential(
         self,
         organization_id: str,
         user_id: str,
         credential_type: str,
-        status: Optional[str] = None,
-    ) -> List[Dict]:
+    ) -> AiCredential:
         """
-        Credential一覧を取得
+        activeなCredentialを取得（Bedrock呼び出し等の内部用途。disabled/expiredな場合は見つからない扱い）
 
         Args:
             organization_id: Organization ID (DB接続用、テーブルには保存しない)
             user_id: User ID
             credential_type: AIサービスID
-            status: ステータスフィルター
 
         Returns:
-            Credential一覧（Credentialデータは含まない）
+            AiCredential
+
+        Raises:
+            CredentialNotFound: activeなCredentialが見つからない
         """
         with closing(DBconnector().connect_orgdb(organization_id)) as conn:
             with closing(conn.cursor()) as cursor:
-                if status:
-                    cursor.execute(
-                        queries_ai_assistant.SQL_LIST_USER_CREDENTIALS_WITH_STATUS,
-                        {
-                            "user_id": user_id,
-                            "credential_type": credential_type,
-                            "status": status,
-                        },
-                    )
-                else:
-                    cursor.execute(
-                        queries_ai_assistant.SQL_LIST_USER_CREDENTIALS,
-                        {
-                            "user_id": user_id,
-                            "credential_type": credential_type,
-                        },
+                cursor.execute(
+                    queries_ai_assistant.SQL_SELECT_USER_ACTIVE_CREDENTIAL_BY_SERVICE,
+                    {
+                        "user_id": user_id,
+                        "credential_type": credential_type,
+                    },
+                )
+                row = cursor.fetchone()
+
+                if not row:
+                    raise CredentialNotFound(
+                        f"Active credential not found: service={credential_type}, "
+                        f"user={user_id}"
                     )
 
-                rows = cursor.fetchall()
-                return rows
+                return self._row_to_credential(row)
+
+    @staticmethod
+    def _row_to_credential(row: Dict) -> AiCredential:
+        # Credentialデータを復号化
+        encrypted_data = row["ENCRYPTED_CREDENTIAL_DATA"]
+        decrypted_json = encrypt.decrypt_str(encrypted_data)
+        credential_data = json.loads(decrypted_json)
+
+        return AiCredential(
+            credential_id=row["CREDENTIAL_ID"],
+            credential_type=row["CREDENTIAL_TYPE"],
+            credential_name=row["CREDENTIAL_NAME"],
+            credential_data=credential_data,
+            status=row["STATUS"],
+            expires_at=row["EXPIRES_AT"],
+            last_used_at=row["LAST_USED_AT"],
+        )
 
     def delete_credential(
         self,
         organization_id: str,
         user_id: str,
         credential_type: str,
-        credential_id: str,
     ) -> bool:
         """
         Credentialを削除
@@ -241,7 +231,6 @@ class AiCredentialService:
             organization_id: Organization ID (DB接続用、テーブルには保存しない)
             user_id: User ID
             credential_type: AIサービスID
-            credential_id: Credential ID
 
         Returns:
             削除成功したかどうか
@@ -251,8 +240,8 @@ class AiCredentialService:
                 cursor.execute(
                     queries_ai_assistant.SQL_DELETE_USER_CREDENTIAL,
                     {
-                        "credential_id": credential_id,
                         "user_id": user_id,
+                        "credential_type": credential_type,
                     },
                 )
                 deleted = cursor.rowcount > 0
@@ -260,8 +249,7 @@ class AiCredentialService:
 
         if deleted:
             globals.logger.debug(
-                f"AI Credential deleted: id={credential_id}, "
-                f"service={credential_type}, user={user_id}"
+                f"AI Credential deleted: service={credential_type}, user={user_id}"
             )
 
         return deleted
@@ -271,19 +259,17 @@ class AiCredentialService:
         organization_id: str,
         user_id: str,
         credential_type: str,
-        credential_id: str,
         credential_name: Optional[str] = None,
         credential_data: Optional[Dict] = None,
         notes: Optional[str] = None,
     ) -> bool:
         """
-        Credentialを更新（全体更新）
+        Credentialを更新（全体更新。1credential_typeにつき1件のみのためcredential_idは不要）
 
         Args:
             organization_id: Organization ID (DB接続用、テーブルには保存しない)
             user_id: User ID
             credential_type: Credentialタイプ
-            credential_id: Credential ID
             credential_name: Credential名（必須）
             credential_data: Credentialデータ（必須）
             notes: 備考（任意）
@@ -318,13 +304,12 @@ class AiCredentialService:
                 params.append(user_id)
 
                 # WHERE句のパラメータ
-                params.extend([credential_id, user_id, credential_type])
+                params.extend([user_id, credential_type])
 
                 query = f"""
                     UPDATE T_USER_CREDENTIAL
                     SET {', '.join(update_fields)}
-                    WHERE CREDENTIAL_ID = %s
-                      AND USER_ID = %s
+                    WHERE USER_ID = %s
                       AND CREDENTIAL_TYPE = %s
                 """
 
@@ -334,8 +319,7 @@ class AiCredentialService:
 
         if updated:
             globals.logger.debug(
-                f"Credential updated: id={credential_id}, "
-                f"type={credential_type}, user={user_id}, "
+                f"Credential updated: type={credential_type}, user={user_id}, "
                 f"fields={[k.split('=')[0].strip() for k in update_fields if '=' in k]}"
             )
 

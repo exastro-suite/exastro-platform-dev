@@ -278,8 +278,10 @@ def create_bedrock_session_from_credential_data(
     DBから取得したCredentialデータからBedrockセッションを作成
 
     Args:
-        credential_data: T_USER_AWS_CREDENTIALから取得したトークン情報
-                        （ENCRYPTED_CREDENTIAL_DATAを復号化したもの）
+        credential_data: AWS Login Cacheのキャッシュファイル内容そのもの（idToken等をトップレベルに持つ辞書）。
+                        T_USER_CREDENTIAL.credential_dataは{"apiKey": "<この内容をJSON文字列化したもの>"}の形で
+                        保存されているため、呼び出し側でjson.loads(credential.credential_data["apiKey"])して
+                        展開した後の辞書をここへ渡すこと。
         region: リージョン
 
     Returns:
@@ -291,7 +293,8 @@ def create_bedrock_session_from_credential_data(
     Note:
         トークンが自動更新された場合、メモリ内（aws_session.token）に保存されます。
         呼び出し側で aws_session.get_current_token() を使って最新トークンを取得し、
-        update_last_used(credential_data=latest_token) でDBに保存してください。
+        update_last_used(credential_data={"apiKey": json.dumps(latest_token)}) でDBに保存してください
+        （credential_dataはapiKeyへネストした形で保存する規約のため）。
     """
     if "idToken" not in credential_data:
         raise ValueError(

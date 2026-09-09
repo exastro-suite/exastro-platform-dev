@@ -18,6 +18,7 @@ Model Service
 AIサービスの使用可能なモデル一覧を取得
 """
 
+import json
 import os
 from typing import List, Dict
 import boto3
@@ -141,7 +142,7 @@ class ModelService:
         """
         try:
             credential_service = get_ai_credential_service()
-            credential = credential_service.get_credential(
+            credential = credential_service.get_active_credential(
                 organization_id=organization_id,
                 user_id=user_id,
                 credential_type=credential_type,
@@ -152,15 +153,16 @@ class ModelService:
 
             # Bedrock clientを作成
             if credential_type == "bedrock-cache":
-                # AWS Login Cache使用（DBから取得したCredentialデータ）
-                globals.logger.debug(
-                    f"credential_data keys: {list(credential.credential_data.keys())}"
-                )
+                # AWS Login Cache使用（credential_data.apiKeyにキャッシュファイル全体のJSON文字列が入っている）
+                # Use AWS Login Cache (credential_data.apiKey holds the entire cache-file content as a JSON string)
+                try:
+                    cache_data = json.loads(credential.credential_data.get("apiKey") or "")
+                except (TypeError, ValueError):
+                    cache_data = None
 
-                # credential_dataの内容を確認
-                if "idToken" not in credential.credential_data:
+                if not isinstance(cache_data, dict) or "idToken" not in cache_data:
                     globals.logger.error(
-                        f"credential_data does not contain idToken. "
+                        f"credential_data.apiKey does not contain a valid cache JSON with idToken. "
                         f"Keys found: {list(credential.credential_data.keys())}"
                     )
                     raise ValueError(
@@ -168,10 +170,9 @@ class ModelService:
                         "Please re-register with the full cache file content."
                     )
 
-                credential_data = credential.credential_data
-                region = credential_data.get("region", "ap-northeast-1")
+                region = cache_data.get("region", "ap-northeast-1")
                 aws_session = create_bedrock_session_from_credential_data(
-                    credential_data=credential_data,
+                    credential_data=cache_data,
                     region=region,
                 )
                 bedrock_client = aws_session._session.client("bedrock")
@@ -184,9 +185,9 @@ class ModelService:
 
                 credential_data = credential.credential_data
                 session = boto3.Session(
-                    aws_access_key_id=credential_data.get("access_key_id"),
-                    aws_secret_access_key=credential_data.get("secret_access_key"),
-                    aws_session_token=credential_data.get("session_token"),
+                    aws_access_key_id=credential_data.get("accessKeyId"),
+                    aws_secret_access_key=credential_data.get("secretAccessKey"),
+                    aws_session_token=credential_data.get("sessionToken"),
                     region_name=credential_data.get("region", "ap-northeast-1"),
                 )
                 bedrock_client = session.client(
@@ -248,10 +249,11 @@ class ModelService:
                 latest_token = aws_session.get_current_token()
                 if latest_token:
                     # トークンが更新された場合、Credentialデータも一緒に保存
+                    # credential_dataは{"apiKey": "<キャッシュファイルJSON文字列>"}の形で保存するので、更新後のトークンも同じ形にラップする
                     credential_service.update_last_used(
                         organization_id=organization_id,
                         credential_id=credential.credential_id,
-                        credential_data=latest_token
+                        credential_data={"apiKey": json.dumps(latest_token)}
                     )
                 else:
                     # トークンは更新されていないが、LAST_USED_ATは更新

@@ -172,10 +172,8 @@ paths:
 
   "/api/{organization_id}/platform/users/_current/{credential_type}/credentials":
       $ref: './paths/users._current.credential_type.credentials.yaml'
-  "/api/{organization_id}/platform/users/_current/{credential_type}/credentials/{credential_id}":
-      $ref: './paths/users._current.credential_type.credentials.credential_id.yaml'
-  "/api/{organization_id}/platform/users/_current/{credential_type}/credentials/{credential_id}/verify":
-      $ref: './paths/users._current.credential_type.credentials.credential_id.verify.yaml'
+  "/api/{organization_id}/platform/users/_current/{credential_type}/credentials/verify":
+      $ref: './paths/users._current.credential_type.credentials.verify.yaml'
   "/api/{organization_id}/platform/users/_current/{credential_type}/models":
       $ref: './paths/users._current.credential_type.models.yaml'
   "/api/{organization_id}/platform/users/_current/ai-preference":
