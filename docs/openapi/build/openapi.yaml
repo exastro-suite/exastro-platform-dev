@@ -2325,6 +2325,7 @@ paths:
               required:
                 - title
                 - model_id
+                - ai_service_id
               properties:
                 title:
                   type: string
@@ -2338,6 +2339,15 @@ paths:
                     会話のデフォルトモデルID(completionsでmodel_idを省略した際にこの値が使用される)
                     Default model ID for the conversation (used when model_id is omitted in completions)
                   example: 'anthropic.claude-3-5-sonnet-20240620-v1:0'
+                ai_service_id:
+                  type: string
+                  description: |-
+                    使用するAIサービスID(自動推定はしない。指定したサービスのactiveなCredentialが登録済みである必要がある)
+                    AI service ID to use (no auto-detection; an active credential for the specified service must already be registered)
+                  enum:
+                    - bedrock-cache
+                    - bedrock
+                  example: bedrock-cache
                 prompt_profile:
                   type: string
                   description: |-
@@ -2392,8 +2402,8 @@ paths:
                           ai_service_id:
                             type: string
                             description: |-
-                              AIサービスID（ユーザーのCredentialから自動取得）
-                              AI service ID (automatically retrieved from the user's credential)
+                              AIサービスID（リクエストで指定した値）
+                              AI service ID (the value specified in the request)
                           model_id:
                             type: string
                             description: |-
@@ -2422,6 +2432,14 @@ paths:
           description: |-
             AIアシスタント機能が有効になっていない
             The AI assistant feature is not enabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/runtimeError'
+        '404':
+          description: |-
+            指定したai_service_idのactiveなCredentialが登録されていない
+            No active credential is registered for the specified ai_service_id
           content:
             application/json:
               schema:

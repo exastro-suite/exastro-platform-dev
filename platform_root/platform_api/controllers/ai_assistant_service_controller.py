@@ -30,6 +30,7 @@ from services.ai_assistant.conversation_service import (
     ConversationNotFound,
 )
 from services.ai_assistant.message_service import get_message_service
+from services.users.ai_credential_service import CredentialNotFound
 
 import globals
 
@@ -134,6 +135,7 @@ def create_conversation(body, organization_id, workspace_id):
     body = r.get_json()
     title = body.get("title")
     model_id = body.get("model_id")
+    ai_service_id = body.get("ai_service_id")
     prompt_profile = body.get("prompt_profile", "LLMEditor")
     tools = body.get("tools")  # ツール定義（Anthropic tools形式の配列、任意）
 
@@ -156,6 +158,16 @@ def create_conversation(body, organization_id, workspace_id):
         )
         raise common.BadRequestException(message_id=message_id, message=message)
 
+    # どのAIサービスを使うかを明確化するため必須とする（自動推定はしない）
+    # Required to make explicit which AI service is used (no auto-detection)
+    if not ai_service_id:
+        message_id = "400-94114"
+        message = multi_lang.get_text(
+            message_id,
+            "ai_service_idは必須です"
+        )
+        raise common.BadRequestException(message_id=message_id, message=message)
+
     if tools is not None and not isinstance(tools, list):
         message_id = "400-94113"
         message = multi_lang.get_text(
@@ -173,6 +185,7 @@ def create_conversation(body, organization_id, workspace_id):
             user_id=user_id,
             title=title,
             model_id=model_id,
+            ai_service_id=ai_service_id,
             prompt_profile=prompt_profile,
             tools=tools,
         )
@@ -207,6 +220,17 @@ def create_conversation(body, organization_id, workspace_id):
                 "status": conversation["STATUS"],
             }
         )
+
+    except CredentialNotFound:
+        # 指定したai_service_idのactiveなCredentialが未登録
+        # No active credential registered for the specified ai_service_id
+        message_id = "404-94115"
+        message = multi_lang.get_text(
+            message_id,
+            "指定したai_service_idのCredentialが登録されていません: {}",
+            ai_service_id
+        )
+        raise common.NotFoundException(message_id=message_id, message=message)
 
     except Exception as e:
         globals.logger.error(f"Failed to create conversation: {e}", exc_info=True)
