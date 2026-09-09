@@ -793,9 +793,13 @@ paths:
     get:
       tags:
       - UsersService
-      summary: Credential一覧を取得
-      description: ユーザーのCredential一覧を取得する
-      operationId: list_credentials
+      summary: Credentialを取得
+      description: |
+        このcredential_typeに登録されているCredentialを取得する(1credential_typeにつき1件のみ)。
+        credential_dataのうち、GET /ai-servicesのsettingsでtype: password以外と定義されている項目のみ
+        値を返す(passwordタイプの項目は値を返さずマスクする)。未登録の場合も404にはせず、
+        credential_id等がnullの状態で200を返す。
+      operationId: get_credential
       parameters:
       - name: organization_id
         in: path
@@ -814,18 +818,6 @@ paths:
           enum:
           - bedrock-cache
           - bedrock
-      - name: status
-        in: query
-        description: ステータスフィルター
-        required: false
-        style: form
-        explode: true
-        schema:
-          type: string
-          enum:
-          - active
-          - expired
-          - disabled
       responses:
         "200":
           description: 成功
@@ -833,6 +825,82 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/inline_response_200_14"
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/runtimeError"
+      x-openapi-router-controller: controllers.users_service_controller
+    put:
+      tags:
+      - UsersService
+      summary: Credentialを更新
+      description: このcredential_typeに登録済みのCredentialを全体更新する(部分更新ではない)。
+      operationId: update_credential
+      parameters:
+      - name: organization_id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      - name: credential_type
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+          enum:
+          - bedrock-cache
+          - bedrock
+          - openai
+          - anthropic
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/credential_type_credentials_body"
+            examples:
+              update_cache:
+                summary: キャッシュファイルを更新(bedrock-cache)
+                value:
+                  credential_name: AWS Login Cache
+                  credential_data:
+                    apiKey: "{\"idToken\":\"...\",\"accessToken\":\"...\",\"refreshToken\"\
+                      :\"...\",\"region\":\"ap-northeast-1\"}"
+              update_manual:
+                summary: アクセスキーを更新(bedrock)
+                value:
+                  credential_name: My Bedrock Credential
+                  credential_data:
+                    accessKeyId: ASIA...
+                    secretAccessKey: '...'
+                    sessionToken: '...'
+        required: true
+      responses:
+        "200":
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_200_15"
+        "400":
+          description: バリデーションエラー
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/runtimeError"
+        "404":
+          description: |
+            このcredential_typeでCredentialが未登録(更新対象なし。先にPOSTで登録する)
+            No credential is registered for this credential_type (nothing to update; register one with POST first)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/runtimeError"
         default:
           description: An unexpected error response.
           content:
@@ -858,7 +926,7 @@ paths:
         in: path
         description: |
           Credentialタイプ
-          - bedrock-cache: AWS Login Cache (自動トークン更新、credential_data: {"enabled": true})
+          - bedrock-cache: AWS Login Cache (自動トークン更新、credential_data: {"apiKey": "<キャッシュファイル全体のJSON文字列>"})
           - bedrock: AWS Bedrock (手動Credential登録)
           - openai: OpenAI API
           - anthropic: Anthropic API
@@ -876,7 +944,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/credential_type_credentials_body"
+              $ref: "#/components/schemas/credential_type_credentials_body_1"
         required: true
       responses:
         "200":
@@ -891,141 +959,16 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/runtimeError"
+        "409":
+          description: |
+            既にこのcredential_typeでCredentialが登録済み(1credential_typeにつき1件のみ登録可能。更新はPUTを使用する)
+            A credential is already registered for this credential_type (only one credential is allowed per credential_type; use PUT to update it)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/runtimeError"
         "500":
           description: サーバーエラー
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/runtimeError"
-      x-openapi-router-controller: controllers.users_service_controller
-  /api/{organization_id}/platform/users/_current/{credential_type}/credentials/{credential_id}:
-    get:
-      tags:
-      - UsersService
-      summary: Credential詳細を取得
-      description: 特定のCredential詳細を取得する(Credentialデータはマスクされる)
-      operationId: get_credential
-      parameters:
-      - name: organization_id
-        in: path
-        required: true
-        style: simple
-        explode: false
-        schema:
-          type: string
-      - name: credential_type
-        in: path
-        required: true
-        style: simple
-        explode: false
-        schema:
-          type: string
-          enum:
-          - bedrock-cache
-          - bedrock
-      - name: credential_id
-        in: path
-        required: true
-        style: simple
-        explode: false
-        schema:
-          type: string
-      responses:
-        "200":
-          description: 成功
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/inline_response_200_16"
-        "404":
-          description: Credentialが見つからない
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/runtimeError"
-        default:
-          description: An unexpected error response.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/runtimeError"
-      x-openapi-router-controller: controllers.users_service_controller
-    put:
-      tags:
-      - UsersService
-      summary: Credentialを更新
-      description: 既存のCredentialを全体更新する
-      operationId: update_credential
-      parameters:
-      - name: organization_id
-        in: path
-        required: true
-        style: simple
-        explode: false
-        schema:
-          type: string
-      - name: credential_type
-        in: path
-        required: true
-        style: simple
-        explode: false
-        schema:
-          type: string
-          enum:
-          - bedrock-cache
-          - bedrock
-          - openai
-          - anthropic
-      - name: credential_id
-        in: path
-        required: true
-        style: simple
-        explode: false
-        schema:
-          type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/credentials_credential_id_body"
-            examples:
-              update_cache:
-                summary: キャッシュファイルを更新
-                value:
-                  credential_data:
-                    accessToken:
-                      accessKeyId: ASIA...
-                      secretAccessKey: '...'
-                      sessionToken: '...'
-                      expiresAt: 2026-08-19T12:00:00Z
-                    refreshToken: '...'
-                    idToken: '...'
-              update_name:
-                summary: Credential名だけ更新
-                value:
-                  credential_name: 新しい名前
-        required: true
-      responses:
-        "200":
-          description: 更新成功
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/inline_response_200_15"
-        "400":
-          description: バリデーションエラー
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/runtimeError"
-        "404":
-          description: Credentialが見つからない
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/runtimeError"
-        default:
-          description: An unexpected error response.
           content:
             application/json:
               schema:
@@ -1035,7 +978,7 @@ paths:
       tags:
       - UsersService
       summary: Credentialを削除
-      description: Credentialを削除する
+      description: このcredential_typeに登録されているCredentialを削除する。
       operationId: delete_credential
       parameters:
       - name: organization_id
@@ -1055,22 +998,15 @@ paths:
           enum:
           - bedrock-cache
           - bedrock
-      - name: credential_id
-        in: path
-        required: true
-        style: simple
-        explode: false
-        schema:
-          type: string
       responses:
         "200":
           description: 削除成功
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_17"
+                $ref: "#/components/schemas/inline_response_200_16"
         "404":
-          description: Credentialが見つからない
+          description: このcredential_typeでCredentialが未登録
           content:
             application/json:
               schema:
@@ -1082,12 +1018,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/runtimeError"
       x-openapi-router-controller: controllers.users_service_controller
-  /api/{organization_id}/platform/users/_current/{credential_type}/credentials/{credential_id}/verify:
+  /api/{organization_id}/platform/users/_current/{credential_type}/credentials/verify:
     post:
       tags:
       - UsersService
       summary: Credentialを検証
-      description: Credentialが有効かどうかを検証する
+      description: このcredential_typeに登録されているCredentialが有効かどうかを検証する
       operationId: verify_credential
       parameters:
       - name: organization_id
@@ -1109,20 +1045,13 @@ paths:
           - bedrock
           - openai
           - anthropic
-      - name: credential_id
-        in: path
-        required: true
-        style: simple
-        explode: false
-        schema:
-          type: string
       responses:
         "200":
           description: 検証結果
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_18"
+                $ref: "#/components/schemas/inline_response_200_17"
         "404":
           description: Credentialが見つからない
           content:
@@ -1168,7 +1097,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_19"
+                $ref: "#/components/schemas/inline_response_200_18"
         "400":
           description: バリデーションエラー
           content:
@@ -1223,7 +1152,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_20"
+                $ref: "#/components/schemas/inline_response_200_19"
         "403":
           description: |-
             AIアシスタント機能が有効になっていない
@@ -1273,7 +1202,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_20"
+                $ref: "#/components/schemas/inline_response_200_19"
         "400":
           description: |-
             バリデーションエラー
@@ -1326,7 +1255,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_21"
+                $ref: "#/components/schemas/inline_response_200_20"
         "403":
           description: |-
             AIアシスタント機能が有効になっていない
@@ -1364,7 +1293,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_22"
+                $ref: "#/components/schemas/inline_response_200_21"
         default:
           description: An unexpected error response.
           content:
@@ -1432,7 +1361,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_23"
+                $ref: "#/components/schemas/inline_response_200_22"
         default:
           description: An unexpected error response.
           content:
@@ -1541,7 +1470,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_24"
+                $ref: "#/components/schemas/inline_response_200_23"
         default:
           description: An unexpected error response.
           content:
@@ -1600,7 +1529,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_25"
+                $ref: "#/components/schemas/inline_response_200_24"
               examples:
                 mail settings:
                   $ref: "#/components/examples/settingsDestinationSubDestinationInformationsExampleMail"
@@ -1788,7 +1717,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_26"
+                $ref: "#/components/schemas/inline_response_200_25"
               examples:
                 mail settings:
                   $ref: "#/components/examples/settingsDestinationOneGetExampleMail"
@@ -2092,7 +2021,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_22"
+                $ref: "#/components/schemas/inline_response_200_21"
         default:
           description: An unexpected error response.
           content:
@@ -2236,7 +2165,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_27"
+                $ref: "#/components/schemas/inline_response_200_26"
         "403":
           description: |-
             AIアシスタント機能が有効になっていない
@@ -2291,7 +2220,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_28"
+                $ref: "#/components/schemas/inline_response_200_27"
         "400":
           description: |-
             バリデーションエラー
@@ -2364,7 +2293,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_29"
+                $ref: "#/components/schemas/inline_response_200_28"
         "400":
           description: |-
             バリデーションエラー
@@ -2470,7 +2399,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_30"
+                $ref: "#/components/schemas/inline_response_200_29"
         "403":
           description: |-
             AIアシスタント機能が有効になっていない
@@ -2540,7 +2469,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_30"
+                $ref: "#/components/schemas/inline_response_200_29"
         "400":
           description: |-
             バリデーションエラー
@@ -2620,7 +2549,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_31"
+                $ref: "#/components/schemas/inline_response_200_30"
         "400":
           description: |-
             バリデーションエラー
@@ -2694,7 +2623,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_32"
+                $ref: "#/components/schemas/inline_response_200_31"
         "403":
           description: |-
             AIアシスタント機能が有効になっていない
@@ -2769,7 +2698,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_33"
+                $ref: "#/components/schemas/inline_response_200_32"
         default:
           description: An unexpected error response.
           content:
@@ -2838,7 +2767,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_34"
+                $ref: "#/components/schemas/inline_response_200_33"
         default:
           description: An unexpected error response.
           content:
@@ -2954,7 +2883,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_35"
+                $ref: "#/components/schemas/inline_response_200_34"
         default:
           description: An unexpected error response.
           content:
@@ -3133,7 +3062,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_36"
+                $ref: "#/components/schemas/inline_response_200_35"
         default:
           description: An unexpected error response.
           content:
@@ -3345,7 +3274,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_37"
+                $ref: "#/components/schemas/inline_response_200_36"
         default:
           description: An unexpected error response.
           content:
@@ -3380,7 +3309,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_38"
+                $ref: "#/components/schemas/inline_response_200_37"
         default:
           description: An unexpected error response.
           content:
@@ -3457,7 +3386,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_39"
+                $ref: "#/components/schemas/inline_response_200_38"
         default:
           description: An unexpected error response.
           content:
@@ -3485,7 +3414,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_40"
+                $ref: "#/components/schemas/inline_response_200_39"
         default:
           description: An unexpected error response.
           content:
@@ -3520,7 +3449,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_41"
+                $ref: "#/components/schemas/inline_response_200_40"
         default:
           description: An unexpected error response.
           content:
@@ -3584,7 +3513,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_42"
+                $ref: "#/components/schemas/inline_response_200_41"
         default:
           description: An unexpected error response.
           content:
@@ -3637,7 +3566,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_42"
+                $ref: "#/components/schemas/inline_response_200_41"
         default:
           description: An unexpected error response.
           content:
@@ -3665,7 +3594,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_43"
+                $ref: "#/components/schemas/inline_response_200_42"
               example:
                 value:
                   result: 200
@@ -3794,7 +3723,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_44"
+                $ref: "#/components/schemas/inline_response_200_43"
         default:
           description: An unexpected error response.
           content:
@@ -3827,7 +3756,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_45"
+                $ref: "#/components/schemas/inline_response_200_44"
         default:
           description: An unexpected error response.
           content:
@@ -3905,7 +3834,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_46"
+                $ref: "#/components/schemas/inline_response_200_45"
         default:
           description: An unexpected error response.
           content:
@@ -3988,7 +3917,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_47"
+                $ref: "#/components/schemas/inline_response_200_46"
         default:
           description: An unexpected error response.
           content:
@@ -4121,7 +4050,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_48"
+                $ref: "#/components/schemas/inline_response_200_47"
         default:
           description: An unexpected error response.
           content:
@@ -4169,7 +4098,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_49"
+                $ref: "#/components/schemas/inline_response_200_48"
         default:
           description: An unexpected error response.
           content:
@@ -4462,7 +4391,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_50"
+                $ref: "#/components/schemas/inline_response_200_49"
         default:
           description: An unexpected error response.
           content:
@@ -4517,7 +4446,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_51"
+                $ref: "#/components/schemas/inline_response_200_50"
         default:
           description: An unexpected error response.
           content:
@@ -4635,7 +4564,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_52"
+                $ref: "#/components/schemas/inline_response_200_51"
         default:
           description: An unexpected error response.
           content:
@@ -4691,7 +4620,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_33"
+                $ref: "#/components/schemas/inline_response_200_32"
         default:
           description: An unexpected error response.
           content:
@@ -4747,7 +4676,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_53"
+                $ref: "#/components/schemas/inline_response_200_52"
         default:
           description: An unexpected error response.
           content:
@@ -4768,7 +4697,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_42"
+                $ref: "#/components/schemas/inline_response_200_41"
         default:
           description: An unexpected error response.
           content:
@@ -4825,7 +4754,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_25"
+                $ref: "#/components/schemas/inline_response_200_24"
               examples:
                 mail settings:
                   $ref: "#/components/examples/settingsDestinationSubDestinationInformationsExampleMail"
@@ -4876,7 +4805,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_26"
+                $ref: "#/components/schemas/inline_response_200_25"
               examples:
                 mail settings:
                   $ref: "#/components/examples/settingsDestinationOneGetExampleMail"
@@ -5002,7 +4931,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_22"
+                $ref: "#/components/schemas/inline_response_200_21"
         default:
           description: An unexpected error response.
           content:
@@ -5130,7 +5059,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_46"
+                $ref: "#/components/schemas/inline_response_200_45"
         default:
           description: An unexpected error response.
           content:
@@ -5213,7 +5142,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_48"
+                $ref: "#/components/schemas/inline_response_200_47"
         default:
           description: An unexpected error response.
           content:
@@ -5261,7 +5190,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_49"
+                $ref: "#/components/schemas/inline_response_200_48"
         default:
           description: An unexpected error response.
           content:
@@ -6703,6 +6632,18 @@ components:
             AIサービスの説明(認証方式の違いなど)
             Description of the AI service (e.g. differences in authentication method)
           example: AWS Login Cacheを使用し、トークンを自動更新する認証方式
+        settings:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/aiServiceInfo_settings"
+          description: |-
+            Credential登録フォームの入力項目定義。キー名がそのままcredential_dataに保存されるキー名になる
+            Definition of the credential registration form's input fields. The key names are used verbatim as the credential_data key names
+          example:
+            apiKey:
+              title: 認証情報（Login Cache）
+              type: password
+              required: true
     inline_response_200:
       allOf:
       - $ref: "#/components/schemas/responseOk"
@@ -6856,28 +6797,12 @@ components:
         credential_name:
           type: string
           description: Credential名
-          example: My Bedrock Credential
         credential_data:
           type: object
-          description: |
-            Credentialデータ(JSON形式、サービスごとに異なる)
-
-            bedrock-cache の例:
-              {"enabled": true}
-
-            bedrock の例:
-              {
-                "access_key_id": "ASIA...",
-                "secret_access_key": "...",
-                "session_token": "...",
-                "region": "ap-northeast-1",
-                "expires_at": "2026-08-17T15:00:00Z"
-              }
-          example:
-            enabled: true
+          description: Credentialデータ(キー名はGET /ai-servicesのsettingsで定義される)
         notes:
           type: string
-          description: 備考
+          description: 備考(任意)
     inline_response_200_15:
       allOf:
       - $ref: "#/components/schemas/responseOk"
@@ -6885,14 +6810,7 @@ components:
         properties:
           data:
             $ref: "#/components/schemas/inline_response_200_15_data"
-    inline_response_200_16:
-      allOf:
-      - $ref: "#/components/schemas/responseOk"
-      - type: object
-        properties:
-          data:
-            $ref: "#/components/schemas/inline_response_200_16_data"
-    credentials_credential_id_body:
+    credential_type_credentials_body_1:
       required:
       - credential_data
       - credential_name
@@ -6901,12 +6819,37 @@ components:
         credential_name:
           type: string
           description: Credential名
+          example: My Bedrock Credential
         credential_data:
           type: object
-          description: Credentialデータ
+          description: |
+            Credentialデータ(JSON形式、サービスごとに異なる。キー名はGET /ai-servicesのsettingsで定義される)
+
+            bedrock-cache の例(apiKeyの値は ~/.aws/login/cache/*.json の内容全体をJSON文字列化したもの):
+              {"apiKey": "{\"idToken\":\"...\",\"accessToken\":\"...\",\"refreshToken\":\"...\",\"region\":\"ap-northeast-1\"}"}
+
+            bedrock の例:
+              {
+                "accessKeyId": "ASIA...",
+                "secretAccessKey": "...",
+                "sessionToken": "...",
+                "region": "ap-northeast-1"
+              }
+          example:
+            accessKeyId: ASIA...
+            secretAccessKey: '...'
+            sessionToken: '...'
+            region: ap-northeast-1
         notes:
           type: string
-          description: 備考(任意)
+          description: 備考
+    inline_response_200_16:
+      allOf:
+      - $ref: "#/components/schemas/responseOk"
+      - type: object
+        properties:
+          data:
+            $ref: "#/components/schemas/inline_response_200_16_data"
     inline_response_200_17:
       allOf:
       - $ref: "#/components/schemas/responseOk"
@@ -6922,13 +6865,6 @@ components:
           data:
             $ref: "#/components/schemas/inline_response_200_18_data"
     inline_response_200_19:
-      allOf:
-      - $ref: "#/components/schemas/responseOk"
-      - type: object
-        properties:
-          data:
-            $ref: "#/components/schemas/inline_response_200_19_data"
-    inline_response_200_20:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - type: object
@@ -6968,18 +6904,18 @@ components:
           - global.anthropic.claude-sonnet-5
           items:
             type: string
-    inline_response_200_21:
+    inline_response_200_20:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - type: object
         properties:
           data:
-            $ref: "#/components/schemas/inline_response_200_21_data"
-    inline_response_200_22:
+            $ref: "#/components/schemas/inline_response_200_20_data"
+    inline_response_200_21:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - $ref: "#/components/schemas/workspaceList"
-    inline_response_200_23:
+    inline_response_200_22:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - title: workspaceDetail is Workspace resources.
@@ -6989,26 +6925,26 @@ components:
             allOf:
             - $ref: "#/components/schemas/workspace"
             - $ref: "#/components/schemas/responseStat"
-    inline_response_200_24:
+    inline_response_200_23:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - $ref: "#/components/schemas/memberList"
-    inline_response_200_25:
+    inline_response_200_24:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - $ref: "#/components/schemas/settingsDestinationList"
-    inline_response_200_26:
+    inline_response_200_25:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - $ref: "#/components/schemas/settingsDestinationOne"
       - $ref: "#/components/schemas/responseStat"
-    inline_response_200_27:
+    inline_response_200_26:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - type: object
         properties:
           data:
-            $ref: "#/components/schemas/inline_response_200_27_data"
+            $ref: "#/components/schemas/inline_response_200_26_data"
     workspace_id_conversations_body:
       required:
       - model_id
@@ -7056,13 +6992,13 @@ components:
               - location
           items:
             type: object
-    inline_response_200_28:
+    inline_response_200_27:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - type: object
         properties:
           data:
-            $ref: "#/components/schemas/inline_response_200_28_data"
+            $ref: "#/components/schemas/inline_response_200_27_data"
     conversation_id_completions_body:
       type: object
       properties:
@@ -7095,6 +7031,13 @@ components:
             ITA画面ID(指定時はメニュー固有のシステムプロンプトを追加)
             ITA screen ID (when specified, a menu-specific system prompt is appended)
           example: menu_001
+    inline_response_200_28:
+      allOf:
+      - $ref: "#/components/schemas/responseOk"
+      - type: object
+        properties:
+          data:
+            $ref: "#/components/schemas/inline_response_200_28_data"
     inline_response_200_29:
       allOf:
       - $ref: "#/components/schemas/responseOk"
@@ -7102,13 +7045,6 @@ components:
         properties:
           data:
             $ref: "#/components/schemas/inline_response_200_29_data"
-    inline_response_200_30:
-      allOf:
-      - $ref: "#/components/schemas/responseOk"
-      - type: object
-        properties:
-          data:
-            $ref: "#/components/schemas/inline_response_200_30_data"
     apiorganization_idplatformworkspacesworkspace_idconversationsconversation_idmessages_messages:
       required:
       - contents
@@ -7192,6 +7128,13 @@ components:
             _model: global.anthropic.claude-opus-5
           items:
             $ref: "#/components/schemas/apiorganization_idplatformworkspacesworkspace_idconversationsconversation_idmessages_contents"
+    inline_response_200_30:
+      allOf:
+      - $ref: "#/components/schemas/responseOk"
+      - type: object
+        properties:
+          data:
+            $ref: "#/components/schemas/inline_response_200_30_data"
     inline_response_200_31:
       allOf:
       - $ref: "#/components/schemas/responseOk"
@@ -7202,22 +7145,15 @@ components:
     inline_response_200_32:
       allOf:
       - $ref: "#/components/schemas/responseOk"
-      - type: object
-        properties:
-          data:
-            $ref: "#/components/schemas/inline_response_200_32_data"
-    inline_response_200_33:
-      allOf:
-      - $ref: "#/components/schemas/responseOk"
       - $ref: "#/components/schemas/userList"
-    inline_response_200_34:
+    inline_response_200_33:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - type: object
         properties:
           data:
             $ref: "#/components/schemas/user"
-    inline_response_200_35:
+    inline_response_200_34:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - $ref: "#/components/schemas/roleDetailList"
@@ -7227,7 +7163,7 @@ components:
     roles_role_name_body:
       oneOf:
       - $ref: "#/components/schemas/roleDetailWorkspacePut"
-    inline_response_200_36:
+    inline_response_200_35:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - title: roleList is list of Role resources.
@@ -7237,11 +7173,11 @@ components:
             type: array
             items:
               $ref: "#/components/schemas/roleUser"
-    inline_response_200_37:
+    inline_response_200_36:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - $ref: "#/components/schemas/jobsUserBulkStatusList"
-    inline_response_200_38:
+    inline_response_200_37:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - title: Jobs user bulk processing result.
@@ -7249,7 +7185,7 @@ components:
         properties:
           data:
             $ref: "#/components/schemas/jobsUserBulkStatus"
-    inline_response_200_39:
+    inline_response_200_38:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - type: object
@@ -7258,11 +7194,11 @@ components:
             type: object
             example:
               job_id: XXXXXXXXXXXXXXXXXXXXXXXXXX
-    inline_response_200_40:
+    inline_response_200_39:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - $ref: "#/components/schemas/jobsUserExportStatusList"
-    inline_response_200_41:
+    inline_response_200_40:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - title: Jobs user export processing result.
@@ -7270,7 +7206,7 @@ components:
         properties:
           data:
             $ref: "#/components/schemas/jobsUserExportStatus"
-    inline_response_200_42:
+    inline_response_200_41:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - $ref: "#/components/schemas/maintenanceModeSettings"
@@ -7283,15 +7219,15 @@ components:
         data_update_stop:
           type: string
           example: "1"
-    inline_response_200_43:
+    inline_response_200_42:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - $ref: "#/components/schemas/settingsMailserverList"
-    inline_response_200_44:
+    inline_response_200_43:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - $ref: "#/components/schemas/AuditLogDownloadList"
-    inline_response_200_45:
+    inline_response_200_44:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - type: object
@@ -7300,44 +7236,44 @@ components:
             type: object
             example:
               download_id: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-    inline_response_200_46:
+    inline_response_200_45:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - $ref: "#/components/schemas/serviceAccountUserList"
-    inline_response_200_47:
+    inline_response_200_46:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - type: object
         properties:
           data:
             $ref: "#/components/schemas/serviceAccountUser"
-    inline_response_200_48:
+    inline_response_200_47:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - $ref: "#/components/schemas/serviceAccountUserTokenList"
-    inline_response_200_49:
+    inline_response_200_48:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - type: object
         properties:
           data:
-            $ref: "#/components/schemas/inline_response_200_49_data"
-    inline_response_200_50:
+            $ref: "#/components/schemas/inline_response_200_48_data"
+    inline_response_200_49:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - $ref: "#/components/schemas/limitsList"
-    inline_response_200_51:
+    inline_response_200_50:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - type: object
         properties:
           data:
             $ref: "#/components/schemas/planItem"
-    inline_response_200_52:
+    inline_response_200_51:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - $ref: "#/components/schemas/roleList"
-    inline_response_200_53:
+    inline_response_200_52:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - $ref: "#/components/schemas/userWorkspaceList"
@@ -7629,17 +7565,63 @@ components:
           format: uuid
         create_user_name:
           type: string
+    aiServiceInfo_settings:
+      type: object
+      properties:
+        title:
+          type: string
+          description: |-
+            入力項目の表示名
+            Display label for the input field
+        type:
+          type: string
+          description: |-
+            入力項目の種別(password/text等)
+            Input field type (password/text, etc.)
+        required:
+          type: boolean
+          description: |-
+            入力必須かどうか
+            Whether the input field is required
     inline_response_200_14_data:
       type: object
       properties:
-        credentials:
-          type: array
-          items:
-            $ref: "#/components/schemas/aiCredentialInfo"
-        count:
-          type: integer
+        credential_id:
+          type: string
+          nullable: true
         credential_type:
           type: string
+        credential_name:
+          type: string
+          nullable: true
+        status:
+          type: string
+          nullable: true
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+        last_used_at:
+          type: string
+          format: date-time
+          nullable: true
+        credential_data_keys:
+          type: array
+          description: |-
+            Credentialデータに含まれるキー一覧(未登録時は空配列。passwordタイプの項目も含む)
+            List of keys contained in the credential data (an empty array when not registered; includes password-type keys too)
+          items:
+            type: string
+        credential_data:
+          type: object
+          description: |-
+            settingsでtype: password以外と定義されている項目のみ、実際の値を含む
+            (passwordタイプの項目は含まない。未登録時は空オブジェクト)
+            Contains actual values only for entries whose settings type is not "password"
+            (password-type entries are omitted; an empty object when not registered)
+          example:
+            accessKeyId: ASIA...
+            region: ap-northeast-1
     inline_response_200_15_data:
       type: object
       properties:
@@ -7656,33 +7638,11 @@ components:
     inline_response_200_16_data:
       type: object
       properties:
-        credential_id:
-          type: string
         credential_type:
-          type: string
-        credential_name:
-          type: string
-        status:
-          type: string
-        expires_at:
-          type: string
-          format: date-time
-        last_used_at:
-          type: string
-          format: date-time
-        credential_data_keys:
-          type: array
-          description: Credentialデータに含まれるキー一覧
-          items:
-            type: string
-    inline_response_200_17_data:
-      type: object
-      properties:
-        credential_id:
           type: string
         message:
           type: string
-    inline_response_200_18_data:
+    inline_response_200_17_data:
       type: object
       properties:
         valid:
@@ -7695,7 +7655,7 @@ components:
         user_id:
           type: string
           description: AWS User ID(Bedrockの場合)
-    inline_response_200_19_data:
+    inline_response_200_18_data:
       type: object
       properties:
         models:
@@ -7708,7 +7668,7 @@ components:
         credential_type:
           type: string
           description: AIサービスID
-    inline_response_200_21_data:
+    inline_response_200_20_data:
       type: object
       properties:
         ai_services:
@@ -7720,7 +7680,7 @@ components:
             $ref: "#/components/schemas/aiServiceInfo"
         count:
           type: integer
-    inline_response_200_27_data:
+    inline_response_200_26_data:
       type: object
       properties:
         conversations:
@@ -7731,7 +7691,7 @@ components:
           type: integer
         total_count:
           type: integer
-    inline_response_200_28_data:
+    inline_response_200_27_data:
       type: object
       properties:
         conversation_id:
@@ -7762,7 +7722,7 @@ components:
           type: string
         status:
           type: string
-    inline_response_200_29_data_usage:
+    inline_response_200_28_data_usage:
       type: object
       properties:
         input_tokens:
@@ -7771,7 +7731,7 @@ components:
           type: integer
         total_tokens:
           type: integer
-    inline_response_200_29_data:
+    inline_response_200_28_data:
       type: object
       properties:
         conversation_id:
@@ -7816,8 +7776,8 @@ components:
             AIサービスのAPIが返したHTTPステータスコード(通常200)。リトライ判断等に利用できる。
             The HTTP status code returned by the AI service's API (normally 200). Can be used for retry decisions, etc.
         usage:
-          $ref: "#/components/schemas/inline_response_200_29_data_usage"
-    inline_response_200_30_data:
+          $ref: "#/components/schemas/inline_response_200_28_data_usage"
+    inline_response_200_29_data:
       type: object
       properties:
         messages:
@@ -7828,7 +7788,7 @@ components:
           type: integer
         conversation_id:
           type: string
-    inline_response_200_31_data:
+    inline_response_200_30_data:
       type: object
       properties:
         message_id:
@@ -7865,7 +7825,7 @@ components:
             最終更新日時
             Last updated timestamp
           format: date-time
-    inline_response_200_32_data:
+    inline_response_200_31_data:
       type: object
       properties:
         conversation_id:
@@ -7875,7 +7835,7 @@ components:
           description: |-
             削除したメッセージレコード件数
             Number of deleted message records
-    inline_response_200_49_data:
+    inline_response_200_48_data:
       type: object
       properties:
         refresh_token:

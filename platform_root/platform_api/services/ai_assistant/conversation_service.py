@@ -316,16 +316,18 @@ class ConversationService:
                 globals.logger.debug("Using AWS login cache credential for Bedrock authentication")
 
                 credential_service = get_ai_credential_service()
-                credential = credential_service.get_credential(
+                credential = credential_service.get_active_credential(
                     organization_id=organization_id,
                     user_id=user_id,
                     credential_type=effective_ai_service_id,
                 )
 
-                credential_data = credential.credential_data
-                region = credential_data.get("region", "ap-northeast-1")
+                # credential_data.apiKeyにキャッシュファイル全体のJSON文字列が入っているので展開する
+                # credential_data.apiKey holds the entire cache-file content as a JSON string, so unwrap it
+                cache_data = json.loads(credential.credential_data["apiKey"])
+                region = cache_data.get("region", "ap-northeast-1")
                 aws_session = create_bedrock_session_from_credential_data(
-                    credential_data=credential_data,
+                    credential_data=cache_data,
                     region=region,
                 )
                 bedrock_client = aws_session.get_bedrock_client()
@@ -336,7 +338,7 @@ class ConversationService:
                 globals.logger.debug("Using manual credential for Bedrock authentication")
 
                 credential_service = get_ai_credential_service()
-                credential = credential_service.get_credential(
+                credential = credential_service.get_active_credential(
                     organization_id=organization_id,
                     user_id=user_id,
                     credential_type=effective_ai_service_id,
@@ -351,9 +353,9 @@ class ConversationService:
 
                 credential_data = credential.credential_data
                 session = boto3.Session(
-                    aws_access_key_id=credential_data.get("access_key_id"),
-                    aws_secret_access_key=credential_data.get("secret_access_key"),
-                    aws_session_token=credential_data.get("session_token"),
+                    aws_access_key_id=credential_data.get("accessKeyId"),
+                    aws_secret_access_key=credential_data.get("secretAccessKey"),
+                    aws_session_token=credential_data.get("sessionToken"),
                     region_name=credential_data.get("region", "ap-northeast-1"),
                 )
 
@@ -533,10 +535,12 @@ class ConversationService:
                 if effective_ai_service_id == "bedrock-cache" and aws_session:
                     latest_token = aws_session.get_current_token()
                     if latest_token:
+                        # credential_dataは{"apiKey": "<キャッシュファイルJSON文字列>"}の形で保存するので、更新後のトークンも同じ形にラップする
+                        # credential_data is stored as {"apiKey": "<cache-file JSON string>"}, so wrap the refreshed token the same way
                         credential_service.update_last_used(
                             organization_id=organization_id,
                             credential_id=credential.credential_id,
-                            credential_data=latest_token
+                            credential_data={"apiKey": json.dumps(latest_token)}
                         )
                     else:
                         # トークンが更新されていない（取得できない）場合は最終使用日時のみ更新

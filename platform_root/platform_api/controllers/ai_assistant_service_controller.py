@@ -48,11 +48,44 @@ AVAILABLE_AI_SERVICES = [
         "ai_service_id": "bedrock-cache",
         "ai_service_name": "Amazon Bedrock (Login Cache)",
         "description": "AWS Login Cacheを使用し、トークンを自動更新する認証方式",
+        # credential_data入力フォームの定義。ここで定義したキー名でそのままcredential_dataに保存される
+        # (例: apiKeyの値はcredential_data.apiKeyに入る)
+        # Definition of the credential_data input form. Saved into credential_data verbatim under these key names
+        # (e.g. the value of apiKey ends up in credential_data.apiKey)
+        "settings": {
+            "apiKey": {
+                "title": "認証情報（Login Cache）",
+                "type": "password",
+                "required": True,
+            },
+        },
     },
     {
         "ai_service_id": "bedrock",
         "ai_service_name": "Amazon Bedrock",
         "description": "手動登録したアクセスキー等の固定Credentialを使用する認証方式",
+        "settings": {
+            "accessKeyId": {
+                "title": "AWS Access Key ID",
+                "type": "text",
+                "required": True,
+            },
+            "secretAccessKey": {
+                "title": "AWS Secret Access Key",
+                "type": "password",
+                "required": True,
+            },
+            "sessionToken": {
+                "title": "AWS Session Token (optional for SSO)",
+                "type": "password",
+                "required": False,
+            },
+            "region": {
+                "title": "AWS Region",
+                "type": "text",
+                "required": False,
+            },
+        },
     },
 ]
 

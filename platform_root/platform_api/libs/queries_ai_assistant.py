@@ -137,14 +137,15 @@ LIMIT %(limit)s OFFSET %(offset)s
 
 # ==================== AI Credential ====================
 
-SQL_SELECT_USER_CREDENTIAL_BY_ID = """
+# credential_typeごとに1件のみ(UK_USER_TYPE)なので、ステータスを問わず常に0〜1件を返す
+# There is at most one row per credential_type (UK_USER_TYPE), so this always returns 0 or 1 rows regardless of status
+SQL_SELECT_USER_CREDENTIAL_BY_TYPE = """
 SELECT
     CREDENTIAL_ID, CREDENTIAL_TYPE, CREDENTIAL_NAME,
     ENCRYPTED_CREDENTIAL_DATA,
     STATUS, EXPIRES_AT, LAST_USED_AT
 FROM T_USER_CREDENTIAL
-WHERE CREDENTIAL_ID = %(credential_id)s
-  AND USER_ID = %(user_id)s
+WHERE USER_ID = %(user_id)s
   AND CREDENTIAL_TYPE = %(credential_type)s
 """
 
@@ -198,35 +199,8 @@ WHERE CREDENTIAL_ID = %(credential_id)s
 
 SQL_DELETE_USER_CREDENTIAL = """
 DELETE FROM T_USER_CREDENTIAL
-WHERE CREDENTIAL_ID = %(credential_id)s
-  AND USER_ID = %(user_id)s
-"""
-
-SQL_LIST_USER_CREDENTIALS = """
-SELECT
-    CREDENTIAL_ID, CREDENTIAL_TYPE, CREDENTIAL_NAME,
-    STATUS, EXPIRES_AT,
-    LAST_VALIDATED_AT, LAST_USED_AT,
-    VALIDATION_ERROR, NOTES,
-    CREATE_TIMESTAMP, LAST_UPDATE_TIMESTAMP
-FROM T_USER_CREDENTIAL
 WHERE USER_ID = %(user_id)s
   AND CREDENTIAL_TYPE = %(credential_type)s
-ORDER BY CREATE_TIMESTAMP DESC
-"""
-
-SQL_LIST_USER_CREDENTIALS_WITH_STATUS = """
-SELECT
-    CREDENTIAL_ID, CREDENTIAL_TYPE, CREDENTIAL_NAME,
-    STATUS, EXPIRES_AT,
-    LAST_VALIDATED_AT, LAST_USED_AT,
-    VALIDATION_ERROR, NOTES,
-    CREATE_TIMESTAMP, LAST_UPDATE_TIMESTAMP
-FROM T_USER_CREDENTIAL
-WHERE USER_ID = %(user_id)s
-  AND CREDENTIAL_TYPE = %(credential_type)s
-  AND STATUS = %(status)s
-ORDER BY CREATE_TIMESTAMP DESC
 """
 
 # ==================== AI Preference ====================
