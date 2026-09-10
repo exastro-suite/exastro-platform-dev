@@ -1320,7 +1320,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/runtimeError'
-  '/api/{organization_id}/platform/users/_current/ai-preference':
+  '/api/{organization_id}/platform/users/_current/{ai_service_id}/ai-preference':
     get:
       tags:
         - UsersService
@@ -1328,8 +1328,10 @@ paths:
         AI利用設定を取得
         Get the AI preference
       description: |-
-        ユーザーのAI利用設定(デフォルトAIサービス、デフォルトモデル、ピックアップモデル一覧)を取得する。一度も保存していない場合は全項目nullまたは空配列で返す。
-        Get the user's AI preference (default AI service, default model, list of picked-up models). If nothing has been saved yet, all fields are returned as null or an empty array.
+        ユーザーの、このAIサービス(ai_service_id)向けのAI利用設定(デフォルトモデル、ピックアップモデル一覧)を取得する。
+        AIサービスごとに個別の設定を持てるようai_service_id単位で管理する。一度も保存していない場合は全項目nullまたは空配列で返す。
+        Get the user's AI preference (default model, list of picked-up models) for this AI service (ai_service_id).
+        Preferences are managed per ai_service_id so each AI service can have its own settings. If nothing has been saved yet, all fields are returned as null or an empty array.
       operationId: get_ai_preference
       x-openapi-router-controller: controllers.users_service_controller
       parameters:
@@ -1338,6 +1340,14 @@ paths:
           required: true
           schema:
             type: string
+        - name: ai_service_id
+          in: path
+          required: true
+          schema:
+            type: string
+            enum:
+              - bedrock-cache
+              - bedrock
       responses:
         '200':
           description: |-
@@ -1375,8 +1385,8 @@ paths:
         AI利用設定を保存
         Save the AI preference
       description: |-
-        ユーザーのAI利用設定を全置換で保存する。ai_service_id/model_idは必須で、指定した内容にそのまま置き換わる（部分更新ではない）。
-        Save the user's AI preference as a full replacement. ai_service_id/model_id are required, and the stored content is entirely replaced with what is specified (not a partial update).
+        ユーザーの、このAIサービス(ai_service_id)向けのAI利用設定を全置換で保存する。model_idは必須で、指定した内容にそのまま置き換わる（部分更新ではない）。
+        Save the user's AI preference for this AI service (ai_service_id) as a full replacement. model_id is required, and the stored content is entirely replaced with what is specified (not a partial update).
       operationId: update_ai_preference
       x-openapi-router-controller: controllers.users_service_controller
       parameters:
@@ -1385,6 +1395,14 @@ paths:
           required: true
           schema:
             type: string
+        - name: ai_service_id
+          in: path
+          required: true
+          schema:
+            type: string
+            enum:
+              - bedrock-cache
+              - bedrock
       requestBody:
         required: true
         content:
@@ -1392,36 +1410,43 @@ paths:
             schema:
               type: object
               required:
-                - ai_service_id
                 - model_id
               properties:
-                ai_service_id:
-                  type: string
-                  description: |-
-                    デフォルトで使用するAIサービスID
-                    Default AI service ID to use
-                  enum:
-                    - bedrock-cache
-                    - bedrock
-                    - openai
-                    - anthropic
-                  example: bedrock-cache
                 model_id:
                   type: string
                   description: |-
-                    デフォルトで使用するモデルID
-                    Default model ID to use
+                    このAIサービスでデフォルトで使用するモデルID
+                    Default model ID to use for this AI service
                   example: 'anthropic.claude-3-5-sonnet-20240620-v1:0'
+                model_name:
+                  type: string
+                  nullable: true
+                  description: |-
+                    デフォルトモデルの表示名(任意。指定した値をそのまま保存・返却する。サーバー側では解決しない)
+                    Display name for the default model (optional; stored and returned verbatim as supplied — not resolved server-side)
+                  example: Claude 3.5 Sonnet
                 pickup_model_ids:
                   type: array
                   description: |-
-                    UIでモデル選択の候補を絞り込むためにピックアップしたモデルID一覧(省略時は空配列)
-                    List of model IDs picked to narrow down the model choices shown in the UI (empty array if omitted)
+                    UIでモデル選択の候補を絞り込むためにピックアップしたモデル一覧(省略時は空配列)。
+                    各要素はidが必須、nameは任意
+                    List of models picked to narrow down the model choices shown in the UI (empty array if omitted).
+                    Each entry requires id; name is optional
                   items:
-                    type: string
+                    type: object
+                    required:
+                      - id
+                    properties:
+                      id:
+                        type: string
+                      name:
+                        type: string
+                        nullable: true
                   example:
-                    - 'anthropic.claude-3-5-sonnet-20240620-v1:0'
-                    - global.anthropic.claude-sonnet-5
+                    - id: 'anthropic.claude-3-5-sonnet-20240620-v1:0'
+                      name: Claude 3.5 Sonnet
+                    - id: global.anthropic.claude-sonnet-5
+                      name: Claude Sonnet 5
       responses:
         '200':
           description: |-
@@ -2358,7 +2383,7 @@ paths:
                     - LLMEditor
                     - AgenticAI
                     - Lessons
-                    - Aggregation
+                    - GenerateTitle
                   example: LLMEditor
                 tools:
                   type: array
@@ -7342,16 +7367,21 @@ components:
       properties:
         ai_service_id:
           type: string
-          nullable: true
           description: |-
-            デフォルトで使用するAIサービスID(一度も保存していない場合はnull)
-            Default AI service ID to use (null if never saved)
+            AIサービスID(パスパラメータの値をそのまま返す)
+            AI service ID (echoes the path parameter value)
           enum:
             - bedrock-cache
             - bedrock
-            - openai
-            - anthropic
           example: bedrock-cache
+        ai_service_name:
+          type: string
+          nullable: true
+          readOnly: true
+          description: |-
+            AIサービスの表示名(ai_service_idからサーバー側で導出。取得時のみ付与され、未知のIDの場合はnull)
+            Display name of the AI service (derived server-side from ai_service_id at GET time; null if the ID is unrecognized)
+          example: Amazon Bedrock (Login Cache)
         model_id:
           type: string
           nullable: true
@@ -7359,16 +7389,41 @@ components:
             デフォルトで使用するモデルID(一度も保存していない場合はnull)
             Default model ID to use (null if never saved)
           example: 'anthropic.claude-3-5-sonnet-20240620-v1:0'
+        model_name:
+          type: string
+          nullable: true
+          description: |-
+            デフォルトモデルの表示名(PUT時にクライアントが指定した値をそのまま保存・返却。未指定または未保存の場合はnull)
+            Display name of the default model (stored/returned verbatim as supplied by the client at PUT time; null if not provided or never saved)
+          example: Claude 3.5 Sonnet
         pickup_model_ids:
           type: array
           description: |-
-            UIでモデル選択の候補を絞り込むためにピックアップしたモデルID一覧(選択肢が多すぎる問題への対処用)
-            List of model IDs picked to narrow down the model choices shown in the UI (addresses having too many models to choose from)
+            UIでモデル選択の候補を絞り込むためにピックアップしたモデル一覧(選択肢が多すぎる問題への対処用)。
+            IDだけでは表示名がわからず使いにくいため、id・nameを持つオブジェクトの配列とする
+            List of models picked to narrow down the model choices shown in the UI (addresses having too many models to choose from).
+            An array of objects with id and name (an ID alone is hard to use for display purposes)
           items:
-            type: string
+            type: object
+            required:
+              - id
+            properties:
+              id:
+                type: string
+                description: |-
+                  モデルID
+                  Model ID
+              name:
+                type: string
+                nullable: true
+                description: |-
+                  表示用のモデル名(任意)
+                  Display name for the model (optional)
           example:
-            - 'anthropic.claude-3-5-sonnet-20240620-v1:0'
-            - global.anthropic.claude-sonnet-5
+            - id: 'anthropic.claude-3-5-sonnet-20240620-v1:0'
+              name: Claude 3.5 Sonnet
+            - id: global.anthropic.claude-sonnet-5
+              name: Claude Sonnet 5
     aiServiceInfo:
       type: object
       properties:

@@ -76,7 +76,7 @@ post:
                 - LLMEditor
                 - AgenticAI
                 - Lessons
-                - Aggregation
+                - GenerateTitle
               example: "LLMEditor"
             tools:
               type: array

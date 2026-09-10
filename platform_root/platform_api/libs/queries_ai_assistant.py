@@ -198,9 +198,9 @@ WHERE USER_ID = %(user_id)s
 # ==================== AI Preference ====================
 
 SQL_SELECT_USER_AI_PREFERENCE = """
-SELECT AI_SERVICE_ID, MODEL_ID, PICKUP_MODEL_IDS, CREATE_TIMESTAMP, LAST_UPDATE_TIMESTAMP
+SELECT MODEL_ID, MODEL_NAME, PICKUP_MODEL_IDS, CREATE_TIMESTAMP, LAST_UPDATE_TIMESTAMP
 FROM T_USER_AI_PREFERENCE
-WHERE USER_ID = %(user_id)s
+WHERE USER_ID = %(user_id)s AND AI_SERVICE_ID = %(ai_service_id)s
 """
 
 # 行が存在すればUPDATE、無ければINSERTを1クエリで行う（PUTの全置換をアトミックに実現するため）
@@ -208,16 +208,16 @@ WHERE USER_ID = %(user_id)s
 SQL_UPSERT_USER_AI_PREFERENCE = """
 INSERT INTO T_USER_AI_PREFERENCE
 (
-    USER_ID, AI_SERVICE_ID, MODEL_ID, PICKUP_MODEL_IDS,
+    USER_ID, AI_SERVICE_ID, MODEL_ID, MODEL_NAME, PICKUP_MODEL_IDS,
     CREATE_TIMESTAMP, CREATE_USER, LAST_UPDATE_TIMESTAMP, LAST_UPDATE_USER
 )
 VALUES (
-    %(user_id)s, %(ai_service_id)s, %(model_id)s, %(pickup_model_ids)s,
+    %(user_id)s, %(ai_service_id)s, %(model_id)s, %(model_name)s, %(pickup_model_ids)s,
     NOW(), %(user_id)s, NOW(), %(user_id)s
 )
 ON DUPLICATE KEY UPDATE
-    AI_SERVICE_ID = %(ai_service_id)s,
     MODEL_ID = %(model_id)s,
+    MODEL_NAME = %(model_name)s,
     PICKUP_MODEL_IDS = %(pickup_model_ids)s,
     LAST_UPDATE_TIMESTAMP = NOW(),
     LAST_UPDATE_USER = %(user_id)s

@@ -280,14 +280,15 @@ SQL_ORGANIZATION_CREATE_TABLES = [
     CREATE TABLE IF NOT EXISTS T_USER_AI_PREFERENCE
     (
         USER_ID                         VARCHAR(256) NOT NULL,                          -- User ID
-        AI_SERVICE_ID                   VARCHAR(64) NOT NULL,                           -- デフォルトで使用するAIサービスID (bedrock-cache, bedrock, openai, anthropic, etc.)
+        AI_SERVICE_ID                   VARCHAR(64) NOT NULL,                           -- AIサービスID (bedrock-cache, bedrock, etc.)。AIサービスごとに設定を持てるようキーの一部とする
         MODEL_ID                        VARCHAR(255) NOT NULL,                          -- デフォルトで使用するモデルID
+        MODEL_NAME                      VARCHAR(255) NULL,                              -- デフォルトモデルの表示名(PUT時にクライアントが渡した値をそのまま保存。未指定時はNULL)
         PICKUP_MODEL_IDS                LONGTEXT NOT NULL,                              -- UIで選択肢を絞り込むためのモデルID一覧 (JSON配列)
         CREATE_TIMESTAMP                DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,    -- 作成日時
         CREATE_USER                     VARCHAR(40),                                    -- 作成者
         LAST_UPDATE_TIMESTAMP           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,    -- 最終更新日時
         LAST_UPDATE_USER                VARCHAR(40),                                    -- 最終更新者
-        PRIMARY KEY (USER_ID)
+        PRIMARY KEY (USER_ID, AI_SERVICE_ID)
     )ENGINE = InnoDB, CHARSET = utf8mb4, COLLATE = utf8mb4_unicode_ci;
     """,
 ]

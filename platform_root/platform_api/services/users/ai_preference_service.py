@@ -31,9 +31,10 @@ import globals
 
 @dataclass
 class AiPreference:
-    """User AI Preference"""
+    """User AI Preference（AIサービス単位）"""
     ai_service_id: str
     model_id: str
+    model_name: Optional[str]
     pickup_model_ids: List[str]
 
 
@@ -41,13 +42,14 @@ class AiPreferenceService:
     """
     AI Preference Service
 
-    ユーザーごとのAI利用設定を管理
+    ユーザーごと・AIサービスごとのAI利用設定を管理
     """
 
     def get_preference(
         self,
         organization_id: str,
         user_id: str,
+        ai_service_id: str,
     ) -> Optional[AiPreference]:
         """
         AI利用設定を取得
@@ -55,6 +57,7 @@ class AiPreferenceService:
         Args:
             organization_id: Organization ID (DB接続用、テーブルには保存しない)
             user_id: User ID
+            ai_service_id: AIサービスID
 
         Returns:
             AiPreference。一度も保存されていない場合はNone
@@ -63,7 +66,7 @@ class AiPreferenceService:
             with closing(conn.cursor()) as cursor:
                 cursor.execute(
                     queries_ai_assistant.SQL_SELECT_USER_AI_PREFERENCE,
-                    {"user_id": user_id},
+                    {"user_id": user_id, "ai_service_id": ai_service_id},
                 )
                 row = cursor.fetchone()
 
@@ -78,8 +81,9 @@ class AiPreferenceService:
             pickup_model_ids = []
 
         return AiPreference(
-            ai_service_id=row["AI_SERVICE_ID"],
+            ai_service_id=ai_service_id,
             model_id=row["MODEL_ID"],
+            model_name=row["MODEL_NAME"],
             pickup_model_ids=pickup_model_ids,
         )
 
@@ -90,6 +94,7 @@ class AiPreferenceService:
         ai_service_id: str,
         model_id: str,
         pickup_model_ids: List[str],
+        model_name: Optional[str] = None,
     ) -> None:
         """
         AI利用設定を保存（全置換。既存設定があれば上書き、無ければ新規作成）
@@ -97,9 +102,10 @@ class AiPreferenceService:
         Args:
             organization_id: Organization ID (DB接続用、テーブルには保存しない)
             user_id: User ID
-            ai_service_id: デフォルトで使用するAIサービスID
+            ai_service_id: AIサービスID
             model_id: デフォルトで使用するモデルID
             pickup_model_ids: UIで選択肢を絞り込むためのモデルID一覧
+            model_name: デフォルトモデルの表示名（任意。クライアントが渡した値をそのまま保存する）
         """
         with closing(DBconnector().connect_orgdb(organization_id)) as conn:
             with closing(conn.cursor()) as cursor:
@@ -109,14 +115,15 @@ class AiPreferenceService:
                         "user_id": user_id,
                         "ai_service_id": ai_service_id,
                         "model_id": model_id,
+                        "model_name": model_name,
                         "pickup_model_ids": json.dumps(pickup_model_ids, ensure_ascii=False),
                     },
                 )
                 conn.commit()
 
         globals.logger.debug(
-            f"AI preference saved: user={user_id}, ai_service={ai_service_id}, "
-            f"model={model_id}, pickup_count={len(pickup_model_ids)}"
+            f"AI preference saved: user={user_id}, ai_service_id={ai_service_id}, "
+            f"model={model_id}, model_name={model_name}, pickup_count={len(pickup_model_ids)}"
         )
 
 

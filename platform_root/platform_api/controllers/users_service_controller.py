@@ -107,6 +107,26 @@ def _visible_credential_data(credential_type, credential_data):
     }
 
 
+def _get_ai_service_name(ai_service_id):
+    """AVAILABLE_AI_SERVICESからai_service_nameを取得する(見つからない場合はNone)
+    Look up ai_service_name from AVAILABLE_AI_SERVICES (None if not found)
+
+    Args:
+        ai_service_id: AIサービスID
+
+    Returns:
+        str | None
+    """
+    return next(
+        (
+            service.get("ai_service_name")
+            for service in AVAILABLE_AI_SERVICES
+            if service.get("ai_service_id") == ai_service_id
+        ),
+        None,
+    )
+
+
 @common.platform_exception_handler
 def user_list(organization_id, first=0, max=100, search=None):
     """List returns list of users
@@ -1230,12 +1250,14 @@ def list_models(organization_id, credential_type):
 
 @common.platform_exception_handler
 @require_ai_assistant_driver
-def get_ai_preference(organization_id):
+def get_ai_preference(organization_id, ai_service_id):
     """
-    AI利用設定を取得
+    AI利用設定を取得（AIサービスごと）
 
     :param organization_id:
     :type organization_id: str
+    :param ai_service_id:
+    :type ai_service_id: str
 
     :rtype: dict
     """
@@ -1250,6 +1272,7 @@ def get_ai_preference(organization_id):
         preference = service.get_preference(
             organization_id=organization_id,
             user_id=user_id,
+            ai_service_id=ai_service_id,
         )
 
         if preference is None:
@@ -1257,8 +1280,10 @@ def get_ai_preference(organization_id):
             # Return an empty preference instead of 404 when nothing has been saved yet (keeps the UI's first-time view simple)
             return common.response_200_ok(
                 {
-                    "ai_service_id": None,
+                    "ai_service_id": ai_service_id,
+                    "ai_service_name": _get_ai_service_name(ai_service_id),
                     "model_id": None,
+                    "model_name": None,
                     "pickup_model_ids": [],
                 }
             )
@@ -1266,7 +1291,9 @@ def get_ai_preference(organization_id):
         return common.response_200_ok(
             {
                 "ai_service_id": preference.ai_service_id,
+                "ai_service_name": _get_ai_service_name(preference.ai_service_id),
                 "model_id": preference.model_id,
+                "model_name": preference.model_name,
                 "pickup_model_ids": preference.pickup_model_ids,
             }
         )
@@ -1282,14 +1309,16 @@ def get_ai_preference(organization_id):
 
 @common.platform_exception_handler
 @require_ai_assistant_driver
-def update_ai_preference(body, organization_id):
+def update_ai_preference(body, organization_id, ai_service_id):
     """
-    AI利用設定を保存（全置換）
+    AI利用設定を保存（全置換。AIサービスごと）
 
     :param body:
     :type body: dict
     :param organization_id:
     :type organization_id: str
+    :param ai_service_id:
+    :type ai_service_id: str
 
     :rtype: dict
     """
@@ -1299,17 +1328,12 @@ def update_ai_preference(body, organization_id):
     user_id = r.headers.get("User-id")
 
     body = r.get_json()
-    ai_service_id = body.get("ai_service_id")
     model_id = body.get("model_id")
+    model_name = body.get("model_name")
     pickup_model_ids = body.get("pickup_model_ids", [])
 
-    # バリデーション（PUTは全置換前提のため、ai_service_id/model_idは毎回必須）
-    # Validation (since PUT is a full replace, ai_service_id/model_id are required every time)
-    if not ai_service_id:
-        message_id = "400-94015"
-        message = multi_lang.get_text(message_id, "ai_service_idは必須です")
-        raise common.BadRequestException(message_id=message_id, message=message)
-
+    # バリデーション（PUTは全置換前提のため、model_idは毎回必須）
+    # Validation (since PUT is a full replace, model_id is required every time)
     if not model_id:
         message_id = "400-94016"
         message = multi_lang.get_text(message_id, "model_idは必須です")
@@ -1322,6 +1346,15 @@ def update_ai_preference(body, organization_id):
         )
         raise common.BadRequestException(message_id=message_id, message=message)
 
+    # 各要素はid(必須)・name(任意)を持つオブジェクトである必要がある(idのみだと表示名がわからず使いにくいため)
+    # Each entry must be an object with id (required) and name (optional) (an ID alone lacks a display name and is hard to use)
+    if not all(isinstance(item, dict) and item.get("id") for item in pickup_model_ids):
+        message_id = "400-94214"
+        message = multi_lang.get_text(
+            message_id, "pickup_model_idsの各要素はidを含むオブジェクトである必要があります"
+        )
+        raise common.BadRequestException(message_id=message_id, message=message)
+
     try:
         service = get_ai_preference_service()
 
@@ -1330,18 +1363,21 @@ def update_ai_preference(body, organization_id):
             user_id=user_id,
             ai_service_id=ai_service_id,
             model_id=model_id,
+            model_name=model_name,
             pickup_model_ids=pickup_model_ids,
         )
 
         globals.logger.debug(
             f"AI preference updated: org={organization_id}, user={user_id}, "
-            f"ai_service={ai_service_id}, model={model_id}"
+            f"ai_service_id={ai_service_id}, model={model_id}"
         )
 
         return common.response_200_ok(
             {
                 "ai_service_id": ai_service_id,
+                "ai_service_name": _get_ai_service_name(ai_service_id),
                 "model_id": model_id,
+                "model_name": model_name,
                 "pickup_model_ids": pickup_model_ids,
             }
         )
