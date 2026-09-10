@@ -3502,6 +3502,131 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/runtimeError'
+  '/api/{organization_id}/platform/users/_current/ai-preference':
+    get:
+      tags:
+        - UsersService
+      summary: |-
+        現在選択中のAIサービスを取得
+        Get the currently selected AI service
+      description: |-
+        ユーザーが現在選択中のAIサービス(ai_service_id)を取得する。あわせてai_service_name(ai_service_idから導出)と、
+        そのAIサービスの/{ai_service_id}/ai-preferenceに保存されているmodel_id/model_name(未保存の場合はnull)を返す。
+        一度も保存していない場合は全項目nullで返す。
+        Get the AI service (ai_service_id) the user currently has selected. Also returns ai_service_name (derived from ai_service_id)
+        and the model_id/model_name saved in that AI service's /{ai_service_id}/ai-preference (null if never saved there).
+        If nothing has been saved yet, all fields are returned as null.
+      operationId: get_current_ai_preference
+      x-openapi-router-controller: controllers.users_service_controller
+      parameters:
+        - name: organization_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: |-
+            成功
+            Success
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/responseOk'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/currentAiPreferenceInfo'
+        '403':
+          description: |-
+            AIアシスタント機能が有効になっていない
+            The AI assistant feature is not enabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/runtimeError'
+        '500':
+          description: |-
+            サーバーエラー
+            Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/runtimeError'
+    put:
+      tags:
+        - UsersService
+      summary: |-
+        現在選択中のAIサービスを保存
+        Save the currently selected AI service
+      description: |-
+        ユーザーが現在選択中のAIサービスをai_service_idで保存する。既存の設定があれば上書き、無ければ新規作成する(create-or-replace)。
+        Save the AI service the user currently has selected, by ai_service_id. Creates the setting if it does not exist yet, otherwise replaces it (create-or-replace).
+      operationId: update_current_ai_preference
+      x-openapi-router-controller: controllers.users_service_controller
+      parameters:
+        - name: organization_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - ai_service_id
+              properties:
+                ai_service_id:
+                  type: string
+                  description: |-
+                    現在選択中とするAIサービスID
+                    AI service ID to mark as currently selected
+                  enum:
+                    - bedrock-cache
+                    - bedrock
+                  example: bedrock-cache
+      responses:
+        '200':
+          description: |-
+            保存成功
+            Saved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/responseOk'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/currentAiPreferenceInfo'
+        '400':
+          description: |-
+            バリデーションエラー
+            Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/runtimeError'
+        '403':
+          description: |-
+            AIアシスタント機能が有効になっていない
+            The AI assistant feature is not enabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/runtimeError'
+        '500':
+          description: |-
+            サーバーエラー
+            Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/runtimeError'
   '/api/{organization_id}/platform/ai-services':
     get:
       tags:
@@ -5255,6 +5380,43 @@ components:
               name: Claude 3.5 Sonnet
             - id: global.anthropic.claude-sonnet-5
               name: Claude Sonnet 5
+    currentAiPreferenceInfo:
+      type: object
+      properties:
+        ai_service_id:
+          type: string
+          nullable: true
+          description: |-
+            現在選択中のAIサービスID(一度も保存していない場合はnull)
+            Currently selected AI service ID (null if never saved)
+          enum:
+            - bedrock-cache
+            - bedrock
+          example: bedrock-cache
+        ai_service_name:
+          type: string
+          nullable: true
+          readOnly: true
+          description: |-
+            AIサービスの表示名(ai_service_idからサーバー側で導出。取得時のみ付与され、未知のIDまたはai_service_idがnullの場合はnull)
+            Display name of the AI service (derived server-side from ai_service_id at GET time; null if the ID is unrecognized or ai_service_id is null)
+          example: Amazon Bedrock (Login Cache)
+        model_id:
+          type: string
+          nullable: true
+          readOnly: true
+          description: |-
+            このAIサービスの/{ai_service_id}/ai-preferenceに保存されているデフォルトモデルID(未保存の場合はnull。ここには保存しない、参照のみ)
+            Default model ID from this AI service's /{ai_service_id}/ai-preference (null if never saved there; referenced only, not stored here)
+          example: 'anthropic.claude-3-5-sonnet-20240620-v1:0'
+        model_name:
+          type: string
+          nullable: true
+          readOnly: true
+          description: |-
+            このAIサービスの/{ai_service_id}/ai-preferenceに保存されているデフォルトモデルの表示名(未保存の場合はnull。ここには保存しない、参照のみ)
+            Default model display name from this AI service's /{ai_service_id}/ai-preference (null if never saved there; referenced only, not stored here)
+          example: Claude 3.5 Sonnet
     aiServiceInfo:
       type: object
       properties:

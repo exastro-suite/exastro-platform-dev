@@ -291,6 +291,19 @@ SQL_ORGANIZATION_CREATE_TABLES = [
         PRIMARY KEY (USER_ID, AI_SERVICE_ID)
     )ENGINE = InnoDB, CHARSET = utf8mb4, COLLATE = utf8mb4_unicode_ci;
     """,
+    """
+    -- AI Assistant Current AI Service / AI アシスタント 現在選択中のAIサービス
+    CREATE TABLE IF NOT EXISTS T_USER_CURRENT_AI_SERVICE
+    (
+        USER_ID                         VARCHAR(256) NOT NULL,                          -- User ID
+        AI_SERVICE_ID                   VARCHAR(64) NOT NULL,                           -- 現在選択中のAIサービスID (bedrock-cache, bedrock, etc.)
+        CREATE_TIMESTAMP                DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,    -- 作成日時
+        CREATE_USER                     VARCHAR(40),                                    -- 作成者
+        LAST_UPDATE_TIMESTAMP           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,    -- 最終更新日時
+        LAST_UPDATE_USER                VARCHAR(40),                                    -- 最終更新者
+        PRIMARY KEY (USER_ID)
+    )ENGINE = InnoDB, CHARSET = utf8mb4, COLLATE = utf8mb4_unicode_ci;
+    """,
 ]
 
 SQL_INSERT_ORGANIZATION_DBINFO = """

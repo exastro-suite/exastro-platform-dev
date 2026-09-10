@@ -222,3 +222,33 @@ ON DUPLICATE KEY UPDATE
     LAST_UPDATE_TIMESTAMP = NOW(),
     LAST_UPDATE_USER = %(user_id)s
 """
+
+# ==================== Current AI Service ====================
+
+# 現在選択中のAIサービスと、そのサービスのai-preference(モデル情報)をまとめて取得する
+# Fetches the currently selected AI service along with that service's ai-preference (model info) in one query
+SQL_SELECT_USER_CURRENT_AI_SERVICE = """
+SELECT c.AI_SERVICE_ID, p.MODEL_ID, p.MODEL_NAME
+FROM T_USER_CURRENT_AI_SERVICE c
+LEFT JOIN T_USER_AI_PREFERENCE p
+    ON p.USER_ID = c.USER_ID AND p.AI_SERVICE_ID = c.AI_SERVICE_ID
+WHERE c.USER_ID = %(user_id)s
+"""
+
+# 行が存在すればUPDATE、無ければINSERTを1クエリで行う（PUTの「無ければ追加」をアトミックに実現するため）
+# Performs UPDATE if the row exists, otherwise INSERT, in a single query (keeps the PUT's create-or-replace semantics atomic)
+SQL_UPSERT_USER_CURRENT_AI_SERVICE = """
+INSERT INTO T_USER_CURRENT_AI_SERVICE
+(
+    USER_ID, AI_SERVICE_ID,
+    CREATE_TIMESTAMP, CREATE_USER, LAST_UPDATE_TIMESTAMP, LAST_UPDATE_USER
+)
+VALUES (
+    %(user_id)s, %(ai_service_id)s,
+    NOW(), %(user_id)s, NOW(), %(user_id)s
+)
+ON DUPLICATE KEY UPDATE
+    AI_SERVICE_ID = %(ai_service_id)s,
+    LAST_UPDATE_TIMESTAMP = NOW(),
+    LAST_UPDATE_USER = %(user_id)s
+"""

@@ -190,5 +190,7 @@ conversationInfo:
   $ref: "./conversationInfo.yaml"
 aiPreferenceInfo:
   $ref: "./aiPreferenceInfo.yaml"
+currentAiPreferenceInfo:
+  $ref: "./currentAiPreferenceInfo.yaml"
 aiServiceInfo:
   $ref: "./aiServiceInfo.yaml"
