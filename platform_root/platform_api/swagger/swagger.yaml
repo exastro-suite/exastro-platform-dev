@@ -1125,7 +1125,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/runtimeError"
       x-openapi-router-controller: controllers.users_service_controller
-  /api/{organization_id}/platform/users/_current/ai-preference:
+  /api/{organization_id}/platform/users/_current/{ai_service_id}/ai-preference:
     get:
       tags:
       - UsersService
@@ -1133,8 +1133,10 @@ paths:
         AI利用設定を取得
         Get the AI preference
       description: |-
-        ユーザーのAI利用設定(デフォルトAIサービス、デフォルトモデル、ピックアップモデル一覧)を取得する。一度も保存していない場合は全項目nullまたは空配列で返す。
-        Get the user's AI preference (default AI service, default model, list of picked-up models). If nothing has been saved yet, all fields are returned as null or an empty array.
+        ユーザーの、このAIサービス(ai_service_id)向けのAI利用設定(デフォルトモデル、ピックアップモデル一覧)を取得する。
+        AIサービスごとに個別の設定を持てるようai_service_id単位で管理する。一度も保存していない場合は全項目nullまたは空配列で返す。
+        Get the user's AI preference (default model, list of picked-up models) for this AI service (ai_service_id).
+        Preferences are managed per ai_service_id so each AI service can have its own settings. If nothing has been saved yet, all fields are returned as null or an empty array.
       operationId: get_ai_preference
       parameters:
       - name: organization_id
@@ -1144,6 +1146,16 @@ paths:
         explode: false
         schema:
           type: string
+      - name: ai_service_id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+          enum:
+          - bedrock-cache
+          - bedrock
       responses:
         "200":
           description: |-
@@ -1177,8 +1189,8 @@ paths:
         AI利用設定を保存
         Save the AI preference
       description: |-
-        ユーザーのAI利用設定を全置換で保存する。ai_service_id/model_idは必須で、指定した内容にそのまま置き換わる（部分更新ではない）。
-        Save the user's AI preference as a full replacement. ai_service_id/model_id are required, and the stored content is entirely replaced with what is specified (not a partial update).
+        ユーザーの、このAIサービス(ai_service_id)向けのAI利用設定を全置換で保存する。model_idは必須で、指定した内容にそのまま置き換わる（部分更新ではない）。
+        Save the user's AI preference for this AI service (ai_service_id) as a full replacement. model_id is required, and the stored content is entirely replaced with what is specified (not a partial update).
       operationId: update_ai_preference
       parameters:
       - name: organization_id
@@ -1188,11 +1200,21 @@ paths:
         explode: false
         schema:
           type: string
+      - name: ai_service_id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+          enum:
+          - bedrock-cache
+          - bedrock
       requestBody:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/_current_aipreference_body"
+              $ref: "#/components/schemas/ai_service_id_aipreference_body"
         required: true
       responses:
         "200":
@@ -6590,15 +6612,20 @@ components:
         ai_service_id:
           type: string
           description: |-
-            デフォルトで使用するAIサービスID(一度も保存していない場合はnull)
-            Default AI service ID to use (null if never saved)
-          nullable: true
+            AIサービスID(パスパラメータの値をそのまま返す)
+            AI service ID (echoes the path parameter value)
           example: bedrock-cache
           enum:
           - bedrock-cache
           - bedrock
-          - openai
-          - anthropic
+        ai_service_name:
+          type: string
+          description: |-
+            AIサービスの表示名(ai_service_idからサーバー側で導出。取得時のみ付与され、未知のIDの場合はnull)
+            Display name of the AI service (derived server-side from ai_service_id at GET time; null if the ID is unrecognized)
+          nullable: true
+          readOnly: true
+          example: Amazon Bedrock (Login Cache)
         model_id:
           type: string
           description: |-
@@ -6606,16 +6633,27 @@ components:
             Default model ID to use (null if never saved)
           nullable: true
           example: anthropic.claude-3-5-sonnet-20240620-v1:0
+        model_name:
+          type: string
+          description: |-
+            デフォルトモデルの表示名(PUT時にクライアントが指定した値をそのまま保存・返却。未指定または未保存の場合はnull)
+            Display name of the default model (stored/returned verbatim as supplied by the client at PUT time; null if not provided or never saved)
+          nullable: true
+          example: Claude 3.5 Sonnet
         pickup_model_ids:
           type: array
           description: |-
-            UIでモデル選択の候補を絞り込むためにピックアップしたモデルID一覧(選択肢が多すぎる問題への対処用)
-            List of model IDs picked to narrow down the model choices shown in the UI (addresses having too many models to choose from)
+            UIでモデル選択の候補を絞り込むためにピックアップしたモデル一覧(選択肢が多すぎる問題への対処用)。
+            IDだけでは表示名がわからず使いにくいため、id・nameを持つオブジェクトの配列とする
+            List of models picked to narrow down the model choices shown in the UI (addresses having too many models to choose from).
+            An array of objects with id and name (an ID alone is hard to use for display purposes)
           example:
-          - anthropic.claude-3-5-sonnet-20240620-v1:0
-          - global.anthropic.claude-sonnet-5
+          - id: anthropic.claude-3-5-sonnet-20240620-v1:0
+            name: Claude 3.5 Sonnet
+          - id: global.anthropic.claude-sonnet-5
+            name: Claude Sonnet 5
           items:
-            type: string
+            $ref: "#/components/schemas/aiPreferenceInfo_pickup_model_ids"
     aiServiceInfo:
       type: object
       properties:
@@ -6879,39 +6917,48 @@ components:
         properties:
           data:
             $ref: "#/components/schemas/aiPreferenceInfo"
-    _current_aipreference_body:
+    apiorganization_idplatformusers_currentai_service_idaipreference_pickup_model_ids:
       required:
-      - ai_service_id
+      - id
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+          nullable: true
+    ai_service_id_aipreference_body:
+      required:
       - model_id
       type: object
       properties:
-        ai_service_id:
-          type: string
-          description: |-
-            デフォルトで使用するAIサービスID
-            Default AI service ID to use
-          example: bedrock-cache
-          enum:
-          - bedrock-cache
-          - bedrock
-          - openai
-          - anthropic
         model_id:
           type: string
           description: |-
-            デフォルトで使用するモデルID
-            Default model ID to use
+            このAIサービスでデフォルトで使用するモデルID
+            Default model ID to use for this AI service
           example: anthropic.claude-3-5-sonnet-20240620-v1:0
+        model_name:
+          type: string
+          description: |-
+            デフォルトモデルの表示名(任意。指定した値をそのまま保存・返却する。サーバー側では解決しない)
+            Display name for the default model (optional; stored and returned verbatim as supplied — not resolved server-side)
+          nullable: true
+          example: Claude 3.5 Sonnet
         pickup_model_ids:
           type: array
           description: |-
-            UIでモデル選択の候補を絞り込むためにピックアップしたモデルID一覧(省略時は空配列)
-            List of model IDs picked to narrow down the model choices shown in the UI (empty array if omitted)
+            UIでモデル選択の候補を絞り込むためにピックアップしたモデル一覧(省略時は空配列)。
+            各要素はidが必須、nameは任意
+            List of models picked to narrow down the model choices shown in the UI (empty array if omitted).
+            Each entry requires id; name is optional
           example:
-          - anthropic.claude-3-5-sonnet-20240620-v1:0
-          - global.anthropic.claude-sonnet-5
+          - id: anthropic.claude-3-5-sonnet-20240620-v1:0
+            name: Claude 3.5 Sonnet
+          - id: global.anthropic.claude-sonnet-5
+            name: Claude Sonnet 5
           items:
-            type: string
+            $ref: "#/components/schemas/apiorganization_idplatformusers_currentai_service_idaipreference_pickup_model_ids"
     inline_response_200_20:
       allOf:
       - $ref: "#/components/schemas/responseOk"
@@ -6992,7 +7039,7 @@ components:
           - LLMEditor
           - AgenticAI
           - Lessons
-          - Aggregation
+          - GenerateTitle
         tools:
           type: array
           description: |-
@@ -7583,6 +7630,22 @@ components:
           format: uuid
         create_user_name:
           type: string
+    aiPreferenceInfo_pickup_model_ids:
+      required:
+      - id
+      type: object
+      properties:
+        id:
+          type: string
+          description: |-
+            モデルID
+            Model ID
+        name:
+          type: string
+          description: |-
+            表示用のモデル名(任意)
+            Display name for the model (optional)
+          nullable: true
     aiServiceInfo_settings:
       type: object
       properties:
