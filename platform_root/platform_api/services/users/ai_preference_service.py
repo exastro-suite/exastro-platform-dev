@@ -127,8 +127,87 @@ class AiPreferenceService:
         )
 
 
+@dataclass
+class CurrentAiService:
+    """User Current AI Service（現在選択中のAIサービス）"""
+    ai_service_id: str
+    model_id: Optional[str]
+    model_name: Optional[str]
+
+
+class CurrentAiServiceService:
+    """
+    Current AI Service Service
+
+    ユーザーが現在選択中のAIサービスを管理(ai_service_idのみを保持するポインタ。
+    model_id/model_nameはT_USER_AI_PREFERENCE側の値をJOINして参照するのみで、ここには保存しない)
+    """
+
+    def get_current(
+        self,
+        organization_id: str,
+        user_id: str,
+    ) -> Optional[CurrentAiService]:
+        """
+        現在選択中のAIサービスを取得
+
+        Args:
+            organization_id: Organization ID (DB接続用、テーブルには保存しない)
+            user_id: User ID
+
+        Returns:
+            CurrentAiService。一度も保存されていない場合はNone
+        """
+        with closing(DBconnector().connect_orgdb(organization_id)) as conn:
+            with closing(conn.cursor()) as cursor:
+                cursor.execute(
+                    queries_ai_assistant.SQL_SELECT_USER_CURRENT_AI_SERVICE,
+                    {"user_id": user_id},
+                )
+                row = cursor.fetchone()
+
+        if not row:
+            return None
+
+        return CurrentAiService(
+            ai_service_id=row["AI_SERVICE_ID"],
+            model_id=row["MODEL_ID"],
+            model_name=row["MODEL_NAME"],
+        )
+
+    def set_current(
+        self,
+        organization_id: str,
+        user_id: str,
+        ai_service_id: str,
+    ) -> None:
+        """
+        現在選択中のAIサービスを保存（既存設定があれば上書き、無ければ新規作成）
+
+        Args:
+            organization_id: Organization ID (DB接続用、テーブルには保存しない)
+            user_id: User ID
+            ai_service_id: 現在選択中とするAIサービスID
+        """
+        with closing(DBconnector().connect_orgdb(organization_id)) as conn:
+            with closing(conn.cursor()) as cursor:
+                cursor.execute(
+                    queries_ai_assistant.SQL_UPSERT_USER_CURRENT_AI_SERVICE,
+                    {
+                        "user_id": user_id,
+                        "ai_service_id": ai_service_id,
+                    },
+                )
+                conn.commit()
+
+        globals.logger.debug(
+            f"Current AI service saved: user={user_id}, ai_service_id={ai_service_id}"
+        )
+
+
 # シングルトンインスタンス
 _service_instance: Optional[AiPreferenceService] = None
+_current_ai_service_instance: Optional[CurrentAiServiceService] = None
 
 
 def get_ai_preference_service() -> AiPreferenceService:
@@ -142,3 +221,16 @@ def get_ai_preference_service() -> AiPreferenceService:
     if _service_instance is None:
         _service_instance = AiPreferenceService()
     return _service_instance
+
+
+def get_current_ai_service_service() -> CurrentAiServiceService:
+    """
+    Current AI Service Serviceのシングルトンインスタンスを取得
+
+    Returns:
+        CurrentAiServiceService
+    """
+    global _current_ai_service_instance
+    if _current_ai_service_instance is None:
+        _current_ai_service_instance = CurrentAiServiceService()
+    return _current_ai_service_instance

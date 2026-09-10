@@ -39,6 +39,7 @@ from services.ai_assistant.model_service import (
 )
 from services.users.ai_preference_service import (
     get_ai_preference_service,
+    get_current_ai_service_service,
 )
 # settings(type: password以外の項目をGET /credentialsで値付きで返すために使用
 # Used to return values (for non-password-type fields) in GET /credentials
@@ -1387,6 +1388,128 @@ def update_ai_preference(body, organization_id, ai_service_id):
         message_id = "500-94020"
         message = multi_lang.get_text(
             message_id, "AI利用設定の保存に失敗しました: {}", str(e)
+        )
+        raise common.InternalErrorException(message_id=message_id, message=message)
+
+
+@common.platform_exception_handler
+@require_ai_assistant_driver
+def get_current_ai_preference(organization_id):
+    """
+    現在選択中のAIサービスを取得
+
+    :param organization_id:
+    :type organization_id: str
+
+    :rtype: dict
+    """
+    globals.logger.info(f"### func:{inspect.currentframe().f_code.co_name}")
+
+    r = connexion.request
+    user_id = r.headers.get("User-id")
+
+    try:
+        service = get_current_ai_service_service()
+
+        current = service.get_current(organization_id=organization_id, user_id=user_id)
+
+        if current is None:
+            # 一度も保存されていない場合は404にせず、空の設定を返す（他のai-preference系APIと同じ方針）
+            # Return an empty preference instead of 404 when nothing has been saved yet (same policy as the other ai-preference APIs)
+            return common.response_200_ok(
+                {
+                    "ai_service_id": None,
+                    "ai_service_name": None,
+                    "model_id": None,
+                    "model_name": None,
+                }
+            )
+
+        return common.response_200_ok(
+            {
+                "ai_service_id": current.ai_service_id,
+                "ai_service_name": _get_ai_service_name(current.ai_service_id),
+                "model_id": current.model_id,
+                "model_name": current.model_name,
+            }
+        )
+
+    except Exception as e:
+        globals.logger.error(f"Failed to get current AI service: {e}", exc_info=True)
+        message_id = "500-94021"
+        message = multi_lang.get_text(
+            message_id, "現在選択中のAIサービスの取得に失敗しました: {}", str(e)
+        )
+        raise common.InternalErrorException(message_id=message_id, message=message)
+
+
+@common.platform_exception_handler
+@require_ai_assistant_driver
+def update_current_ai_preference(body, organization_id):
+    """
+    現在選択中のAIサービスを保存（存在しない場合は新規作成、存在する場合は上書き）
+
+    :param body:
+    :type body: dict
+    :param organization_id:
+    :type organization_id: str
+
+    :rtype: dict
+    """
+    globals.logger.info(f"### func:{inspect.currentframe().f_code.co_name}")
+
+    r = connexion.request
+    user_id = r.headers.get("User-id")
+
+    body = r.get_json()
+    ai_service_id = body.get("ai_service_id")
+
+    if not ai_service_id:
+        message_id = "400-94215"
+        message = multi_lang.get_text(message_id, "ai_service_idは必須です")
+        raise common.BadRequestException(message_id=message_id, message=message)
+
+    if _get_ai_service_name(ai_service_id) is None:
+        message_id = "400-94216"
+        message = multi_lang.get_text(
+            message_id, "ai_service_idの値が不正です: {}", ai_service_id
+        )
+        raise common.BadRequestException(message_id=message_id, message=message)
+
+    try:
+        service = get_current_ai_service_service()
+
+        service.set_current(
+            organization_id=organization_id,
+            user_id=user_id,
+            ai_service_id=ai_service_id,
+        )
+
+        globals.logger.debug(
+            f"Current AI service updated: org={organization_id}, user={user_id}, "
+            f"ai_service_id={ai_service_id}"
+        )
+
+        preference = get_ai_preference_service().get_preference(
+            organization_id=organization_id,
+            user_id=user_id,
+            ai_service_id=ai_service_id,
+        )
+
+        return common.response_200_ok(
+            {
+                "ai_service_id": ai_service_id,
+                "ai_service_name": _get_ai_service_name(ai_service_id),
+                "model_id": preference.model_id if preference else None,
+                "model_name": preference.model_name if preference else None,
+            }
+        )
+
+    except Exception as e:
+        globals.logger.error(f"Failed to update current AI service: {e}", exc_info=True)
+        message_id = "500-94022"
+        message = multi_lang.get_text(
+            message_id, "現在選択中のAIサービスの保存に失敗しました: {}", str(e)
         )
         raise common.InternalErrorException(message_id=message_id, message=message)
 
