@@ -1067,10 +1067,22 @@ paths:
                               スナップショット内でのアシスタントメッセージの順序番号(1始まり、messageを省略した場合はnull)
                               Sequence number of the assistant message within the snapshot (1-based; null when message was omitted)
                           content:
-                            type: string
+                            type: array
                             description: |-
-                              AIの応答(テキスト部分のみ。tool_useのみの応答の場合は空文字)
-                              AI response (text portion only; an empty string for a tool_use-only response)
+                              AIの応答のcontentブロック一覧(Anthropic Messages API形式。text/tool_use/thinking等をそのまま保持し、T_CHAT_MESSAGEに保存される内容と同じ)。
+                              tool_useブロックが含まれる場合、呼び出し側はidentifier/name/inputを見て後続のtool実行を行う想定。
+                              List of the AI response's content blocks (Anthropic Messages API format; text/tool_use/thinking etc. are kept as-is, identical to what is saved to T_CHAT_MESSAGE).
+                              When a tool_use block is present, the caller is expected to inspect its id/name/input and run the corresponding tool.
+                            items:
+                              type: object
+                            example:
+                              - type: text
+                                text: 確認します。
+                              - type: tool_use
+                                id: toolu_01ABC
+                                name: search-docs
+                                input:
+                                  query: example
                           stop_reason:
                             type: string
                             nullable: true

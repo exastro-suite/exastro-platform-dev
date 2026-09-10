@@ -453,13 +453,6 @@ class ConversationService:
             # The response's content blocks (text/tool_use/thinking, etc.). When tools are passed, the model may respond with a tool_use block,
             # so keep all blocks (not just text) when saving/returning content — extracting only text would silently drop tool calls.
             response_content_blocks = response.get("content", [])
-            # 表示用の文字列はtextタイプのブロックのみ連結して取り出す（tool_useのみの応答では空文字になる）
-            # The display string only concatenates text-type blocks (it is an empty string for a tool_use-only response)
-            assistant_content = "".join(
-                block.get("text", "")
-                for block in response_content_blocks
-                if isinstance(block, dict) and block.get("type") == "text"
-            )
             # stop_reasonが"tool_use"の場合、呼び出し元はtool_useブロックを見て後続のtool実行を行う想定
             # When stop_reason is "tool_use", the caller is expected to inspect the tool_use block(s) and run the corresponding tool
             stop_reason = response.get("stop_reason")
@@ -555,7 +548,7 @@ class ConversationService:
                 "message_id": saved_message_id,
                 "user_message_seq": user_message_seq,
                 "assistant_message_seq": assistant_message_seq,
-                "content": assistant_content,
+                "content": response_content_blocks,
                 "stop_reason": stop_reason,
                 "saved": has_new_message,
                 "ai_status_code": ai_status_code,
