@@ -49,7 +49,7 @@ from controllers.ai_assistant_service_controller import AVAILABLE_AI_SERVICES
 # Decorator that only allows the models-list / ai-preference APIs for organizations with the ai_assistant driver enabled
 require_ai_assistant_driver = organization_options.require_ita_driver(
     "ai_assistant",
-    "403-94212",
+    "403-25001",
     "AIアシスタント機能が有効になっていません",
 )
 
@@ -717,12 +717,12 @@ def register_credential(body, organization_id, credential_type):
 
     # バリデーション
     if not credential_name:
-        message_id = "400-94001"
+        message_id = "400-25007"
         message = multi_lang.get_text(message_id, "credential_nameは必須です")
         raise common.BadRequestException(message_id=message_id, message=message)
 
     if not credential_data or not isinstance(credential_data, dict):
-        message_id = "400-94002"
+        message_id = "400-25008"
         message = multi_lang.get_text(
             message_id, "credential_dataは必須でJSON形式である必要があります"
         )
@@ -733,7 +733,7 @@ def register_credential(body, organization_id, credential_type):
         # apiKeyにログインキャッシュファイルの内容(JSON文字列)が渡されているか確認
         # Verify that apiKey contains the login cache file content (a JSON string)
         if not _is_valid_bedrock_cache_api_key(credential_data.get("apiKey")):
-            message_id = "400-94014"
+            message_id = "400-25009"
             message = multi_lang.get_text(
                 message_id,
                 "bedrock-cache requires apiKey to contain the full cache file content (JSON) including idToken. "
@@ -774,7 +774,7 @@ def register_credential(body, organization_id, credential_type):
     except CredentialAlreadyExists:
         # このcredential_typeには既に1件登録済み（1credential_typeにつき1件のみ許可）。更新はPUTを使う
         # A credential is already registered for this credential_type (only one credential is allowed per type). Use PUT to update it
-        message_id = "409-94213"
+        message_id = "409-25002"
         message = multi_lang.get_text(
             message_id,
             "Credential for this credential_type is already registered. Use PUT to update it."
@@ -783,7 +783,7 @@ def register_credential(body, organization_id, credential_type):
 
     except Exception as e:
         globals.logger.error(f"Failed to register credential: {e}", exc_info=True)
-        message_id = "500-94001"
+        message_id = "500-25006"
         message = multi_lang.get_text(
             message_id, "Credential登録に失敗しました: {}", str(e)
         )
@@ -857,7 +857,7 @@ def get_credential(organization_id, credential_type):
 
     except Exception as e:
         globals.logger.error(f"Failed to get credential: {e}", exc_info=True)
-        message_id = "500-94003"
+        message_id = "500-25007"
         message = multi_lang.get_text(
             message_id, "Credential取得に失敗しました: {}", str(e)
         )
@@ -891,7 +891,7 @@ def delete_credential(organization_id, credential_type):
         )
 
         if not deleted:
-            message_id = "404-94007"
+            message_id = "404-25002"
             message = multi_lang.get_text(message_id, "Credentialが見つかりません")
             raise common.NotFoundException(message_id=message_id, message=message)
 
@@ -911,7 +911,7 @@ def delete_credential(organization_id, credential_type):
 
     except Exception as e:
         globals.logger.error(f"Failed to delete credential: {e}", exc_info=True)
-        message_id = "500-94004"
+        message_id = "500-25008"
         message = multi_lang.get_text(
             message_id, "Credential削除に失敗しました: {}", str(e)
         )
@@ -944,12 +944,12 @@ def update_credential(body, organization_id, credential_type):
 
     # 必須フィールドのバリデーション（PUT = 全体更新）
     if not credential_name:
-        message_id = "400-94001"
+        message_id = "400-25007"
         message = multi_lang.get_text(message_id, "credential_nameは必須です")
         raise common.BadRequestException(message_id=message_id, message=message)
 
     if not credential_data or not isinstance(credential_data, dict):
-        message_id = "400-94002"
+        message_id = "400-25008"
         message = multi_lang.get_text(
             message_id, "credential_dataは必須でJSON形式である必要があります"
         )
@@ -958,7 +958,7 @@ def update_credential(body, organization_id, credential_type):
     # bedrock-cache の特別処理
     if credential_type == "bedrock-cache":
         if not _is_valid_bedrock_cache_api_key(credential_data.get("apiKey")):
-            message_id = "400-94014"
+            message_id = "400-25009"
             message = multi_lang.get_text(
                 message_id,
                 "bedrock-cache requires apiKey to contain the full cache file content (JSON) including idToken. "
@@ -979,7 +979,7 @@ def update_credential(body, organization_id, credential_type):
         )
 
         if not updated:
-            message_id = "404-94018"
+            message_id = "404-25003"
             message = multi_lang.get_text(message_id, "Credentialが見つかりません")
             raise common.NotFoundException(message_id=message_id, message=message)
 
@@ -1009,7 +1009,7 @@ def update_credential(body, organization_id, credential_type):
 
     except Exception as e:
         globals.logger.error(f"Failed to update credential: {e}", exc_info=True)
-        message_id = "500-94005"
+        message_id = "500-25009"
         message = multi_lang.get_text(
             message_id, "Credential更新に失敗しました: {}", str(e)
         )
@@ -1048,13 +1048,13 @@ def verify_credential(organization_id, credential_type):
         return common.response_200_ok(verification_result)
 
     except CredentialNotFound:
-        message_id = "404-94009"
+        message_id = "404-25004"
         message = multi_lang.get_text(message_id, "Credentialが見つかりません")
         raise common.NotFoundException(message_id=message_id, message=message)
 
     except Exception as e:
         globals.logger.error(f"Failed to verify credential: {e}", exc_info=True)
-        message_id = "500-94006"
+        message_id = "500-25010"
         message = multi_lang.get_text(
             message_id, "Credential検証に失敗しました: {}", str(e)
         )
@@ -1209,7 +1209,7 @@ def list_models(organization_id, credential_type):
     try:
         # Bedrockのみ対応
         if credential_type not in ["bedrock-cache", "bedrock"]:
-            message_id = "400-94011"
+            message_id = "400-25010"
             message = multi_lang.get_text(
                 message_id, f"Model list not supported for service: {credential_type}"
             )
@@ -1236,13 +1236,13 @@ def list_models(organization_id, credential_type):
         )
 
     except CredentialNotFound:
-        message_id = "404-94012"
+        message_id = "404-25005"
         message = multi_lang.get_text(message_id, "Credentialが見つかりません")
         raise common.NotFoundException(message_id=message_id, message=message)
 
     except Exception as e:
         globals.logger.error(f"Failed to list models: {e}", exc_info=True)
-        message_id = "500-94007"
+        message_id = "500-25011"
         message = multi_lang.get_text(
             message_id, "モデル一覧取得に失敗しました: {}", str(e)
         )
@@ -1301,7 +1301,7 @@ def get_ai_preference(organization_id, ai_service_id):
 
     except Exception as e:
         globals.logger.error(f"Failed to get AI preference: {e}", exc_info=True)
-        message_id = "500-94019"
+        message_id = "500-25012"
         message = multi_lang.get_text(
             message_id, "AI利用設定の取得に失敗しました: {}", str(e)
         )
@@ -1336,12 +1336,12 @@ def update_ai_preference(body, organization_id, ai_service_id):
     # バリデーション（PUTは全置換前提のため、model_idは毎回必須）
     # Validation (since PUT is a full replace, model_id is required every time)
     if not model_id:
-        message_id = "400-94016"
+        message_id = "400-25011"
         message = multi_lang.get_text(message_id, "model_idは必須です")
         raise common.BadRequestException(message_id=message_id, message=message)
 
     if not isinstance(pickup_model_ids, list):
-        message_id = "400-94017"
+        message_id = "400-25012"
         message = multi_lang.get_text(
             message_id, "pickup_model_idsはJSON配列である必要があります"
         )
@@ -1350,7 +1350,7 @@ def update_ai_preference(body, organization_id, ai_service_id):
     # 各要素はid(必須)・name(任意)を持つオブジェクトである必要がある(idのみだと表示名がわからず使いにくいため)
     # Each entry must be an object with id (required) and name (optional) (an ID alone lacks a display name and is hard to use)
     if not all(isinstance(item, dict) and item.get("id") for item in pickup_model_ids):
-        message_id = "400-94214"
+        message_id = "400-25013"
         message = multi_lang.get_text(
             message_id, "pickup_model_idsの各要素はidを含むオブジェクトである必要があります"
         )
@@ -1385,7 +1385,7 @@ def update_ai_preference(body, organization_id, ai_service_id):
 
     except Exception as e:
         globals.logger.error(f"Failed to update AI preference: {e}", exc_info=True)
-        message_id = "500-94020"
+        message_id = "500-25013"
         message = multi_lang.get_text(
             message_id, "AI利用設定の保存に失敗しました: {}", str(e)
         )
@@ -1436,7 +1436,7 @@ def get_current_ai_preference(organization_id):
 
     except Exception as e:
         globals.logger.error(f"Failed to get current AI service: {e}", exc_info=True)
-        message_id = "500-94021"
+        message_id = "500-25014"
         message = multi_lang.get_text(
             message_id, "現在選択中のAIサービスの取得に失敗しました: {}", str(e)
         )
@@ -1465,12 +1465,12 @@ def update_current_ai_preference(body, organization_id):
     ai_service_id = body.get("ai_service_id")
 
     if not ai_service_id:
-        message_id = "400-94215"
+        message_id = "400-25014"
         message = multi_lang.get_text(message_id, "ai_service_idは必須です")
         raise common.BadRequestException(message_id=message_id, message=message)
 
     if _get_ai_service_name(ai_service_id) is None:
-        message_id = "400-94216"
+        message_id = "400-25015"
         message = multi_lang.get_text(
             message_id, "ai_service_idの値が不正です: {}", ai_service_id
         )
@@ -1507,7 +1507,7 @@ def update_current_ai_preference(body, organization_id):
 
     except Exception as e:
         globals.logger.error(f"Failed to update current AI service: {e}", exc_info=True)
-        message_id = "500-94022"
+        message_id = "500-25015"
         message = multi_lang.get_text(
             message_id, "現在選択中のAIサービスの保存に失敗しました: {}", str(e)
         )
