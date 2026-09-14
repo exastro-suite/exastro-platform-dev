@@ -65,6 +65,16 @@ ORDER BY c.LAST_UPDATE_TIMESTAMP DESC
 LIMIT %(limit)s OFFSET %(offset)s
 """
 
+# LIMIT/OFFSETによる絞り込み前の、条件に合致する会話の総件数（ページネーションのtotal_count用）
+# Total number of conversations matching the filter conditions before applying LIMIT/OFFSET (for the total_count field used in pagination)
+SQL_COUNT_CONVERSATIONS = """
+SELECT COUNT(*) AS total_count
+FROM T_CHAT_CONVERSATION c
+WHERE c.USER_ID = %(user_id)s
+  AND c.PROMPT_PROFILE = %(prompt_profile)s
+  AND (%(status)s IS NULL OR c.STATUS = %(status)s)
+"""
+
 SQL_UPDATE_CONVERSATION_TOKEN_COUNT = """
 UPDATE T_CHAT_CONVERSATION
 SET CURRENT_TOKEN_COUNT = CURRENT_TOKEN_COUNT + %(token_count)s,

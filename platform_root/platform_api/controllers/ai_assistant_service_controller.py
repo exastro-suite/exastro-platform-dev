@@ -19,11 +19,12 @@ AIアシスタントに関する操作
 """
 
 import connexion
+import copy
 import inspect
 import json
 from contextlib import closing
 
-from common_library.common import common, multi_lang, organization_options
+from common_library.common import common, multi_lang, organization_options, validation
 from common_library.common.db import DBconnector
 from services.ai_assistant.conversation_service import (
     get_conversation_service,
@@ -38,7 +39,7 @@ import globals
 # Decorator that only allows AIAssistantService APIs for organizations with the ai_assistant driver enabled
 require_ai_assistant_driver = organization_options.require_ita_driver(
     "ai_assistant",
-    "403-94212",
+    "403-44001",
     "AIアシスタント機能が有効になっていません",
 )
 
@@ -90,6 +91,49 @@ AVAILABLE_AI_SERVICES = [
     },
 ]
 
+# AVAILABLE_AI_SERVICESのdescription/settings[].titleをmulti_lang.get_textで多言語化するための対応表。
+# (service_id, "description") または (service_id, "settings", setting_key, "title") -> message_id
+# multi_lang.get_textはリクエストコンテキスト(Languageヘッダー)が必要なため、モジュール読み込み時ではなく
+# リクエスト処理時に_localized_ai_services()で差し替える
+# Mapping used to localize AVAILABLE_AI_SERVICES' description/settings[].title via multi_lang.get_text.
+# multi_lang.get_text requires an active request context (Language header), so the substitution happens
+# at request time in _localized_ai_services(), not at module load time
+_AI_SERVICE_TEXT_MESSAGE_IDS = {
+    ("bedrock-cache", "description"): "000-44001",
+    ("bedrock-cache", "settings", "apiKey", "title"): "000-44002",
+    ("bedrock", "description"): "000-44003",
+    ("bedrock", "settings", "accessKeyId", "title"): "000-44004",
+    ("bedrock", "settings", "secretAccessKey", "title"): "000-44005",
+    ("bedrock", "settings", "sessionToken", "title"): "000-44006",
+    ("bedrock", "settings", "region", "title"): "000-44007",
+}
+
+
+def _localized_ai_services():
+    """AVAILABLE_AI_SERVICESのdescription/settings[].titleをmulti_lang.get_textで多言語化したコピーを返す
+    Return a copy of AVAILABLE_AI_SERVICES with description/settings[].title localized via multi_lang.get_text
+
+    Returns:
+        list[dict]
+    """
+    services = copy.deepcopy(AVAILABLE_AI_SERVICES)
+
+    for service in services:
+        service_id = service.get("ai_service_id")
+
+        description_message_id = _AI_SERVICE_TEXT_MESSAGE_IDS.get((service_id, "description"))
+        if description_message_id:
+            service["description"] = multi_lang.get_text(description_message_id, service["description"])
+
+        for setting_key, setting in service.get("settings", {}).items():
+            title_message_id = _AI_SERVICE_TEXT_MESSAGE_IDS.get(
+                (service_id, "settings", setting_key, "title")
+            )
+            if title_message_id:
+                setting["title"] = multi_lang.get_text(title_message_id, setting["title"])
+
+    return services
+
 
 @common.platform_exception_handler
 @require_ai_assistant_driver
@@ -104,10 +148,12 @@ def get_ai_services(organization_id):
     """
     globals.logger.info(f"### func:{inspect.currentframe().f_code.co_name}")
 
+    services = _localized_ai_services()
+
     return common.response_200_ok(
         {
-            "ai_services": AVAILABLE_AI_SERVICES,
-            "count": len(AVAILABLE_AI_SERVICES),
+            "ai_services": services,
+            "count": len(services),
         }
     )
 
@@ -139,42 +185,26 @@ def create_conversation(body, organization_id, workspace_id):
     prompt_profile = body.get("prompt_profile", "LLMEditor")
     tools = body.get("tools")  # ツール定義（Anthropic tools形式の配列、任意）
 
-    # バリデーション
-    if not title:
-        message_id = "400-94001"
-        message = multi_lang.get_text(
-            message_id,
-            "titleは必須です"
-        )
-        raise common.BadRequestException(message_id=message_id, message=message)
+    # バリデーション（共通のvalidationモジュールを使用）
+    validate = validation.validate_conversation_title(title)
+    if not validate.ok:
+        return common.response_validation_error(validate)
 
     # completionsでmodel_idを省略した際のデフォルトとして使うため、会話作成時に必須とする
     # Required at conversation creation time, since it becomes the default used when model_id is omitted in completions
-    if not model_id:
-        message_id = "400-94112"
-        message = multi_lang.get_text(
-            message_id,
-            "model_idは必須です"
-        )
-        raise common.BadRequestException(message_id=message_id, message=message)
+    validate = validation.validate_conversation_model_id(model_id)
+    if not validate.ok:
+        return common.response_validation_error(validate)
 
     # どのAIサービスを使うかを明確化するため必須とする（自動推定はしない）
     # Required to make explicit which AI service is used (no auto-detection)
-    if not ai_service_id:
-        message_id = "400-94114"
-        message = multi_lang.get_text(
-            message_id,
-            "ai_service_idは必須です"
-        )
-        raise common.BadRequestException(message_id=message_id, message=message)
+    validate = validation.validate_conversation_ai_service_id(ai_service_id)
+    if not validate.ok:
+        return common.response_validation_error(validate)
 
-    if tools is not None and not isinstance(tools, list):
-        message_id = "400-94113"
-        message = multi_lang.get_text(
-            message_id,
-            "toolsは配列である必要があります"
-        )
-        raise common.BadRequestException(message_id=message_id, message=message)
+    validate = validation.validate_conversation_tools(tools)
+    if not validate.ok:
+        return common.response_validation_error(validate)
 
     try:
         service = get_conversation_service()
@@ -224,7 +254,7 @@ def create_conversation(body, organization_id, workspace_id):
     except CredentialNotFound:
         # 指定したai_service_idのactiveなCredentialが未登録
         # No active credential registered for the specified ai_service_id
-        message_id = "404-94115"
+        message_id = "404-44001"
         message = multi_lang.get_text(
             message_id,
             "指定したai_service_idのCredentialが登録されていません: {}",
@@ -234,7 +264,7 @@ def create_conversation(body, organization_id, workspace_id):
 
     except Exception as e:
         globals.logger.error(f"Failed to create conversation: {e}", exc_info=True)
-        message_id = "500-94101"
+        message_id = "500-44008"
         message = multi_lang.get_text(
             message_id,
             "会話作成に失敗しました: {}",
@@ -272,7 +302,7 @@ def list_conversations(organization_id, workspace_id, prompt_profile, status=Non
     try:
         service = get_conversation_service()
 
-        conversations = service.list_conversations(
+        conversations, total_count = service.list_conversations(
             organization_id=organization_id,
             workspace_id=workspace_id,
             user_id=user_id,
@@ -302,13 +332,13 @@ def list_conversations(organization_id, workspace_id, prompt_profile, status=Non
             {
                 "conversations": conversations_data,
                 "count": len(conversations_data),
-                "total_count": len(conversations_data),  # TODO: 実装改善時に総件数を取得
+                "total_count": total_count,
             }
         )
 
     except Exception as e:
         globals.logger.error(f"Failed to list conversations: {e}", exc_info=True)
-        message_id = "500-94102"
+        message_id = "500-44009"
         message = multi_lang.get_text(
             message_id,
             "会話一覧取得に失敗しました: {}",
@@ -389,7 +419,7 @@ def create_completion(body, conversation_id, organization_id, workspace_id):
         return common.response_200_ok(result)
 
     except ConversationNotFound:
-        message_id = "404-94007"
+        message_id = "404-44002"
         message = multi_lang.get_text(
             message_id,
             "会話が見つかりません"
@@ -408,7 +438,7 @@ def create_completion(body, conversation_id, organization_id, workspace_id):
 
     except Exception as e:
         globals.logger.error(f"Failed to create completion: {e}", exc_info=True)
-        message_id = "500-94104"
+        message_id = "500-44010"
         message = multi_lang.get_text(
             message_id,
             "AI応答の生成に失敗しました: {}",
@@ -436,23 +466,10 @@ def create_message(conversation_id, organization_id, workspace_id):
     user_id = connexion.request.headers.get('User-Id')
     body = connexion.request.get_json()
 
-    # バリデーション：contentsフィールド（JSON配列）が必須
-    if 'contents' not in body:
-        message_id = "400-94201"
-        message = multi_lang.get_text(
-            message_id,
-            "必須フィールドが不足しています: contents"
-        )
-        raise common.BadRequestException(message_id=message_id, message=message)
-
-    # contentsが配列であることを確認
-    if not isinstance(body['contents'], list):
-        message_id = "400-94202"
-        message = multi_lang.get_text(
-            message_id,
-            "contentsはJSON配列である必要があります"
-        )
-        raise common.BadRequestException(message_id=message_id, message=message)
+    # バリデーション（共通のvalidationモジュールを使用）：contentsフィールド（JSON配列）が必須
+    validate = validation.validate_message_contents(body.get('contents'))
+    if not validate.ok:
+        return common.response_validation_error(validate)
 
     try:
         service = get_message_service()
@@ -474,7 +491,7 @@ def create_message(conversation_id, organization_id, workspace_id):
         return common.response_200_ok(result)
 
     except ValueError as e:
-        message_id = "404-94203"
+        message_id = "404-44003"
         message = multi_lang.get_text(
             message_id,
             f"会話が見つかりません: {str(e)}"
@@ -483,7 +500,7 @@ def create_message(conversation_id, organization_id, workspace_id):
 
     except Exception as e:
         globals.logger.error(f"Failed to create message: {e}", exc_info=True)
-        message_id = "500-94204"
+        message_id = "500-44011"
         message = multi_lang.get_text(
             message_id,
             "メッセージ作成に失敗しました: {}",
@@ -535,7 +552,7 @@ def list_messages(conversation_id, organization_id, workspace_id, limit=100, off
         })
 
     except ValueError as e:
-        message_id = "404-94204"
+        message_id = "404-44004"
         message = multi_lang.get_text(
             message_id,
             f"会話が見つかりません: {str(e)}"
@@ -544,7 +561,7 @@ def list_messages(conversation_id, organization_id, workspace_id, limit=100, off
 
     except Exception as e:
         globals.logger.error(f"Failed to list messages: {e}", exc_info=True)
-        message_id = "500-94205"
+        message_id = "500-44012"
         message = multi_lang.get_text(
             message_id,
             "メッセージ一覧取得に失敗しました: {}",
@@ -575,37 +592,16 @@ def replace_messages(conversation_id, organization_id, workspace_id):
     user_id = connexion.request.headers.get('User-Id')
     body = connexion.request.get_json()
 
-    # バリデーション：messagesフィールド（JSON配列）が必須
-    if 'messages' not in body:
-        message_id = "400-94206"
-        message = multi_lang.get_text(
-            message_id,
-            "必須フィールドが不足しています: messages"
-        )
-        raise common.BadRequestException(message_id=message_id, message=message)
-
-    if not isinstance(body['messages'], list):
-        message_id = "400-94207"
-        message = multi_lang.get_text(
-            message_id,
-            "messagesはJSON配列である必要があります"
-        )
-        raise common.BadRequestException(message_id=message_id, message=message)
+    # バリデーション（共通のvalidationモジュールを使用）：messagesフィールド（JSON配列）が必須。
+    # 各要素はcontentsキーを持つオブジェクトである必要がある（GETのレスポンス形式に合わせる）
+    # Each element of messages must be an object with a contents key (matches the GET response shape)
+    validate = validation.validate_messages(body.get('messages'))
+    if not validate.ok:
+        return common.response_validation_error(validate)
 
     # 各要素のcontents（JSON配列）を取り出す
     # Extract each element's contents (JSON array)
-    contents_list = []
-    for item in body['messages']:
-        # messagesの各要素はcontentsキーを持つオブジェクトである必要がある（GETのレスポンス形式に合わせる）
-        # Each element of messages must be an object with a contents key (matches the GET response shape)
-        if not isinstance(item, dict) or not isinstance(item.get('contents'), list):
-            message_id = "400-94207"
-            message = multi_lang.get_text(
-                message_id,
-                "messagesの各要素はcontents(JSON配列)を持つ必要があります"
-            )
-            raise common.BadRequestException(message_id=message_id, message=message)
-        contents_list.append(item['contents'])
+    contents_list = [item['contents'] for item in body['messages']]
 
     try:
         service = get_message_service()
@@ -629,7 +625,7 @@ def replace_messages(conversation_id, organization_id, workspace_id):
         })
 
     except ValueError as e:
-        message_id = "404-94208"
+        message_id = "404-44005"
         message = multi_lang.get_text(
             message_id,
             f"会話が見つかりません: {str(e)}"
@@ -638,7 +634,7 @@ def replace_messages(conversation_id, organization_id, workspace_id):
 
     except Exception as e:
         globals.logger.error(f"Failed to replace messages: {e}", exc_info=True)
-        message_id = "500-94209"
+        message_id = "500-44013"
         message = multi_lang.get_text(
             message_id,
             "メッセージの置き換えに失敗しました: {}",
@@ -685,7 +681,7 @@ def delete_messages(conversation_id, organization_id, workspace_id):
         })
 
     except ValueError as e:
-        message_id = "404-94210"
+        message_id = "404-44006"
         message = multi_lang.get_text(
             message_id,
             f"会話が見つかりません: {str(e)}"
@@ -694,7 +690,7 @@ def delete_messages(conversation_id, organization_id, workspace_id):
 
     except Exception as e:
         globals.logger.error(f"Failed to delete messages: {e}", exc_info=True)
-        message_id = "500-94211"
+        message_id = "500-44014"
         message = multi_lang.get_text(
             message_id,
             "メッセージの削除に失敗しました: {}",

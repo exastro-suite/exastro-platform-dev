@@ -249,8 +249,14 @@ get:
                           $ref: '../schemas/conversationInfo.yaml'
                       count:
                         type: integer
+                        description: |-
+                          このレスポンスに含まれる件数(limit/offset適用後、conversationsの要素数)
+                          Number of items included in this response (after applying limit/offset; the length of conversations)
                       total_count:
                         type: integer
+                        description: |-
+                          絞り込み条件(prompt_profile・status)に合致する総件数(limit/offset適用前)
+                          Total number of items matching the filter conditions (prompt_profile, status), before applying limit/offset
     403:
       description: |-
         AIアシスタント機能が有効になっていない

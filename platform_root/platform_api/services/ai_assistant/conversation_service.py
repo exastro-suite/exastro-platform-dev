@@ -144,7 +144,7 @@ class ConversationService:
         status: Optional[str] = None,
         limit: int = 50,
         offset: int = 0,
-    ) -> List[Dict]:
+    ) -> tuple[List[Dict], int]:
         """
         会話一覧を取得
 
@@ -158,7 +158,7 @@ class ConversationService:
             offset: オフセット
 
         Returns:
-            List[Dict]: 会話一覧
+            tuple[List[Dict], int]: (会話一覧, LIMIT/OFFSET適用前の総件数)
         """
         with closing(DBconnector().connect_workspacedb(organization_id, workspace_id)) as conn:
             with closing(conn.cursor()) as cursor:
@@ -174,12 +174,22 @@ class ConversationService:
                 )
                 conversations = cursor.fetchall()
 
+                cursor.execute(
+                    queries_ai_assistant.SQL_COUNT_CONVERSATIONS,
+                    {
+                        "user_id": user_id,
+                        "prompt_profile": prompt_profile,
+                        "status": status,
+                    },
+                )
+                total_count = cursor.fetchone()["total_count"]
+
         globals.logger.debug(
-            f"Listed {len(conversations)} conversations: "
+            f"Listed {len(conversations)} conversations (total_count={total_count}): "
             f"org={organization_id}, user={user_id}, prompt_profile={prompt_profile}"
         )
 
-        return conversations
+        return conversations, total_count
 
     def create_completion(
         self,
@@ -283,7 +293,7 @@ class ConversationService:
             # 新規メッセージも既存履歴も無い場合は問い合わせ不可
             # Cannot query when there is neither a new message nor any existing history
             raise common.BadRequestException(
-                message_id="400-94107",
+                message_id="400-45001",
                 message="messageが未指定で、会話に既存の履歴もありません",
             )
         elif messages[-1].get("role") == "assistant":
@@ -294,7 +304,7 @@ class ConversationService:
                 # assistantターンを除いた結果userターンも残らない＝問い合わせ可能な発言が無いため400エラー
                 # No user turn remains after removing the assistant turn, i.e. nothing to query, so raise a 400 error
                 raise common.BadRequestException(
-                    message_id="400-94108",
+                    message_id="400-45002",
                     message="messageが未指定で、会話に問い合わせ可能なユーザーメッセージがありません",
                 )
 
@@ -572,7 +582,9 @@ class ConversationService:
             )
             raise common.OtherException(
                 status_code=status_code,
-                message_id=f"{status_code}-94109",
+                # message_idは追跡用に固定値とする(実際に呼び出し元へ返すHTTPステータスはstatus_codeでAIサービスの実値をそのまま伝播する)
+                # Keep message_id fixed for traceability (the actual HTTP status returned to the caller still propagates the AI service's real status via status_code)
+                message_id="500-45001",
                 message=f"AIサービスAPIエラー ({error_code}): {error_message}",
             ) from e
 
@@ -582,7 +594,7 @@ class ConversationService:
             globals.logger.error(f"Bedrock request timeout: {e}")
             raise common.OtherException(
                 status_code=408,
-                message_id="408-94110",
+                message_id="408-45001",
                 message=f"AIサービスへのリクエストがタイムアウトしました: {str(e)}",
             ) from e
 
@@ -592,7 +604,7 @@ class ConversationService:
             globals.logger.error(f"Bedrock request failed (connection error): {e}")
             raise common.OtherException(
                 status_code=503,
-                message_id="503-94111",
+                message_id="503-45001",
                 message=f"AIサービスへの接続に失敗しました: {str(e)}",
             ) from e
 

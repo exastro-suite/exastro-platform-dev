@@ -81,6 +81,9 @@ length_reply_name = 100
 length_envelope_from = 255
 length_authentication_user = 255
 length_authentication_password = 255
+length_conversation_title = 255
+length_conversation_ai_service_id = 64
+length_conversation_model_id = 255
 
 # ロール種別
 # Role Kind

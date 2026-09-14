@@ -273,7 +273,7 @@ class ModelService:
         except ReadTimeoutError as e:
             # タイムアウト → InternalError
             globals.logger.error(f"Bedrock request timeout: {e}")
-            message_id = "500-94107"
+            message_id = "500-46001"
             message = f"モデル一覧取得がタイムアウトしました: {str(e)}"
             raise common.InternalErrorException(
                 message_id=message_id, message=message
