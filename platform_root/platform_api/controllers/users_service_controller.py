@@ -869,6 +869,10 @@ def delete_credential(organization_id, credential_type):
     """
     Credentialを削除（このcredential_typeに登録されている1件を削除する）
 
+    認証情報が無くなったAIサービスの設定を残さないため、あわせてこのAIサービスのAI利用設定
+    （デフォルトモデル・ピックアップモデル）も削除し、このAIサービスを使用中だった場合は
+    現在選択中のAIサービスも未選択に戻す。
+
     :param organization_id:
     :type organization_id: str
     :param credential_type:
@@ -899,9 +903,24 @@ def delete_credential(organization_id, credential_type):
             f"AI Credential deleted: service={credential_type}, org={organization_id}, user={user_id}"
         )
 
+        # 認証情報が無くなったAIサービスは選択できないため、そのAIサービスの設定も残さない
+        get_ai_preference_service().delete_preference(
+            organization_id=organization_id,
+            user_id=user_id,
+            ai_service_id=credential_type,
+        )
+
+        # 削除したAIサービスを使用中だった場合のみ、選択中の状態が未選択に戻る
+        current_cleared = get_current_ai_service_service().clear_current(
+            organization_id=organization_id,
+            user_id=user_id,
+            ai_service_id=credential_type,
+        )
+
         return common.response_200_ok(
             {
                 "credential_type": credential_type,
+                "current_ai_service_cleared": current_cleared,
                 "message": "Credential deleted successfully",
             }
         )
