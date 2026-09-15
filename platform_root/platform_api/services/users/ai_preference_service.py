@@ -126,6 +126,39 @@ class AiPreferenceService:
             f"model={model_id}, model_name={model_name}, pickup_count={len(pickup_model_ids)}"
         )
 
+    def delete_preference(
+        self,
+        organization_id: str,
+        user_id: str,
+        ai_service_id: str,
+    ) -> bool:
+        """
+        AI利用設定を削除（Credentialを削除したAIサービスの設定を残さないために使用する）
+
+        Args:
+            organization_id: Organization ID (DB接続用、テーブルには保存しない)
+            user_id: User ID
+            ai_service_id: AIサービスID
+
+        Returns:
+            削除した設定があったかどうか（未保存の場合はFalse）
+        """
+        with closing(DBconnector().connect_orgdb(organization_id)) as conn:
+            with closing(conn.cursor()) as cursor:
+                cursor.execute(
+                    queries_ai_assistant.SQL_DELETE_USER_AI_PREFERENCE,
+                    {"user_id": user_id, "ai_service_id": ai_service_id},
+                )
+                deleted = cursor.rowcount > 0
+                conn.commit()
+
+        if deleted:
+            globals.logger.debug(
+                f"AI preference deleted: user={user_id}, ai_service_id={ai_service_id}"
+            )
+
+        return deleted
+
 
 @dataclass
 class CurrentAiService:
@@ -203,6 +236,39 @@ class CurrentAiServiceService:
         globals.logger.debug(
             f"Current AI service saved: user={user_id}, ai_service_id={ai_service_id}"
         )
+
+    def clear_current(
+        self,
+        organization_id: str,
+        user_id: str,
+        ai_service_id: str,
+    ) -> bool:
+        """
+        現在選択中のAIサービスを未選択に戻す（指定したAIサービスを選択している場合のみ）
+
+        Args:
+            organization_id: Organization ID (DB接続用、テーブルには保存しない)
+            user_id: User ID
+            ai_service_id: 未選択に戻す対象のAIサービスID
+
+        Returns:
+            未選択に戻したかどうか（別のAIサービスを選択中・一度も保存していない場合はFalse）
+        """
+        with closing(DBconnector().connect_orgdb(organization_id)) as conn:
+            with closing(conn.cursor()) as cursor:
+                cursor.execute(
+                    queries_ai_assistant.SQL_DELETE_USER_CURRENT_AI_SERVICE,
+                    {"user_id": user_id, "ai_service_id": ai_service_id},
+                )
+                cleared = cursor.rowcount > 0
+                conn.commit()
+
+        if cleared:
+            globals.logger.debug(
+                f"Current AI service cleared: user={user_id}, ai_service_id={ai_service_id}"
+            )
+
+        return cleared
 
 
 # シングルトンインスタンス

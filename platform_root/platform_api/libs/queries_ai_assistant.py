@@ -233,6 +233,13 @@ ON DUPLICATE KEY UPDATE
     LAST_UPDATE_USER = %(user_id)s
 """
 
+# Credentialを削除したAIサービスの設定を残さないために使用する（未保存でも0件削除で成功扱いになる）
+# Used to avoid leaving settings for an AI service whose credential was deleted (deleting 0 rows is not an error)
+SQL_DELETE_USER_AI_PREFERENCE = """
+DELETE FROM T_USER_AI_PREFERENCE
+WHERE USER_ID = %(user_id)s AND AI_SERVICE_ID = %(ai_service_id)s
+"""
+
 # ==================== Current AI Service ====================
 
 # 現在選択中のAIサービスと、そのサービスのai-preference(モデル情報)をまとめて取得する
@@ -261,4 +268,13 @@ ON DUPLICATE KEY UPDATE
     AI_SERVICE_ID = %(ai_service_id)s,
     LAST_UPDATE_TIMESTAMP = NOW(),
     LAST_UPDATE_USER = %(user_id)s
+"""
+
+# 使用中のAIサービスのCredentialが削除されたときに、選択中の状態を未選択へ戻すために使用する。
+# AI_SERVICE_IDも条件に含めて、選択していない別のAIサービスを削除しても選択中の状態は変えない。
+# Used to clear the selection when the credential of the currently selected AI service is deleted.
+# AI_SERVICE_ID is part of the condition so that deleting a different (not selected) AI service leaves the selection as is.
+SQL_DELETE_USER_CURRENT_AI_SERVICE = """
+DELETE FROM T_USER_CURRENT_AI_SERVICE
+WHERE USER_ID = %(user_id)s AND AI_SERVICE_ID = %(ai_service_id)s
 """
