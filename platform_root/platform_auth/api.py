@@ -225,6 +225,7 @@ def platform_organization_api_call(subpath):
             # stream形式の場合は、独自の返却を実施する
             # In the case of stream format, implement your own return
             response = Response(chunk_response(return_api, response_chunk_byte))
+            response.status_code = return_api.status_code  # バックエンドのステータスコードを設定
             for key, value in return_api.headers.items():
                 if key.lower().startswith('content-'):
                     response.headers[key] = value
@@ -512,6 +513,7 @@ def ita_admin_api_call(subpath):
             # stream形式の場合は、独自の返却を実施する
             # In the case of stream format, implement your own return
             response = Response(chunk_response(return_api, response_chunk_byte))
+            response.status_code = return_api.status_code  # バックエンドのステータスコードを設定
             for key, value in return_api.headers.items():
                 if key.lower().startswith('content-'):
                     response.headers[key] = value
@@ -676,6 +678,7 @@ def platform_api_call(organization_id, subpath):
             # stream形式の場合は、独自の返却を実施する
             # In the case of stream format, implement your own return
             response = Response(chunk_response(return_api, response_chunk_byte))
+            response.status_code = return_api.status_code  # バックエンドのステータスコードを設定
             for key, value in return_api.headers.items():
                 if key.lower().startswith('content-'):
                     response.headers[key] = value
@@ -873,6 +876,7 @@ def ita_workspace_api_call(organization_id, workspace_id, function, subpath=''):
             # stream形式の場合は、独自の返却を実施する
             # In the case of stream format, implement your own return
             response = Response(chunk_response(return_api, response_chunk_byte))
+            response.status_code = return_api.status_code  # バックエンドのステータスコードを設定
             for key, value in return_api.headers.items():
                 if key.lower().startswith('content-'):
                     response.headers[key] = value
