@@ -36,6 +36,10 @@ from services.ai_assistant.aws_session_manager import (
 
 import globals
 
+# AWS/Bedrockのデフォルトリージョン(環境変数で上書き可能)
+# Default AWS/Bedrock region (overridable via env var)
+AI_ASSISTANT_DEFAULT_REGION = os.getenv("AI_ASSISTANT_DEFAULT_REGION", "ap-northeast-1")
+
 
 class ModelService:
     """
@@ -170,7 +174,7 @@ class ModelService:
                         "Please re-register with the full cache file content."
                     )
 
-                region = cache_data.get("region", "ap-northeast-1")
+                region = cache_data.get("region", AI_ASSISTANT_DEFAULT_REGION)
                 aws_session = create_bedrock_session_from_credential_data(
                     credential_data=cache_data,
                     region=region,
@@ -188,7 +192,7 @@ class ModelService:
                     aws_access_key_id=credential_data.get("accessKeyId"),
                     aws_secret_access_key=credential_data.get("secretAccessKey"),
                     aws_session_token=credential_data.get("sessionToken"),
-                    region_name=credential_data.get("region", "ap-northeast-1"),
+                    region_name=credential_data.get("region", AI_ASSISTANT_DEFAULT_REGION),
                 )
                 bedrock_client = session.client(
                     "bedrock",

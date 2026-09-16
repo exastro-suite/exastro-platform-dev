@@ -15,10 +15,11 @@
 """
 Lesson Service
 
-ユーザーごと(ワークスペース横断)の学習事項（過去の会話から得られた失敗・教訓・注意点）の管理。
+ユーザー・ワークスペースごとの学習事項（過去の会話から得られた失敗・教訓・注意点）の管理。
 AIアシスタントのシステムプロンプトへの注入に使用する。
 """
 
+import os
 from datetime import datetime
 from typing import Optional, List, Tuple
 from dataclasses import dataclass
@@ -29,6 +30,14 @@ from common_library.common.db import DBconnector
 from libs import queries_ai_assistant
 
 import globals
+
+# 学習事項をシステムプロンプトへ注入する際の最大件数(環境変数で上書き可能)
+# conversation_service.pyの_build_lessons_prompt_sectionが常に明示的に渡すため、
+# 実質的にこの関数のデフォルト値が使われるのは他から呼ばれた場合のみ
+# Maximum number of lessons to inject into the system prompt (overridable via env var)
+# conversation_service.py's _build_lessons_prompt_section always passes this explicitly,
+# so this function's default is only actually used when called from elsewhere
+AI_ASSISTANT_LESSONS_MAX_ITEMS = int(os.getenv("AI_ASSISTANT_LESSONS_MAX_ITEMS", "20"))
 
 
 @dataclass
@@ -359,7 +368,7 @@ class LessonService:
         organization_id: str,
         workspace_id: str,
         user_id: str,
-        limit: int = 20,
+        limit: int = AI_ASSISTANT_LESSONS_MAX_ITEMS,
     ) -> List[Lesson]:
         """
         有効な学習事項を優先度・更新日時の降順で取得する（AIアシスタントのシステムプロンプトへの注入用）

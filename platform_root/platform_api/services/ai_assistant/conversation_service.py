@@ -25,6 +25,7 @@ JSON配列（1会話分のターン一覧）としてスナップショット保
 
 import json
 import os
+import re
 import time
 from datetime import datetime, timezone
 from typing import Optional, List, Dict
@@ -51,10 +52,48 @@ from services.ai_assistant.message_service import get_message_service
 
 import globals
 
+# Bedrock応答生成時のデフォルト最大トークン数(環境変数で上書き可能)
+# Default max_tokens for Bedrock response generation (overridable via env var)
+AI_ASSISTANT_MAX_TOKENS_DEFAULT = int(os.getenv("AI_ASSISTANT_MAX_TOKENS_DEFAULT", "20480"))
+
+# max_tokensがモデルの上限を超えた場合の自動リトライ回数(環境変数で上書き可能)
+# Number of automatic retries when max_tokens exceeds the model's limit (overridable via env var)
+AI_ASSISTANT_MAX_TOKENS_RETRY_COUNT = int(os.getenv("AI_ASSISTANT_MAX_TOKENS_RETRY_COUNT", "3"))
+
+# 学習事項をシステムプロンプトへ注入する際の最大件数(環境変数で上書き可能)
+# Maximum number of lessons to inject into the system prompt (overridable via env var)
+AI_ASSISTANT_LESSONS_MAX_ITEMS = int(os.getenv("AI_ASSISTANT_LESSONS_MAX_ITEMS", "20"))
+
+# 学習事項セクション全体の最大文字数(環境変数で上書き可能)
+# Max character length of the lessons section as a whole (overridable via env var)
+AI_ASSISTANT_LESSONS_MAX_CHARS = int(os.getenv("AI_ASSISTANT_LESSONS_MAX_CHARS", "6000"))
+
+# AWS/Bedrockのデフォルトリージョン(環境変数で上書き可能)
+# Default AWS/Bedrock region (overridable via env var)
+AI_ASSISTANT_DEFAULT_REGION = os.getenv("AI_ASSISTANT_DEFAULT_REGION", "ap-northeast-1")
+
 
 class ConversationNotFound(Exception):
     """会話が見つからない"""
     pass
+
+
+def _extract_max_tokens_limit(message: str) -> Optional[int]:
+    """
+    BedrockのValidationExceptionのメッセージから、モデルのmaxTokens上限を抽出する
+    (ai_providers/bedrock/provider.pyの_extract_max_tokens_limitと同じ抽出ロジック)
+
+    Extract the model's maxTokens limit from a Bedrock ValidationException message
+    (same extraction logic as ai_providers/bedrock/provider.py's _extract_max_tokens_limit)
+
+    Args:
+        message: エラーメッセージ
+
+    Returns:
+        Optional[int]: 上限値(見つからない場合はNone)
+    """
+    m = re.search(r"model limit of (\d+)", message or "")
+    return int(m.group(1)) if m else None
 
 
 def _now_iso() -> str:
@@ -75,7 +114,7 @@ def _build_lessons_prompt_section(organization_id: str, workspace_id: str, user_
         organization_id=organization_id,
         workspace_id=workspace_id,
         user_id=user_id,
-        limit=20,
+        limit=AI_ASSISTANT_LESSONS_MAX_ITEMS,
     )
     if not lessons:
         return ""
@@ -93,9 +132,8 @@ def _build_lessons_prompt_section(organization_id: str, workspace_id: str, user_
         lines.append(f"- [優先度:{item.priority}][{category}] {item.lesson}")
     section = "\n".join(lines)
 
-    max_chars = 6000
-    if len(section) > max_chars:
-        section = section[:max_chars] + "\n（以下省略）"
+    if len(section) > AI_ASSISTANT_LESSONS_MAX_CHARS:
+        section = section[:AI_ASSISTANT_LESSONS_MAX_CHARS] + "\n（以下省略）"
 
     return section
 
@@ -472,7 +510,7 @@ class ConversationService:
                 # credential_data.apiKeyにキャッシュファイル全体のJSON文字列が入っているので展開する
                 # credential_data.apiKey holds the entire cache-file content as a JSON string, so unwrap it
                 cache_data = json.loads(credential.credential_data["apiKey"])
-                region = cache_data.get("region", "ap-northeast-1")
+                region = cache_data.get("region", AI_ASSISTANT_DEFAULT_REGION)
                 aws_session = create_bedrock_session_from_credential_data(
                     credential_data=cache_data,
                     region=region,
@@ -503,7 +541,7 @@ class ConversationService:
                     aws_access_key_id=credential_data.get("accessKeyId"),
                     aws_secret_access_key=credential_data.get("secretAccessKey"),
                     aws_session_token=credential_data.get("sessionToken"),
-                    region_name=credential_data.get("region", "ap-northeast-1"),
+                    region_name=credential_data.get("region", AI_ASSISTANT_DEFAULT_REGION),
                 )
 
                 bedrock_client = session.client(
@@ -578,7 +616,7 @@ class ConversationService:
             # Anthropic Messages API request body (via Bedrock InvokeModel), matching the same shape as amazon_bedrock.js's this.model
             request_body = {
                 "anthropic_version": "bedrock-2023-05-31",
-                "max_tokens": 4096,
+                "max_tokens": AI_ASSISTANT_MAX_TOKENS_DEFAULT,
                 "messages": bedrock_messages,
             }
             if system_prompt:
@@ -589,14 +627,71 @@ class ConversationService:
                 request_body["tools"] = tools
                 request_body["tool_choice"] = {"type": "auto"}
 
-            request_start = time.monotonic()
-            raw_response = bedrock_client.invoke_model(
-                modelId=effective_model_id,
-                body=json.dumps(request_body),
-                contentType="application/json",
-                accept="application/json",
-            )
-            thinking_ms = round((time.monotonic() - request_start) * 1000)
+            # max_tokensがモデルの実際の上限を超えるとBedrockはValidationExceptionを返す。
+            # エラーメッセージから実際の上限値("model limit of {N}")を抽出できた場合は、
+            # その値に差し替えて最大AI_ASSISTANT_MAX_TOKENS_RETRY_COUNT回まで自動的に再試行する。
+            # リトライを使い切ってもmax_tokensエラーが解消しない場合は、max_tokensの値を含めてエラーを返す。
+            # If max_tokens exceeds the model's actual limit, Bedrock returns a ValidationException.
+            # When the actual limit ("model limit of {N}") can be extracted from the error message,
+            # substitute it and retry automatically, up to AI_ASSISTANT_MAX_TOKENS_RETRY_COUNT times.
+            # If the max_tokens error persists after exhausting all retries, return an error that includes the max_tokens value.
+            current_max_tokens = request_body["max_tokens"]
+            max_tokens_retry_count = 0
+            while True:
+                request_body["max_tokens"] = current_max_tokens
+                try:
+                    request_start = time.monotonic()
+                    raw_response = bedrock_client.invoke_model(
+                        modelId=effective_model_id,
+                        body=json.dumps(request_body),
+                        contentType="application/json",
+                        accept="application/json",
+                    )
+                    thinking_ms = round((time.monotonic() - request_start) * 1000)
+                    break
+                except ClientError as e:
+                    error_info = e.response.get("Error", {})
+                    error_code = error_info.get("Code", "")
+                    error_message = error_info.get("Message", str(e))
+                    limit = (
+                        _extract_max_tokens_limit(error_message)
+                        if error_code == "ValidationException"
+                        else None
+                    )
+                    if limit is None:
+                        # max_tokens以外のエラーは外側のexcept ClientErrorへそのまま伝播する
+                        # Errors unrelated to max_tokens propagate to the outer except ClientError as-is
+                        raise
+
+                    if max_tokens_retry_count >= AI_ASSISTANT_MAX_TOKENS_RETRY_COUNT:
+                        globals.logger.error(
+                            f"max_tokens validation error persisted after {max_tokens_retry_count} retries "
+                            f"(last attempted max_tokens={current_max_tokens}, model limit={limit})"
+                        )
+                        status_code = e.response.get("ResponseMetadata", {}).get("HTTPStatusCode", 400)
+                        raise common.OtherException(
+                            status_code=status_code,
+                            data={
+                                "max_tokens": current_max_tokens,
+                                "model_max_tokens_limit": limit,
+                                "retry_count": max_tokens_retry_count,
+                            },
+                            # message_idは追跡用に固定値とする(実際に呼び出し元へ返すHTTPステータスはstatus_codeでAIサービスの実値をそのまま伝播する)
+                            # Keep message_id fixed for traceability (the actual HTTP status returned to the caller still propagates the AI service's real status via status_code)
+                            message_id="500-45002",
+                            message=(
+                                f"max_tokensがモデルの上限を超えています"
+                                f"(要求値: {current_max_tokens}, モデル上限: {limit}, リトライ回数: {max_tokens_retry_count})"
+                            ),
+                        ) from e
+
+                    max_tokens_retry_count += 1
+                    globals.logger.warning(
+                        f"max_tokens({current_max_tokens}) exceeds model limit; "
+                        f"retrying with max_tokens={limit} "
+                        f"({max_tokens_retry_count}/{AI_ASSISTANT_MAX_TOKENS_RETRY_COUNT})"
+                    )
+                    current_max_tokens = limit
 
             # AIサービスが返したHTTPステータスコードをそのまま呼び出し元に返す
             # （ai_assistant_client.js / amazon_bedrock.jsのfetchWithRetryと同様、

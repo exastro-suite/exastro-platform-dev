@@ -18,9 +18,23 @@ AI Provider Base Classes
 AIプロバイダー共通のインターフェース定義
 """
 
+import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import List, Optional, Dict, Any
+
+# AWS/Bedrockのデフォルトリージョン(環境変数で上書き可能)
+# Default AWS/Bedrock region (overridable via env var)
+AI_ASSISTANT_DEFAULT_REGION = os.getenv("AI_ASSISTANT_DEFAULT_REGION", "ap-northeast-1")
+
+
+@dataclass
+class AwsRoleCredential:
+    """AWS認証情報を保持するクラス"""
+    access_key_id: str
+    secret_access_key: str
+    session_token: Optional[str] = None
+    region: str = AI_ASSISTANT_DEFAULT_REGION
 
 
 @dataclass

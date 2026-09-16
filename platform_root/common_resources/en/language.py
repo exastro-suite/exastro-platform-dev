@@ -930,6 +930,7 @@ class LanguageList:
     lang_array['500-44021'] = 'Failed to bulk-update the lessons: {0}'
     lang_array['500-44022'] = 'Failed to delete the lesson: {0}'
     lang_array['500-45001'] = 'AI service API error ({error_code}): {error_message}'
+    lang_array['500-45002'] = 'max_tokens exceeds the model limit (requested: {0}, model limit: {1}, retry count: {2})'
     lang_array['500-62001'] = 'Failed to obtain record for processing (table: {0})'
     lang_array['500-62002'] = 'The process was not started correctly and ended.'
     lang_array['500-62003'] = 'Failed to get user (Target user: {0})'
