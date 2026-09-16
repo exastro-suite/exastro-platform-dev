@@ -194,3 +194,5 @@ currentAiPreferenceInfo:
   $ref: "./currentAiPreferenceInfo.yaml"
 aiServiceInfo:
   $ref: "./aiServiceInfo.yaml"
+lessonInfo:
+  $ref: "./lessonInfo.yaml"

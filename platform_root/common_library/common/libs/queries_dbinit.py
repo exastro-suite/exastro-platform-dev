@@ -404,6 +404,25 @@ SQL_WORKSPACE_CREATE_TABLES = [
         CONSTRAINT FK_MESSAGE_CONVERSATION FOREIGN KEY (CONVERSATION_ID)
             REFERENCES T_CHAT_CONVERSATION(CONVERSATION_ID) ON DELETE CASCADE
     )ENGINE = InnoDB, CHARSET = utf8mb4, COLLATE = utf8mb4_unicode_ci;
+    """,
+    """
+    -- AI Assistant Lesson / AI アシスタント 学習事項
+    CREATE TABLE IF NOT EXISTS T_USER_LESSON
+    (
+        LESSON_ID                       VARCHAR(36) NOT NULL,                           -- Lesson ID (ULID)
+        USER_ID                         VARCHAR(256) NOT NULL,                          -- User ID
+        LESSON                          LONGTEXT NOT NULL,                              -- 学習事項の内容
+        CATEGORY                        VARCHAR(255) NULL,                              -- 分類
+        PRIORITY                        TINYINT NOT NULL DEFAULT 5,                     -- 重要度 (1:最低 〜 10:最高)
+        ENABLED                         TINYINT(1) NOT NULL DEFAULT 1,                  -- 有効/無効フラグ (システムプロンプトへの反映有無)
+        CONVERSATION_ID                 VARCHAR(36) NULL,                               -- 学習元の会話ID (ワークスペースDB側のIDのため外部キーではない)
+        CREATE_TIMESTAMP                DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,    -- 作成日時
+        CREATE_USER                     VARCHAR(40),                                    -- 作成者
+        LAST_UPDATE_TIMESTAMP           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,    -- 最終更新日時
+        LAST_UPDATE_USER                VARCHAR(40),                                    -- 最終更新者
+        PRIMARY KEY (LESSON_ID),
+        INDEX IDX_USER_ENABLED_PRIORITY (USER_ID, ENABLED, PRIORITY, LAST_UPDATE_TIMESTAMP)
+    )ENGINE = InnoDB, CHARSET = utf8mb4, COLLATE = utf8mb4_unicode_ci;
     """
 ]
 

@@ -32,6 +32,7 @@ from services.ai_assistant.conversation_service import (
 )
 from services.ai_assistant.message_service import get_message_service
 from services.users.ai_credential_service import CredentialNotFound
+from services.users.lesson_service import get_lesson_service
 
 import globals
 
@@ -342,6 +343,143 @@ def list_conversations(organization_id, workspace_id, prompt_profile, status=Non
         message = multi_lang.get_text(
             message_id,
             "会話一覧取得に失敗しました: {}",
+            str(e)
+        )
+        raise common.InternalErrorException(message_id=message_id, message=message)
+
+
+@common.platform_exception_handler
+@require_ai_assistant_driver
+def update_conversation(body, conversation_id, organization_id, workspace_id):
+    """
+    会話を部分更新（PATCH。title/statusのうち指定された項目のみ更新する）
+
+    :param body:
+    :type body: dict
+    :param conversation_id:
+    :type conversation_id: str
+    :param organization_id:
+    :type organization_id: str
+    :param workspace_id:
+    :type workspace_id: str
+
+    :rtype: dict
+    """
+    globals.logger.info(f"### func:{inspect.currentframe().f_code.co_name}")
+
+    r = connexion.request
+    user_id = r.headers.get("User-id")
+
+    body = r.get_json()
+    title = body.get("title")
+    status = body.get("status")
+
+    # バリデーション（共通のvalidationモジュールを使用。PATCHのため、指定された項目のみ検証する）
+    # Validation (via the common validation module). Only validate the fields that were actually provided, since this is a PATCH
+    if title is not None:
+        validate = validation.validate_conversation_title(title)
+        if not validate.ok:
+            return common.response_validation_error(validate)
+
+    if status is not None:
+        validate = validation.validate_conversation_status(status)
+        if not validate.ok:
+            return common.response_validation_error(validate)
+
+    try:
+        service = get_conversation_service()
+
+        updated = service.update_conversation(
+            organization_id=organization_id,
+            workspace_id=workspace_id,
+            user_id=user_id,
+            conversation_id=conversation_id,
+            title=title,
+            status=status,
+        )
+
+        globals.logger.debug(
+            f"Conversation updated: id={conversation_id}, "
+            f"org={organization_id}, workspace={workspace_id}, user={user_id}"
+        )
+
+        return common.response_200_ok(updated)
+
+    except ConversationNotFound:
+        message_id = "404-44007"
+        message = multi_lang.get_text(
+            message_id,
+            "会話が見つかりません"
+        )
+        raise common.NotFoundException(message_id=message_id, message=message)
+
+    except Exception as e:
+        globals.logger.error(f"Failed to update conversation: {e}", exc_info=True)
+        message_id = "500-44015"
+        message = multi_lang.get_text(
+            message_id,
+            "会話の更新に失敗しました: {}",
+            str(e)
+        )
+        raise common.InternalErrorException(message_id=message_id, message=message)
+
+
+@common.platform_exception_handler
+@require_ai_assistant_driver
+def delete_conversation(conversation_id, organization_id, workspace_id):
+    """
+    会話を削除（紐づくメッセージ履歴も合わせて削除する）
+
+    :param conversation_id:
+    :type conversation_id: str
+    :param organization_id:
+    :type organization_id: str
+    :param workspace_id:
+    :type workspace_id: str
+
+    :rtype: dict
+    """
+    globals.logger.info(f"### func:{inspect.currentframe().f_code.co_name}")
+
+    r = connexion.request
+    user_id = r.headers.get("User-id")
+
+    try:
+        service = get_conversation_service()
+
+        service.delete_conversation(
+            organization_id=organization_id,
+            workspace_id=workspace_id,
+            user_id=user_id,
+            conversation_id=conversation_id,
+        )
+
+        globals.logger.debug(
+            f"Conversation deleted: id={conversation_id}, "
+            f"org={organization_id}, workspace={workspace_id}, user={user_id}"
+        )
+
+        return common.response_200_ok(
+            {
+                "conversation_id": conversation_id,
+                "message": "Conversation deleted successfully",
+            }
+        )
+
+    except ConversationNotFound:
+        message_id = "404-44008"
+        message = multi_lang.get_text(
+            message_id,
+            "会話が見つかりません"
+        )
+        raise common.NotFoundException(message_id=message_id, message=message)
+
+    except Exception as e:
+        globals.logger.error(f"Failed to delete conversation: {e}", exc_info=True)
+        message_id = "500-44016"
+        message = multi_lang.get_text(
+            message_id,
+            "会話の削除に失敗しました: {}",
             str(e)
         )
         raise common.InternalErrorException(message_id=message_id, message=message)
@@ -695,5 +833,388 @@ def delete_messages(conversation_id, organization_id, workspace_id):
             message_id,
             "メッセージの削除に失敗しました: {}",
             str(e)
+        )
+        raise common.InternalErrorException(message_id=message_id, message=message)
+
+
+def _lesson_response(lesson):
+    """LessonをAPIレスポンス用のdictに変換する"""
+    return {
+        "lesson_id": lesson.lesson_id,
+        "lesson": lesson.lesson,
+        "category": lesson.category,
+        "priority": lesson.priority,
+        "enabled": lesson.enabled,
+        "conversation_id": lesson.conversation_id,
+        "created_at": lesson.created_at,
+        "updated_at": lesson.updated_at,
+    }
+
+
+@common.platform_exception_handler
+@require_ai_assistant_driver
+def create_lesson(body, organization_id, workspace_id):
+    """
+    学習事項を作成
+
+    :param body:
+    :type body: dict
+    :param organization_id:
+    :type organization_id: str
+    :param workspace_id:
+    :type workspace_id: str
+
+    :rtype: dict
+    """
+    globals.logger.info(f"### func:{inspect.currentframe().f_code.co_name}")
+
+    r = connexion.request
+    user_id = r.headers.get("User-id")
+
+    body = r.get_json()
+    lesson = body.get("lesson")
+    category = body.get("category")
+    priority = body.get("priority")
+    enabled = body.get("enabled")
+    conversation_id = body.get("conversation_id")
+
+    # バリデーション（共通のvalidationモジュールを使用）
+    validate = validation.validate_lesson_content(lesson)
+    if not validate.ok:
+        return common.response_validation_error(validate)
+
+    if category is not None:
+        validate = validation.validate_lesson_category(category)
+        if not validate.ok:
+            return common.response_validation_error(validate)
+
+    if priority is not None:
+        validate = validation.validate_lesson_priority(priority)
+        if not validate.ok:
+            return common.response_validation_error(validate)
+
+    if priority is None:
+        priority = 5
+    if enabled is None:
+        enabled = True
+
+    try:
+        lesson_obj = get_lesson_service().create_lesson(
+            organization_id=organization_id,
+            workspace_id=workspace_id,
+            user_id=user_id,
+            lesson=lesson,
+            category=category,
+            priority=priority,
+            enabled=enabled,
+            conversation_id=conversation_id,
+        )
+
+        globals.logger.debug(
+            f"Lesson created: id={lesson_obj.lesson_id}, org={organization_id}, workspace={workspace_id}, user={user_id}"
+        )
+
+        return common.response_200_ok(_lesson_response(lesson_obj))
+
+    except Exception as e:
+        globals.logger.error(f"Failed to create lesson: {e}", exc_info=True)
+        message_id = "500-44017"
+        message = multi_lang.get_text(
+            message_id, "学習事項の登録に失敗しました: {}", str(e)
+        )
+        raise common.InternalErrorException(message_id=message_id, message=message)
+
+
+@common.platform_exception_handler
+@require_ai_assistant_driver
+def list_lessons(organization_id, workspace_id, enabled=None, category=None, limit=50, offset=0):
+    """
+    学習事項一覧を取得
+
+    :param organization_id:
+    :type organization_id: str
+    :param workspace_id:
+    :type workspace_id: str
+    :param enabled:
+    :type enabled: bool
+    :param category:
+    :type category: str
+    :param limit:
+    :type limit: int
+    :param offset:
+    :type offset: int
+
+    :rtype: dict
+    """
+    globals.logger.info(f"### func:{inspect.currentframe().f_code.co_name}")
+
+    r = connexion.request
+    user_id = r.headers.get("User-id")
+
+    try:
+        lessons, total_count = get_lesson_service().list_lessons(
+            organization_id=organization_id,
+            workspace_id=workspace_id,
+            user_id=user_id,
+            enabled=enabled,
+            category=category,
+            limit=limit,
+            offset=offset,
+        )
+
+        return common.response_200_ok(
+            {
+                "lessons": [_lesson_response(lesson) for lesson in lessons],
+                "count": len(lessons),
+                "total_count": total_count,
+            }
+        )
+
+    except Exception as e:
+        globals.logger.error(f"Failed to list lessons: {e}", exc_info=True)
+        message_id = "500-44018"
+        message = multi_lang.get_text(
+            message_id, "学習事項一覧の取得に失敗しました: {}", str(e)
+        )
+        raise common.InternalErrorException(message_id=message_id, message=message)
+
+
+@common.platform_exception_handler
+@require_ai_assistant_driver
+def get_lesson(lesson_id, organization_id, workspace_id):
+    """
+    学習事項を取得
+
+    :param lesson_id:
+    :type lesson_id: str
+    :param organization_id:
+    :type organization_id: str
+    :param workspace_id:
+    :type workspace_id: str
+
+    :rtype: dict
+    """
+    globals.logger.info(f"### func:{inspect.currentframe().f_code.co_name}")
+
+    r = connexion.request
+    user_id = r.headers.get("User-id")
+
+    try:
+        lesson_obj = get_lesson_service().get_lesson(
+            organization_id=organization_id,
+            workspace_id=workspace_id,
+            user_id=user_id,
+            lesson_id=lesson_id,
+        )
+
+        if lesson_obj is None:
+            message_id = "404-44009"
+            message = multi_lang.get_text(message_id, "学習事項が見つかりません")
+            raise common.NotFoundException(message_id=message_id, message=message)
+
+        return common.response_200_ok(_lesson_response(lesson_obj))
+
+    except common.NotFoundException:
+        raise
+
+    except Exception as e:
+        globals.logger.error(f"Failed to get lesson: {e}", exc_info=True)
+        message_id = "500-44019"
+        message = multi_lang.get_text(
+            message_id, "学習事項の取得に失敗しました: {}", str(e)
+        )
+        raise common.InternalErrorException(message_id=message_id, message=message)
+
+
+@common.platform_exception_handler
+@require_ai_assistant_driver
+def update_lesson(body, lesson_id, organization_id, workspace_id):
+    """
+    学習事項を部分更新（PATCH。指定された項目のみ更新する）
+
+    :param body:
+    :type body: dict
+    :param lesson_id:
+    :type lesson_id: str
+    :param organization_id:
+    :type organization_id: str
+    :param workspace_id:
+    :type workspace_id: str
+
+    :rtype: dict
+    """
+    globals.logger.info(f"### func:{inspect.currentframe().f_code.co_name}")
+
+    r = connexion.request
+    user_id = r.headers.get("User-id")
+
+    body = r.get_json()
+    lesson = body.get("lesson")
+    category = body.get("category")
+    priority = body.get("priority")
+    enabled = body.get("enabled")
+
+    # バリデーション（共通のvalidationモジュールを使用。PATCHのため、指定された項目のみ検証する）
+    # Validation (via the common validation module). Only validate the fields that were actually provided, since this is a PATCH
+    if lesson is not None:
+        validate = validation.validate_lesson_content(lesson)
+        if not validate.ok:
+            return common.response_validation_error(validate)
+
+    if category is not None:
+        validate = validation.validate_lesson_category(category)
+        if not validate.ok:
+            return common.response_validation_error(validate)
+
+    if priority is not None:
+        validate = validation.validate_lesson_priority(priority)
+        if not validate.ok:
+            return common.response_validation_error(validate)
+
+    try:
+        lesson_obj = get_lesson_service().update_lesson(
+            organization_id=organization_id,
+            workspace_id=workspace_id,
+            user_id=user_id,
+            lesson_id=lesson_id,
+            lesson=lesson,
+            category=category,
+            priority=priority,
+            enabled=enabled,
+        )
+
+        if lesson_obj is None:
+            message_id = "404-44010"
+            message = multi_lang.get_text(message_id, "学習事項が見つかりません")
+            raise common.NotFoundException(message_id=message_id, message=message)
+
+        globals.logger.debug(
+            f"Lesson updated: id={lesson_id}, org={organization_id}, workspace={workspace_id}, user={user_id}"
+        )
+
+        return common.response_200_ok(_lesson_response(lesson_obj))
+
+    except common.NotFoundException:
+        raise
+
+    except Exception as e:
+        globals.logger.error(f"Failed to update lesson: {e}", exc_info=True)
+        message_id = "500-44020"
+        message = multi_lang.get_text(
+            message_id, "学習事項の更新に失敗しました: {}", str(e)
+        )
+        raise common.InternalErrorException(message_id=message_id, message=message)
+
+
+@common.platform_exception_handler
+@require_ai_assistant_driver
+def bulk_update_lessons(body, organization_id, workspace_id):
+    """
+    複数の学習事項の有効/無効フラグを一括更新（PATCH /lessons）
+
+    :param body:
+    :type body: dict
+    :param organization_id:
+    :type organization_id: str
+    :param workspace_id:
+    :type workspace_id: str
+
+    :rtype: dict
+    """
+    globals.logger.info(f"### func:{inspect.currentframe().f_code.co_name}")
+
+    r = connexion.request
+    user_id = r.headers.get("User-id")
+
+    body = r.get_json()
+    lesson_ids = body.get("lesson_ids")
+    enabled = body.get("enabled")
+
+    # バリデーション（共通のvalidationモジュールを使用）
+    validate = validation.validate_lesson_ids(lesson_ids)
+    if not validate.ok:
+        return common.response_validation_error(validate)
+
+    validate = validation.validate_lesson_enabled(enabled)
+    if not validate.ok:
+        return common.response_validation_error(validate)
+
+    try:
+        updated_count = get_lesson_service().bulk_update_enabled(
+            organization_id=organization_id,
+            workspace_id=workspace_id,
+            user_id=user_id,
+            lesson_ids=lesson_ids,
+            enabled=enabled,
+        )
+
+        globals.logger.debug(
+            f"Lessons bulk updated: org={organization_id}, workspace={workspace_id}, user={user_id}, "
+            f"requested={len(lesson_ids)}, updated={updated_count}, enabled={enabled}"
+        )
+
+        return common.response_200_ok({"updated_count": updated_count})
+
+    except Exception as e:
+        globals.logger.error(f"Failed to bulk update lessons: {e}", exc_info=True)
+        message_id = "500-44021"
+        message = multi_lang.get_text(
+            message_id, "学習事項の一括更新に失敗しました: {}", str(e)
+        )
+        raise common.InternalErrorException(message_id=message_id, message=message)
+
+
+@common.platform_exception_handler
+@require_ai_assistant_driver
+def delete_lesson(lesson_id, organization_id, workspace_id):
+    """
+    学習事項を削除
+
+    :param lesson_id:
+    :type lesson_id: str
+    :param organization_id:
+    :type organization_id: str
+    :param workspace_id:
+    :type workspace_id: str
+
+    :rtype: dict
+    """
+    globals.logger.info(f"### func:{inspect.currentframe().f_code.co_name}")
+
+    r = connexion.request
+    user_id = r.headers.get("User-id")
+
+    try:
+        deleted = get_lesson_service().delete_lesson(
+            organization_id=organization_id,
+            workspace_id=workspace_id,
+            user_id=user_id,
+            lesson_id=lesson_id,
+        )
+
+        if not deleted:
+            message_id = "404-44011"
+            message = multi_lang.get_text(message_id, "学習事項が見つかりません")
+            raise common.NotFoundException(message_id=message_id, message=message)
+
+        globals.logger.debug(
+            f"Lesson deleted: id={lesson_id}, org={organization_id}, workspace={workspace_id}, user={user_id}"
+        )
+
+        return common.response_200_ok(
+            {
+                "lesson_id": lesson_id,
+                "message": "Lesson deleted successfully",
+            }
+        )
+
+    except common.NotFoundException:
+        raise
+
+    except Exception as e:
+        globals.logger.error(f"Failed to delete lesson: {e}", exc_info=True)
+        message_id = "500-44022"
+        message = multi_lang.get_text(
+            message_id, "学習事項の削除に失敗しました: {}", str(e)
         )
         raise common.InternalErrorException(message_id=message_id, message=message)

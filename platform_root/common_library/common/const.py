@@ -85,6 +85,20 @@ length_conversation_title = 255
 length_conversation_ai_service_id = 64
 length_conversation_model_id = 255
 
+# 会話ステータス
+# Conversation status
+CONVERSATION_STATUSES = ["active", "closed", "archived"]
+
+# 学習事項の内容・分類の最大文字数
+# Max length of lesson content / lesson category
+length_lesson_content = 4000
+length_lesson_category = 255
+
+# 学習事項の重要度の最小値・最大値
+# Min/Max value of lesson priority
+LESSON_PRIORITY_MIN = 1
+LESSON_PRIORITY_MAX = 10
+
 # ロール種別
 # Role Kind
 ROLE_KIND_ORGANIZATION = "organization"

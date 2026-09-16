@@ -1531,4 +1531,3 @@ def update_current_ai_preference(body, organization_id):
             message_id, "現在選択中のAIサービスの保存に失敗しました: {}", str(e)
         )
         raise common.InternalErrorException(message_id=message_id, message=message)
-

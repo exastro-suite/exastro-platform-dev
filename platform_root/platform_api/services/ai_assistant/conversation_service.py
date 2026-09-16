@@ -62,6 +62,44 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
 
+def _build_lessons_prompt_section(organization_id: str, workspace_id: str, user_id: str) -> str:
+    """
+    ユーザーの有効な学習事項からシステムプロンプトへ追記するセクションを構築する
+
+    過去の会話から学習した失敗・教訓・注意点を、重要度(priority)の高い順・更新日時の新しい順に列挙する。
+    学習事項が無い場合は空文字列を返す。
+    """
+    from services.users.lesson_service import get_lesson_service
+
+    lessons = get_lesson_service().get_enabled_lessons_for_prompt(
+        organization_id=organization_id,
+        workspace_id=workspace_id,
+        user_id=user_id,
+        limit=20,
+    )
+    if not lessons:
+        return ""
+
+    lines = [
+        "",
+        "",
+        "# 過去セッションからの学習事項（前提知識）",
+        "以下は過去の会話で判明した失敗・教訓・注意点です。同種の作業では同じ失敗を繰り返さないよう考慮してください。",
+        "ただし現在の依頼と無関係な項目は、無理に適用しないでください。",
+        "",
+    ]
+    for item in lessons:
+        category = item.category if item.category else "その他"
+        lines.append(f"- [優先度:{item.priority}][{category}] {item.lesson}")
+    section = "\n".join(lines)
+
+    max_chars = 6000
+    if len(section) > max_chars:
+        section = section[:max_chars] + "\n（以下省略）"
+
+    return section
+
+
 class ConversationService:
     """
     Conversation Service
@@ -190,6 +228,110 @@ class ConversationService:
         )
 
         return conversations, total_count
+
+    def update_conversation(
+        self,
+        organization_id: str,
+        workspace_id: str,
+        user_id: str,
+        conversation_id: str,
+        title: Optional[str] = None,
+        status: Optional[str] = None,
+    ) -> Dict:
+        """
+        会話を部分更新（PATCH。title/statusのうち指定された項目のみ更新する）
+
+        Args:
+            organization_id: Organization ID (DB接続用、テーブルには保存しない)
+            workspace_id: Workspace ID (DB接続用、テーブルには保存しない)
+            user_id: User ID
+            conversation_id: Conversation ID
+            title: 変更後の会話タイトル (省略時は変更しない)
+            status: 変更後のステータス (active/closed/archived。省略時は変更しない)
+
+        Returns:
+            Dict: 更新後の{conversation_id, title, status}
+
+        Raises:
+            ConversationNotFound: 会話が見つからない
+        """
+        with closing(DBconnector().connect_workspacedb(organization_id, workspace_id)) as conn:
+            with closing(conn.cursor()) as cursor:
+                cursor.execute(
+                    queries_ai_assistant.SQL_SELECT_CONVERSATION_FOR_PATCH,
+                    {"conversation_id": conversation_id, "user_id": user_id},
+                )
+                conversation = cursor.fetchone()
+
+                if not conversation:
+                    raise ConversationNotFound(
+                        f"Conversation not found: id={conversation_id}, user={user_id}"
+                    )
+
+                cursor.execute(
+                    queries_ai_assistant.SQL_UPDATE_CONVERSATION,
+                    {
+                        "conversation_id": conversation_id,
+                        "user_id": user_id,
+                        "title": title,
+                        "status": status,
+                    },
+                )
+                conn.commit()
+
+        globals.logger.debug(
+            f"Conversation updated: id={conversation_id}, user={user_id}, "
+            f"title={title}, status={status}"
+        )
+
+        # COALESCEで更新した内容をDBへ再度問い合わせずに反映する（未指定の項目は更新前の値を維持）
+        # Reflect the COALESCE-based update without re-querying the DB (fields not specified keep their prior value)
+        return {
+            "conversation_id": conversation_id,
+            "title": title if title is not None else conversation["TITLE"],
+            "status": status if status is not None else conversation["STATUS"],
+        }
+
+    def delete_conversation(
+        self,
+        organization_id: str,
+        workspace_id: str,
+        user_id: str,
+        conversation_id: str,
+    ) -> None:
+        """
+        会話を削除（紐づくT_CHAT_MESSAGEも合わせて削除する）
+
+        Args:
+            organization_id: Organization ID (DB接続用、テーブルには保存しない)
+            workspace_id: Workspace ID (DB接続用、テーブルには保存しない)
+            user_id: User ID
+            conversation_id: Conversation ID
+
+        Raises:
+            ConversationNotFound: 会話が見つからない
+        """
+        with closing(DBconnector().connect_workspacedb(organization_id, workspace_id)) as conn:
+            with closing(conn.cursor()) as cursor:
+                cursor.execute(
+                    queries_ai_assistant.SQL_DELETE_MESSAGES,
+                    {"conversation_id": conversation_id},
+                )
+                cursor.execute(
+                    queries_ai_assistant.SQL_DELETE_CONVERSATION,
+                    {"conversation_id": conversation_id, "user_id": user_id},
+                )
+                deleted = cursor.rowcount > 0
+                conn.commit()
+
+        if not deleted:
+            raise ConversationNotFound(
+                f"Conversation not found: id={conversation_id}, user={user_id}"
+            )
+
+        globals.logger.debug(
+            f"Conversation deleted: id={conversation_id}, user={user_id}"
+        )
 
     def create_completion(
         self,
@@ -393,6 +535,12 @@ class ConversationService:
             except FileNotFoundError as e:
                 globals.logger.warning(f"System prompt not found: {e}. Using empty prompt.")
                 system_prompt = None
+
+            # 過去セッションからの学習事項をシステムプロンプトに追記する
+            # Append lessons learned from past sessions to the system prompt
+            lessons_section = _build_lessons_prompt_section(organization_id, workspace_id, user_id)
+            if lessons_section:
+                system_prompt = (system_prompt or "") + lessons_section
 
             # menu_idが指定されている場合は追加プロンプトを読み込み
             # Load the additional prompt only when menu_id is specified

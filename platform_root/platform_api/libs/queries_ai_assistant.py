@@ -83,6 +83,32 @@ SET CURRENT_TOKEN_COUNT = CURRENT_TOKEN_COUNT + %(token_count)s,
 WHERE CONVERSATION_ID = %(conversation_id)s
 """
 
+# PATCH用。所有者チェックと、部分更新前の現在値(TITLE/STATUS)取得を兼ねる
+# Used for PATCH: doubles as an ownership check and fetches the current TITLE/STATUS before the partial update
+SQL_SELECT_CONVERSATION_FOR_PATCH = """
+SELECT CONVERSATION_ID, TITLE, STATUS
+FROM T_CHAT_CONVERSATION
+WHERE CONVERSATION_ID = %(conversation_id)s AND USER_ID = %(user_id)s
+"""
+
+# PATCH(部分更新)。title/statusは指定された項目のみ更新し、未指定(NULL)の項目は現在値を維持する
+# PATCH (partial update). Only the fields provided are updated; unspecified (NULL) fields keep their current value
+SQL_UPDATE_CONVERSATION = """
+UPDATE T_CHAT_CONVERSATION
+SET TITLE = COALESCE(%(title)s, TITLE),
+    STATUS = COALESCE(%(status)s, STATUS),
+    LAST_UPDATE_TIMESTAMP = NOW(),
+    LAST_UPDATE_USER = %(user_id)s
+WHERE CONVERSATION_ID = %(conversation_id)s AND USER_ID = %(user_id)s
+"""
+
+# 会話削除。所有者チェックを兼ねるため、削除件数(rowcount)で存在確認する
+# Delete the conversation. Doubles as an ownership check via the DELETE's rowcount
+SQL_DELETE_CONVERSATION = """
+DELETE FROM T_CHAT_CONVERSATION
+WHERE CONVERSATION_ID = %(conversation_id)s AND USER_ID = %(user_id)s
+"""
+
 # ==================== Message ====================
 
 SQL_GET_NEXT_MESSAGE_SEQ = """
@@ -277,4 +303,83 @@ ON DUPLICATE KEY UPDATE
 SQL_DELETE_USER_CURRENT_AI_SERVICE = """
 DELETE FROM T_USER_CURRENT_AI_SERVICE
 WHERE USER_ID = %(user_id)s AND AI_SERVICE_ID = %(ai_service_id)s
+"""
+
+# ==================== Lesson ====================
+
+SQL_INSERT_LESSON = """
+INSERT INTO T_USER_LESSON
+(
+    LESSON_ID, USER_ID, LESSON, CATEGORY, PRIORITY, ENABLED, CONVERSATION_ID,
+    CREATE_TIMESTAMP, CREATE_USER, LAST_UPDATE_TIMESTAMP, LAST_UPDATE_USER
+)
+VALUES (
+    %(lesson_id)s, %(user_id)s, %(lesson)s, %(category)s, %(priority)s, %(enabled)s, %(conversation_id)s,
+    NOW(), %(user_id)s, NOW(), %(user_id)s
+)
+"""
+
+# 所有者チェックをWHERE条件に含める
+# Ownership check is folded into the WHERE condition
+SQL_SELECT_LESSON = """
+SELECT LESSON_ID, USER_ID, LESSON, CATEGORY, PRIORITY, ENABLED, CONVERSATION_ID, CREATE_TIMESTAMP, LAST_UPDATE_TIMESTAMP
+FROM T_USER_LESSON
+WHERE LESSON_ID = %(lesson_id)s AND USER_ID = %(user_id)s
+"""
+
+# ENABLED/CATEGORYによる絞り込みは任意のため、固定のWHERE句のみを定義する。
+# サービス層がこの句の後ろに " AND ENABLED = %(enabled)s" / " AND CATEGORY = %(category)s" を必要に応じて連結し、
+# 最後にSQL_LIST_LESSONS_ORDER_LIMITを連結して完成させる
+# Filtering by ENABLED/CATEGORY is optional, so this defines only the fixed WHERE clause.
+# The service layer appends " AND ENABLED = %(enabled)s" / " AND CATEGORY = %(category)s" as needed,
+# then appends SQL_LIST_LESSONS_ORDER_LIMIT to complete the query
+SQL_LIST_LESSONS = """
+SELECT LESSON_ID, USER_ID, LESSON, CATEGORY, PRIORITY, ENABLED, CONVERSATION_ID, CREATE_TIMESTAMP, LAST_UPDATE_TIMESTAMP
+FROM T_USER_LESSON
+WHERE USER_ID = %(user_id)s
+"""
+
+# SQL_LIST_LESSONS（および任意のAND句）の後ろに連結して使用する
+# Appended after SQL_LIST_LESSONS (plus any optional AND clauses)
+SQL_LIST_LESSONS_ORDER_LIMIT = """
+ORDER BY PRIORITY DESC, LAST_UPDATE_TIMESTAMP DESC
+LIMIT %(limit)s OFFSET %(offset)s
+"""
+
+# LIMIT/OFFSETによる絞り込み前の、条件に合致する学習事項の総件数（ページネーションのtotal_count用）
+# SQL_LIST_LESSONSと同様、任意のAND句をサービス層が連結する
+# Total number of lessons matching the filter conditions before applying LIMIT/OFFSET (for the total_count field used in pagination)
+# The service layer appends the same optional AND clauses as SQL_LIST_LESSONS
+SQL_COUNT_LESSONS = """
+SELECT COUNT(*) AS total_count
+FROM T_USER_LESSON
+WHERE USER_ID = %(user_id)s
+"""
+
+# PATCH(部分更新)。lesson/category/priority/enabledは指定された項目のみ更新し、未指定(NULL)の項目は現在値を維持する
+# PATCH (partial update). Only the fields provided are updated; unspecified (NULL) fields keep their current value
+SQL_UPDATE_LESSON = """
+UPDATE T_USER_LESSON
+SET LESSON = COALESCE(%(lesson)s, LESSON),
+    CATEGORY = COALESCE(%(category)s, CATEGORY),
+    PRIORITY = COALESCE(%(priority)s, PRIORITY),
+    ENABLED = COALESCE(%(enabled)s, ENABLED),
+    LAST_UPDATE_TIMESTAMP = NOW(),
+    LAST_UPDATE_USER = %(user_id)s
+WHERE LESSON_ID = %(lesson_id)s AND USER_ID = %(user_id)s
+"""
+
+SQL_DELETE_LESSON = """
+DELETE FROM T_USER_LESSON
+WHERE LESSON_ID = %(lesson_id)s AND USER_ID = %(user_id)s
+"""
+
+# 有効な学習事項を優先度の高い順・更新日時の新しい順に取得する。AIアシスタントのシステムプロンプトへの注入に使用する
+# Fetches enabled lessons ordered by highest priority, then most recently updated. Used to inject lessons into the AI assistant's system prompt
+SQL_SELECT_ENABLED_LESSONS_FOR_PROMPT = """
+SELECT LESSON, CATEGORY, PRIORITY
+FROM T_USER_LESSON
+WHERE USER_ID = %(user_id)s AND ENABLED = 1
+ORDER BY PRIORITY DESC, LAST_UPDATE_TIMESTAMP DESC
+LIMIT %(limit)s
 """
