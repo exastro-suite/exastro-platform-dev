@@ -708,9 +708,31 @@ class ConversationService:
             input_tokens = response["usage"]["input_tokens"]
             output_tokens = response["usage"]["output_tokens"]
 
+            # トークン数は「新規発言を保存したか」とは無関係に、Bedrock呼び出しが成功して
+            # usageを取得できた時点で常に加算する。message省略時の問い合わせ(既存履歴のみでの
+            # 再問い合わせ・tool_result継続・添付ファイルのみのターン等)でも実際にトークンは
+            # 消費されているため、保存の有無で加算をスキップすると累積値が実際の消費量より
+            # 過小になる(特にtool_result継続は入力トークンが大きく、影響が大きい)。
+            # Token counts are accumulated whenever Bedrock returns usage, independent of whether
+            # a new message was persisted. Even message-omitted calls (re-querying existing history,
+            # tool_result continuations, attachment-only turns, etc.) consume real tokens, so skipping
+            # the update based on persistence would under-count the cumulative total (tool_result
+            # continuations in particular tend to have large input token counts).
+            with closing(DBconnector().connect_workspacedb(organization_id, workspace_id)) as conn:
+                with closing(conn.cursor()) as cursor:
+                    cursor.execute(
+                        queries_ai_assistant.SQL_UPDATE_CONVERSATION_TOKEN_COUNT,
+                        {
+                            "token_count": input_tokens + output_tokens,
+                            "user_id": user_id,
+                            "conversation_id": conversation_id,
+                        },
+                    )
+                    conn.commit()
+
             if has_new_message:
-                # 新規発言がある場合のみ、応答をT_CHAT_MESSAGEに保存しトークン数を更新する
-                # Only when there is a new user message do we save the response to T_CHAT_MESSAGE and update the token count
+                # 新規発言がある場合のみ、応答をT_CHAT_MESSAGEに保存する
+                # Only when there is a new user message do we save the response to T_CHAT_MESSAGE
                 # アシスタントターンを追記
                 assistant_turn = {
                     "role": "assistant",
@@ -721,7 +743,7 @@ class ConversationService:
                 }
                 messages.append(assistant_turn)
 
-                # 新しいスナップショットとしてT_CHAT_MESSAGEへ保存し、会話のトークン数を更新
+                # 新しいスナップショットとしてT_CHAT_MESSAGEへ保存
                 saved = get_message_service().create_message(
                     organization_id=organization_id,
                     workspace_id=workspace_id,
@@ -729,18 +751,6 @@ class ConversationService:
                     conversation_id=conversation_id,
                     contents=messages,
                 )
-
-                with closing(DBconnector().connect_workspacedb(organization_id, workspace_id)) as conn:
-                    with closing(conn.cursor()) as cursor:
-                        cursor.execute(
-                            queries_ai_assistant.SQL_UPDATE_CONVERSATION_TOKEN_COUNT,
-                            {
-                                "token_count": input_tokens + output_tokens,
-                                "user_id": user_id,
-                                "conversation_id": conversation_id,
-                            },
-                        )
-                        conn.commit()
 
                 total_turns = len(messages)
                 saved_message_id = saved["message_id"]

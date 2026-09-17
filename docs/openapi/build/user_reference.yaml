@@ -1084,8 +1084,8 @@ paths:
         会話を削除
         Delete a conversation
       description: |-
-        会話を削除する。会話に紐づくメッセージ履歴（T_CHAT_MESSAGE）も合わせて削除する。
-        Delete a conversation. The message history (T_CHAT_MESSAGE) associated with the conversation is also deleted.
+        会話を削除する。会話に紐づくメッセージ履歴も合わせて削除する。
+        Delete a conversation. The message history associated with the conversation is also deleted.
       operationId: delete_conversation
       x-openapi-router-controller: controllers.ai_assistant_service_controller
       parameters:
@@ -1155,8 +1155,8 @@ paths:
         AI応答を生成
         Generate an AI response
       description: |-
-        ユーザーメッセージを送信し、AIとの会話を1ターン進めて応答を取得する。messageは省略可能で、省略した場合は会話の既存履歴(T_CHAT_MESSAGE)のみでAIサービスに問い合わせる（新規ターンは追加されず、応答結果もT_CHAT_MESSAGEに保存されない＝問い合わせのみ）。なお、多くの生成AIサービスのAPIでは会話がuserターンで終わっている必要があるため、履歴の最後がassistantターンで終わっている（＝直前のやり取りに既に応答済み）状態でmessageを省略した場合は、直前のassistant応答を一時的に取り除いた上でその手前のuserターンまでで再度問い合わせる（＝応答の再生成）。会話に既存の履歴が全く無い場合、または再生成のためにassistantターンを取り除いた結果userターンも残らない場合は400エラーになる。
-        Send a user message and advance the conversation with the AI by one turn to get a response. The message field is optional; if omitted, the AI service is queried using only the conversation's existing history (T_CHAT_MESSAGE) (no new turn is added and the response is not saved to T_CHAT_MESSAGE — query only). Note that many generative AI service APIs require the conversation to end with a user turn; if the history already ends with an assistant turn (i.e. the previous exchange was already answered) and message is omitted, the trailing assistant turn is temporarily dropped and the AI is queried again up to the preceding user turn (i.e. the response is regenerated). A 400 error is returned if the conversation has no existing history at all, or if no user turn remains after dropping the trailing assistant turn.
+        ユーザーメッセージを送信し、AIとの会話を1ターン進めて応答を取得する。messageは省略可能で、省略した場合は会話の既存履歴のみでAIサービスに問い合わせる（新規ターンは追加されず、応答結果も保存されない＝問い合わせのみ）。なお、多くの生成AIサービスのAPIでは会話がuserターンで終わっている必要があるため、履歴の最後がassistantターンで終わっている（＝直前のやり取りに既に応答済み）状態でmessageを省略した場合は、直前のassistant応答を一時的に取り除いた上でその手前のuserターンまでで再度問い合わせる（＝応答の再生成）。会話に既存の履歴が全く無い場合、または再生成のためにassistantターンを取り除いた結果userターンも残らない場合は400エラーになる。
+        Send a user message and advance the conversation with the AI by one turn to get a response. The message field is optional; if omitted, the AI service is queried using only the conversation's existing history (no new turn is added and the response is not saved — query only). Note that many generative AI service APIs require the conversation to end with a user turn; if the history already ends with an assistant turn (i.e. the previous exchange was already answered) and message is omitted, the trailing assistant turn is temporarily dropped and the AI is queried again up to the preceding user turn (i.e. the response is regenerated). A 400 error is returned if the conversation has no existing history at all, or if no user turn remains after dropping the trailing assistant turn.
       operationId: create_completion
       x-openapi-router-controller: controllers.ai_assistant_service_controller
       parameters:
@@ -1247,9 +1247,9 @@ paths:
                           content:
                             type: array
                             description: |-
-                              AIの応答のcontentブロック一覧(Anthropic Messages API形式。text/tool_use/thinking等をそのまま保持し、T_CHAT_MESSAGEに保存される内容と同じ)。
+                              AIの応答のcontentブロック一覧(Anthropic Messages API形式。text/tool_use/thinking等をそのまま保持し、会話履歴に保存される内容と同じ)。
                               tool_useブロックが含まれる場合、呼び出し側はidentifier/name/inputを見て後続のtool実行を行う想定。
-                              List of the AI response's content blocks (Anthropic Messages API format; text/tool_use/thinking etc. are kept as-is, identical to what is saved to T_CHAT_MESSAGE).
+                              List of the AI response's content blocks (Anthropic Messages API format; text/tool_use/thinking etc. are kept as-is, identical to what is saved to the conversation history).
                               When a tool_use block is present, the caller is expected to inspect its id/name/input and run the corresponding tool.
                             items:
                               type: object
@@ -1270,8 +1270,8 @@ paths:
                           saved:
                             type: boolean
                             description: |-
-                              応答結果をT_CHAT_MESSAGEに保存したかどうか(messageを省略した場合はfalse)
-                              Whether the response was saved to T_CHAT_MESSAGE (false when message was omitted)
+                              応答結果を会話履歴に保存したかどうか(messageを省略した場合はfalse)
+                              Whether the response was saved to the conversation history (false when message was omitted)
                           ai_status_code:
                             type: integer
                             description: |-
@@ -1422,8 +1422,8 @@ paths:
         会話メッセージを作成
         Create a conversation message
       description: |-
-        UIからの応答を会話メッセージとして保存する(T_CHAT_MESSAGEへのスナップショット保存)
-        Save a UI response as a conversation message (saved as a snapshot in T_CHAT_MESSAGE).
+        UIからの応答を会話メッセージとして保存する(スナップショットとして保存)
+        Save a UI response as a conversation message (saved as a snapshot).
       operationId: create_message
       x-openapi-router-controller: controllers.ai_assistant_service_controller
       parameters:
@@ -6049,6 +6049,14 @@ components:
             - archived
         current_token_count:
           type: integer
+          description: |-
+            この会話でこれまでに消費した累積トークン数(input+output)。completions呼び出しでBedrockからusageが返るたびに加算され、
+            messageを省略した問い合わせ(既存履歴のみでの再問い合わせ・tool_result継続・添付ファイルのみのターン等、応答結果を
+            保存しない呼び出し)でも実際に消費したトークンとして加算される(保存の有無とは独立)。
+            Cumulative tokens (input+output) consumed by this conversation so far. Incremented every time a completions call returns
+            usage from Bedrock, including message-omitted calls (re-querying existing history, tool_result continuations,
+            attachment-only turns, etc. — calls whose response is not persisted); accumulation is independent of whether the
+            turn was persisted.
         message_count:
           type: integer
         created_at:

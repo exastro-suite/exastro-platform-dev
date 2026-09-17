@@ -110,8 +110,8 @@ post:
     会話メッセージを作成
     Create a conversation message
   description: |-
-    UIからの応答を会話メッセージとして保存する(T_CHAT_MESSAGEへのスナップショット保存)
-    Save a UI response as a conversation message (saved as a snapshot in T_CHAT_MESSAGE).
+    UIからの応答を会話メッセージとして保存する(スナップショットとして保存)
+    Save a UI response as a conversation message (saved as a snapshot).
   operationId: create_message
   x-openapi-router-controller: controllers.ai_assistant_service_controller
   parameters:
