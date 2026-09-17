@@ -55,10 +55,6 @@ require_ai_assistant_driver = organization_options.require_ita_driver(
 
 MSG_FUNCTION_ID = "25"
 
-# AWS/Bedrockのデフォルトリージョン(環境変数で上書き可能)
-# Default AWS/Bedrock region (overridable via env var)
-AI_ASSISTANT_DEFAULT_REGION = os.getenv("AI_ASSISTANT_DEFAULT_REGION", "ap-northeast-1")
-
 
 def _is_valid_bedrock_cache_api_key(api_key):
     """bedrock-cacheのcredential_data.apiKeyが、idTokenを含む有効なキャッシュファイルJSON文字列かを確認する
@@ -740,13 +736,24 @@ def register_credential(body, organization_id, credential_type):
             message_id = "400-25009"
             message = multi_lang.get_text(
                 message_id,
-                "bedrock-cache requires apiKey to contain the full cache file content (JSON) including idToken. "
-                "Please pass the entire content of ~/.aws/login/cache/*.json file as the apiKey value."
+                "bedrock-cacheのapiKeyには、idTokenを含むキャッシュファイル全体のJSON文字列を指定してください。"
+                "~/.aws/login/cache/*.json ファイルの内容全体を、そのままapiKeyの値として渡してください。"
             )
             raise common.BadRequestException(message_id=message_id, message=message)
 
         if not notes:
             notes = "AWS Login Cache (automatic token refresh)"
+
+    # bedrock(手動Credential)の特別処理: regionはフォールバックのデフォルト値を持たないため必須とする
+    # bedrock (manual credential) special handling: region has no fallback default, so it is required
+    elif credential_type == "bedrock":
+        if not credential_data.get("region"):
+            message_id = "400-25016"
+            message = multi_lang.get_text(
+                message_id,
+                "bedrockはcredential_data.regionの指定が必須です。"
+            )
+            raise common.BadRequestException(message_id=message_id, message=message)
 
     try:
         service = get_ai_credential_service()
@@ -984,8 +991,19 @@ def update_credential(body, organization_id, credential_type):
             message_id = "400-25009"
             message = multi_lang.get_text(
                 message_id,
-                "bedrock-cache requires apiKey to contain the full cache file content (JSON) including idToken. "
-                "Please pass the entire content of ~/.aws/login/cache/*.json file as the apiKey value."
+                "bedrock-cacheのapiKeyには、idTokenを含むキャッシュファイル全体のJSON文字列を指定してください。"
+                "~/.aws/login/cache/*.json ファイルの内容全体を、そのままapiKeyの値として渡してください。"
+            )
+            raise common.BadRequestException(message_id=message_id, message=message)
+
+    # bedrock(手動Credential)の特別処理: regionはフォールバックのデフォルト値を持たないため必須とする
+    # bedrock (manual credential) special handling: region has no fallback default, so it is required
+    elif credential_type == "bedrock":
+        if not credential_data.get("region"):
+            message_id = "400-25016"
+            message = multi_lang.get_text(
+                message_id,
+                "bedrockはcredential_data.regionの指定が必須です。"
             )
             raise common.BadRequestException(message_id=message_id, message=message)
 
@@ -1110,7 +1128,7 @@ def _verify_by_service(credential_type: str, credential_data: dict) -> dict:
                 aws_access_key_id=credential_data.get("accessKeyId"),
                 aws_secret_access_key=credential_data.get("secretAccessKey"),
                 aws_session_token=credential_data.get("sessionToken"),
-                region_name=credential_data.get("region", AI_ASSISTANT_DEFAULT_REGION),
+                region_name=credential_data.get("region"),
             )
             sts = session.client(
                 "sts",
@@ -1165,7 +1183,7 @@ def _verify_by_service(credential_type: str, credential_data: dict) -> dict:
                 }
 
             # AWS Login Cacheセッションを作成して検証
-            region = cache_data.get("region", AI_ASSISTANT_DEFAULT_REGION)
+            region = cache_data.get("region")
             aws_session = create_bedrock_session_from_credential_data(
                 credential_data=cache_data,
                 region=region,

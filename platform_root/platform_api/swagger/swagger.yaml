@@ -856,8 +856,6 @@ paths:
           enum:
           - bedrock-cache
           - bedrock
-          - openai
-          - anthropic
       requestBody:
         content:
           application/json:
@@ -928,8 +926,6 @@ paths:
           Credentialタイプ
           - bedrock-cache: AWS Login Cache (自動トークン更新、credential_data: {"apiKey": "<キャッシュファイル全体のJSON文字列>"})
           - bedrock: AWS Bedrock (手動Credential登録)
-          - openai: OpenAI API
-          - anthropic: Anthropic API
         required: true
         style: simple
         explode: false
@@ -938,8 +934,6 @@ paths:
           enum:
           - bedrock-cache
           - bedrock
-          - openai
-          - anthropic
       requestBody:
         content:
           application/json:
@@ -1046,8 +1040,6 @@ paths:
           enum:
           - bedrock-cache
           - bedrock
-          - openai
-          - anthropic
       responses:
         "200":
           description: 検証結果
@@ -3072,8 +3064,8 @@ paths:
                 $ref: "#/components/schemas/inline_response_200_36"
         "400":
           description: |-
-            バリデーションエラー
-            Validation error
+            バリデーションエラー、またはこのユーザー・このWorkspaceの学習事項登録件数が上限(AI_ASSISTANT_LESSONS_MAX_COUNT環境変数、既定200件)に達している
+            Validation error, or the number of lessons already registered by this user in this workspace has reached the limit (AI_ASSISTANT_LESSONS_MAX_COUNT env var, default 200)
           content:
             application/json:
               schema:
@@ -7215,8 +7207,6 @@ components:
           enum:
           - bedrock-cache
           - bedrock
-          - openai
-          - anthropic
         credential_name:
           type: string
         status:
@@ -7275,8 +7265,8 @@ components:
         ai_service_id:
           type: string
           description: |-
-            AIサービスID（bedrock/bedrock-cache/openai等）
-            AI service ID (bedrock/bedrock-cache/openai, etc.)
+            AIサービスID（bedrock/bedrock-cache）
+            AI service ID (bedrock/bedrock-cache)
         model_id:
           type: string
           description: |-
@@ -7660,7 +7650,7 @@ components:
             bedrock-cache の例(apiKeyの値は ~/.aws/login/cache/*.json の内容全体をJSON文字列化したもの):
               {"apiKey": "{\"idToken\":\"...\",\"accessToken\":\"...\",\"refreshToken\":\"...\",\"region\":\"ap-northeast-1\"}"}
 
-            bedrock の例:
+            bedrock の例(regionは必須。フォールバックのデフォルト値は無いため、未指定の場合はAWS呼び出し時にエラーとなる):
               {
                 "accessKeyId": "ASIA...",
                 "secretAccessKey": "...",
@@ -7922,8 +7912,6 @@ components:
           enum:
           - bedrock-cache
           - bedrock
-          - openai
-          - anthropic
         model_id:
           type: string
           description: |-

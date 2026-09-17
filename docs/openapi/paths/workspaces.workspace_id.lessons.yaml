@@ -95,8 +95,8 @@ post:
                     $ref: '../schemas/lessonInfo.yaml'
     400:
       description: |-
-        バリデーションエラー
-        Validation error
+        バリデーションエラー、またはこのユーザー・このWorkspaceの学習事項登録件数が上限(AI_ASSISTANT_LESSONS_MAX_COUNT環境変数、既定200件)に達している
+        Validation error, or the number of lessons already registered by this user in this workspace has reached the limit (AI_ASSISTANT_LESSONS_MAX_COUNT env var, default 200)
       content:
         application/json:
           schema:

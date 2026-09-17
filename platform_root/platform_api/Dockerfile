@@ -49,8 +49,8 @@ ENV AI_ASSISTANT_MAX_TOKENS_RETRY_COUNT     3
 ENV AI_ASSISTANT_LESSONS_MAX_ITEMS          20
 #   学習事項セクション全体の最大文字数 / Max character length of the lessons section as a whole
 ENV AI_ASSISTANT_LESSONS_MAX_CHARS          6000
-#   AWS/Bedrockのデフォルトリージョン / Default AWS/Bedrock region
-ENV AI_ASSISTANT_DEFAULT_REGION             ap-northeast-1
+#   ユーザー1人・Workspace1つあたりに登録できる学習事項の最大件数 / Maximum number of lessons a single user may register within a single workspace
+ENV AI_ASSISTANT_LESSONS_MAX_COUNT          200
 
 RUN --mount=type=secret,id=host_certificate_file,dst=/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem \
     dnf install -y \

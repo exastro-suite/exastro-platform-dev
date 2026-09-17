@@ -37,10 +37,6 @@ from botocore.utils import LoginTokenLoader
 
 import globals
 
-# AWS/Bedrockのデフォルトリージョン(環境変数で上書き可能)
-# Default AWS/Bedrock region (overridable via env var)
-AI_ASSISTANT_DEFAULT_REGION = os.getenv("AI_ASSISTANT_DEFAULT_REGION", "ap-northeast-1")
-
 
 class AwsSessionFromToken:
     """
@@ -50,7 +46,7 @@ class AwsSessionFromToken:
     def __init__(
         self,
         token: dict,
-        region: str = AI_ASSISTANT_DEFAULT_REGION,
+        region: Optional[str] = None,
     ):
         """
         Args:
@@ -256,7 +252,7 @@ def load_latest_login_cache(cache_dir: Optional[str] = None) -> dict:
 
 def create_bedrock_session_from_cache(
     cache_dir: Optional[str] = None,
-    region: str = AI_ASSISTANT_DEFAULT_REGION
+    region: Optional[str] = None
 ) -> AwsSessionFromToken:
     """
     キャッシュファイルからBedrockセッションを作成
@@ -276,7 +272,7 @@ def create_bedrock_session_from_cache(
 
 def create_bedrock_session_from_credential_data(
     credential_data: dict,
-    region: str = AI_ASSISTANT_DEFAULT_REGION,
+    region: Optional[str] = None,
 ) -> AwsSessionFromToken:
     """
     DBから取得したCredentialデータからBedrockセッションを作成
