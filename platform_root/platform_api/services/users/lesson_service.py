@@ -21,7 +21,7 @@ AIアシスタントのシステムプロンプトへの注入に使用する。
 
 import os
 from datetime import datetime
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Dict
 from dataclasses import dataclass
 from contextlib import closing
 import ulid
@@ -286,46 +286,54 @@ class LessonService:
         organization_id: str,
         workspace_id: str,
         user_id: str,
-        lesson_ids: List[str],
-        enabled: bool,
+        lessons: List[Dict],
     ) -> int:
         """
-        複数の学習事項の有効/無効フラグを一括更新
+        複数の学習事項の有効/無効フラグを一括更新(1件ごとに異なる有効/無効を指定できる。混在した状態を1回の呼び出しで反映する)
 
         Args:
             organization_id: Organization ID (DB接続用、テーブルには保存しない)
             workspace_id: Workspace ID (DB接続用、テーブルには保存しない)
             user_id: User ID
-            lesson_ids: 更新対象のLesson IDリスト
-            enabled: 変更後の有効/無効フラグ
+            lessons: 更新対象。[{"lesson_id": str, "enabled": bool}, ...]
 
         Returns:
-            int: 実際に更新された件数（他ユーザーの所有物や存在しないIDが含まれる場合、len(lesson_ids)より少なくなることがある）
+            int: 実際に更新された件数（他ユーザーの所有物や存在しないIDが含まれる場合、len(lessons)より少なくなることがある）
         """
-        # IN句のプレースホルダをID数に応じて動的に生成する（生の値を直接SQL文へ埋め込まない）
-        # Dynamically build the IN clause placeholders based on the number of ids (never interpolate raw values into the SQL text)
-        id_params = {f"id_{i}": lesson_id for i, lesson_id in enumerate(lesson_ids)}
-        in_clause = ", ".join(f"%({key})s" for key in id_params)
+        # enabledの値ごとにlesson_idをグルーピングし、値ごとに1回のUPDATE(IN句)で更新する。
+        # (要素数に関わらず、区別される有効/無効の値の種類数だけクエリを発行する。通常は最大2回)
+        # Group lesson_ids by their target enabled value, and issue one UPDATE (with an IN clause) per distinct value.
+        # (Regardless of the number of items, this issues at most as many queries as there are distinct enabled values — normally 2.)
+        ids_by_enabled: Dict[bool, List[str]] = {}
+        for item in lessons:
+            ids_by_enabled.setdefault(bool(item["enabled"]), []).append(item["lesson_id"])
 
-        query = f"""
-            UPDATE T_USER_LESSON
-            SET ENABLED = %(enabled)s,
-                LAST_UPDATE_TIMESTAMP = NOW(),
-                LAST_UPDATE_USER = %(user_id)s
-            WHERE USER_ID = %(user_id)s AND LESSON_ID IN ({in_clause})
-        """
-
+        updated_count = 0
         with closing(DBconnector().connect_workspacedb(organization_id, workspace_id)) as conn:
             with closing(conn.cursor()) as cursor:
-                cursor.execute(
-                    query,
-                    {"enabled": enabled, "user_id": user_id, **id_params},
-                )
-                updated_count = cursor.rowcount
+                for enabled, lesson_ids in ids_by_enabled.items():
+                    # IN句のプレースホルダをID数に応じて動的に生成する（生の値を直接SQL文へ埋め込まない）
+                    # Dynamically build the IN clause placeholders based on the number of ids (never interpolate raw values into the SQL text)
+                    id_params = {f"id_{i}": lesson_id for i, lesson_id in enumerate(lesson_ids)}
+                    in_clause = ", ".join(f"%({key})s" for key in id_params)
+
+                    query = f"""
+                        UPDATE T_USER_LESSON
+                        SET ENABLED = %(enabled)s,
+                            LAST_UPDATE_TIMESTAMP = NOW(),
+                            LAST_UPDATE_USER = %(user_id)s
+                        WHERE USER_ID = %(user_id)s AND LESSON_ID IN ({in_clause})
+                    """
+
+                    cursor.execute(
+                        query,
+                        {"enabled": enabled, "user_id": user_id, **id_params},
+                    )
+                    updated_count += cursor.rowcount
                 conn.commit()
 
         globals.logger.debug(
-            f"Bulk lesson update: user={user_id}, requested={len(lesson_ids)}, updated={updated_count}, enabled={enabled}"
+            f"Bulk lesson update: user={user_id}, requested={len(lessons)}, updated={updated_count}"
         )
 
         return updated_count

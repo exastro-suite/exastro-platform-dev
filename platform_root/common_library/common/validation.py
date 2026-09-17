@@ -2347,49 +2347,33 @@ def validate_lesson_priority(priority):
     return result(True)
 
 
-def validate_lesson_ids(lesson_ids):
-    """Validate AI Assistant bulk lesson_ids (必須。空でない文字列のリストであること)
+def validate_lesson_bulk_items(lessons):
+    """Validate AI Assistant bulk-update items
+    (必須。空でないリストで、各要素はlesson_id(空でない文字列)とenabled(bool)を持つオブジェクトであること。
+    要素ごとに異なるenabledを指定できる)
 
     Args:
-        lesson_ids (list): lesson id list
+        lessons (list): [{"lesson_id": str, "enabled": bool}, ...]
 
     Returns:
         result: Validation result
     """
-    if not lesson_ids or type(lesson_ids) is not list:
+    if not lessons or type(lessons) is not list:
         return result(
             False, 400, '400-{}011'.format(MSG_FUNCTION_ID), '必須項目が不足しています。({0})',
-            multi_lang.get_text('000-00235', "学習事項ID一覧")
+            multi_lang.get_text('000-00235', "学習事項一覧")
         )
 
-    if not all(isinstance(item, str) and item for item in lesson_ids):
-        return result(
-            False, 400, '400-{}002'.format(MSG_FUNCTION_ID), 'リクエストボディのパラメータ({0})が不正です。',
-            multi_lang.get_text('000-00235', "学習事項ID一覧")
-        )
-
-    return result(True)
-
-
-def validate_lesson_enabled(enabled):
-    """Validate AI Assistant bulk-update enabled flag
-
-    Args:
-        enabled (bool): enabled flag
-
-    Returns:
-        result: Validation result
-    """
-    if enabled is None:
-        return result(
-            False, 400, '400-{}011'.format(MSG_FUNCTION_ID), '必須項目が不足しています。({0})',
-            multi_lang.get_text('000-00236', "学習事項の有効/無効フラグ")
-        )
-
-    if not isinstance(enabled, bool):
-        return result(
-            False, 400, '400-{}002'.format(MSG_FUNCTION_ID), 'リクエストボディのパラメータ({0})が不正です。',
-            multi_lang.get_text('000-00236', "学習事項の有効/無効フラグ")
-        )
+    for item in lessons:
+        if (
+            not isinstance(item, dict)
+            or not isinstance(item.get("lesson_id"), str)
+            or not item.get("lesson_id")
+            or not isinstance(item.get("enabled"), bool)
+        ):
+            return result(
+                False, 400, '400-{}002'.format(MSG_FUNCTION_ID), 'リクエストボディのパラメータ({0})が不正です。',
+                multi_lang.get_text('000-00235', "学習事項一覧")
+            )
 
     return result(True)

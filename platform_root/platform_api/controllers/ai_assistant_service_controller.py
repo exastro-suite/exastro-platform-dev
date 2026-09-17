@@ -1127,15 +1127,10 @@ def bulk_update_lessons(body, organization_id, workspace_id):
     user_id = r.headers.get("User-id")
 
     body = r.get_json()
-    lesson_ids = body.get("lesson_ids")
-    enabled = body.get("enabled")
+    lessons = body.get("lessons")
 
-    # バリデーション（共通のvalidationモジュールを使用）
-    validate = validation.validate_lesson_ids(lesson_ids)
-    if not validate.ok:
-        return common.response_validation_error(validate)
-
-    validate = validation.validate_lesson_enabled(enabled)
+    # バリデーション（共通のvalidationモジュールを使用。要素ごとに異なるenabledを指定できる）
+    validate = validation.validate_lesson_bulk_items(lessons)
     if not validate.ok:
         return common.response_validation_error(validate)
 
@@ -1144,13 +1139,12 @@ def bulk_update_lessons(body, organization_id, workspace_id):
             organization_id=organization_id,
             workspace_id=workspace_id,
             user_id=user_id,
-            lesson_ids=lesson_ids,
-            enabled=enabled,
+            lessons=lessons,
         )
 
         globals.logger.debug(
             f"Lessons bulk updated: org={organization_id}, workspace={workspace_id}, user={user_id}, "
-            f"requested={len(lesson_ids)}, updated={updated_count}, enabled={enabled}"
+            f"requested={len(lessons)}, updated={updated_count}"
         )
 
         return common.response_200_ok({"updated_count": updated_count})
