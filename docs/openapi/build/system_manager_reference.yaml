@@ -2192,8 +2192,6 @@ components:
           enum:
             - bedrock-cache
             - bedrock
-            - openai
-            - anthropic
         credential_name:
           type: string
         status:
@@ -2252,8 +2250,8 @@ components:
         ai_service_id:
           type: string
           description: |-
-            AIサービスID（bedrock/bedrock-cache/openai等）
-            AI service ID (bedrock/bedrock-cache/openai, etc.)
+            AIサービスID（bedrock/bedrock-cache）
+            AI service ID (bedrock/bedrock-cache)
         model_id:
           type: string
           description: |-

@@ -68,10 +68,6 @@ AI_ASSISTANT_LESSONS_MAX_ITEMS = int(os.getenv("AI_ASSISTANT_LESSONS_MAX_ITEMS",
 # Max character length of the lessons section as a whole (overridable via env var)
 AI_ASSISTANT_LESSONS_MAX_CHARS = int(os.getenv("AI_ASSISTANT_LESSONS_MAX_CHARS", "6000"))
 
-# AWS/Bedrockのデフォルトリージョン(環境変数で上書き可能)
-# Default AWS/Bedrock region (overridable via env var)
-AI_ASSISTANT_DEFAULT_REGION = os.getenv("AI_ASSISTANT_DEFAULT_REGION", "ap-northeast-1")
-
 
 class ConversationNotFound(Exception):
     """会話が見つからない"""
@@ -510,7 +506,7 @@ class ConversationService:
                 # credential_data.apiKeyにキャッシュファイル全体のJSON文字列が入っているので展開する
                 # credential_data.apiKey holds the entire cache-file content as a JSON string, so unwrap it
                 cache_data = json.loads(credential.credential_data["apiKey"])
-                region = cache_data.get("region", AI_ASSISTANT_DEFAULT_REGION)
+                region = cache_data.get("region")
                 aws_session = create_bedrock_session_from_credential_data(
                     credential_data=cache_data,
                     region=region,
@@ -541,7 +537,7 @@ class ConversationService:
                     aws_access_key_id=credential_data.get("accessKeyId"),
                     aws_secret_access_key=credential_data.get("secretAccessKey"),
                     aws_session_token=credential_data.get("sessionToken"),
-                    region_name=credential_data.get("region", AI_ASSISTANT_DEFAULT_REGION),
+                    region_name=credential_data.get("region"),
                 )
 
                 bedrock_client = session.client(

@@ -32,7 +32,11 @@ from services.ai_assistant.conversation_service import (
 )
 from services.ai_assistant.message_service import get_message_service
 from services.users.ai_credential_service import CredentialNotFound
-from services.users.lesson_service import get_lesson_service
+from services.users.lesson_service import (
+    get_lesson_service,
+    LessonLimitExceeded,
+    AI_ASSISTANT_LESSONS_MAX_COUNT,
+)
 
 import globals
 
@@ -86,7 +90,7 @@ AVAILABLE_AI_SERVICES = [
             "region": {
                 "title": "AWS Region",
                 "type": "text",
-                "required": False,
+                "required": True,
             },
         },
     },
@@ -915,6 +919,16 @@ def create_lesson(body, organization_id, workspace_id):
         )
 
         return common.response_200_ok(_lesson_response(lesson_obj))
+
+    except LessonLimitExceeded:
+        message_id = "400-00022"
+        message = multi_lang.get_text(
+            message_id,
+            "{0}の上限数({1})を超えるため、新しい{0}は作成できません。",
+            multi_lang.get_text('000-00236', "学習事項"),
+            AI_ASSISTANT_LESSONS_MAX_COUNT,
+        )
+        raise common.BadRequestException(message_id=message_id, message=message)
 
     except Exception as e:
         globals.logger.error(f"Failed to create lesson: {e}", exc_info=True)

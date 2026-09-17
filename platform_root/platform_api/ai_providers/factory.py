@@ -18,16 +18,11 @@ AI Provider Factory
 AIプロバイダーのファクトリー関数
 """
 
-import os
 from typing import Dict, Any
 from ai_providers.base import AIProvider, AwsRoleCredential
 from ai_providers.bedrock.provider import BedrockProvider
 # from ai_providers.openai.provider import OpenAIProvider
 # from ai_providers.gemini.provider import GeminiProvider
-
-# AWS/Bedrockのデフォルトリージョン(環境変数で上書き可能)
-# Default AWS/Bedrock region (overridable via env var)
-AI_ASSISTANT_DEFAULT_REGION = os.getenv("AI_ASSISTANT_DEFAULT_REGION", "ap-northeast-1")
 
 
 class UnsupportedAIServiceError(Exception):
@@ -56,7 +51,7 @@ def create_ai_provider(
     """
     if ai_service_id in ["bedrock", "bedrock-cache"]:
         # AWS Bedrock
-        region = credential_data.get("region", AI_ASSISTANT_DEFAULT_REGION)
+        region = credential_data.get("region")
         credential = AwsRoleCredential(
             access_key_id=credential_data.get("access_key_id"),
             secret_access_key=credential_data.get("secret_access_key"),

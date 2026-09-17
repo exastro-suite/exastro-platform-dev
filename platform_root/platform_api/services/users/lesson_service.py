@@ -39,6 +39,10 @@ import globals
 # so this function's default is only actually used when called from elsewhere
 AI_ASSISTANT_LESSONS_MAX_ITEMS = int(os.getenv("AI_ASSISTANT_LESSONS_MAX_ITEMS", "20"))
 
+# ユーザー1人・Workspace1つあたりに登録できる学習事項の最大件数(環境変数で上書き可能)
+# Maximum number of lessons a single user may register within a single workspace (overridable via env var)
+AI_ASSISTANT_LESSONS_MAX_COUNT = int(os.getenv("AI_ASSISTANT_LESSONS_MAX_COUNT", "200"))
+
 
 @dataclass
 class Lesson:
@@ -51,6 +55,11 @@ class Lesson:
     conversation_id: Optional[str]
     created_at: Optional[str]
     updated_at: Optional[str]
+
+
+class LessonLimitExceeded(Exception):
+    """学習事項の登録件数が上限を超えている"""
+    pass
 
 
 class LessonService:
@@ -86,12 +95,28 @@ class LessonService:
 
         Returns:
             Lesson: 作成した学習事項
+
+        Raises:
+            LessonLimitExceeded: このユーザー・このWorkspaceの登録件数が上限(AI_ASSISTANT_LESSONS_MAX_COUNT)に達している
         """
         lesson_id = ulid.new().str
         now = datetime.now()
 
         with closing(DBconnector().connect_workspacedb(organization_id, workspace_id)) as conn:
             with closing(conn.cursor()) as cursor:
+                # 登録件数の上限チェック(このユーザー・このWorkspaceでの件数)
+                # Check the registration count limit (for this user, within this workspace)
+                cursor.execute(
+                    queries_ai_assistant.SQL_COUNT_LESSONS,
+                    {"user_id": user_id},
+                )
+                current_count = cursor.fetchone()["total_count"]
+                if current_count >= AI_ASSISTANT_LESSONS_MAX_COUNT:
+                    raise LessonLimitExceeded(
+                        f"Lesson limit exceeded: user={user_id}, workspace={workspace_id}, "
+                        f"count={current_count}, limit={AI_ASSISTANT_LESSONS_MAX_COUNT}"
+                    )
+
                 cursor.execute(
                     queries_ai_assistant.SQL_INSERT_LESSON,
                     {

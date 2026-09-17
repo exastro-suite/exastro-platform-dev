@@ -57,7 +57,7 @@ post:
               description: |-
                 AIサービスID(メッセージ固有、会話のデフォルトをオーバーライド、省略時は会話のAI_SERVICE_IDを使用)
                 AI service ID (specific to this message, overrides the conversation default; if omitted, the conversation's AI_SERVICE_ID is used)
-              enum: [bedrock-cache, bedrock, openai, anthropic]
+              enum: [bedrock-cache, bedrock]
               example: "bedrock-cache"
             model_id:
               type: string
