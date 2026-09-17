@@ -120,8 +120,8 @@ delete:
     会話を削除
     Delete a conversation
   description: |-
-    会話を削除する。会話に紐づくメッセージ履歴（T_CHAT_MESSAGE）も合わせて削除する。
-    Delete a conversation. The message history (T_CHAT_MESSAGE) associated with the conversation is also deleted.
+    会話を削除する。会話に紐づくメッセージ履歴も合わせて削除する。
+    Delete a conversation. The message history associated with the conversation is also deleted.
   operationId: delete_conversation
   x-openapi-router-controller: controllers.ai_assistant_service_controller
   parameters:

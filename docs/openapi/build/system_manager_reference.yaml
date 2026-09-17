@@ -2267,6 +2267,14 @@ components:
             - archived
         current_token_count:
           type: integer
+          description: |-
+            この会話でこれまでに消費した累積トークン数(input+output)。completions呼び出しでBedrockからusageが返るたびに加算され、
+            messageを省略した問い合わせ(既存履歴のみでの再問い合わせ・tool_result継続・添付ファイルのみのターン等、応答結果を
+            保存しない呼び出し)でも実際に消費したトークンとして加算される(保存の有無とは独立)。
+            Cumulative tokens (input+output) consumed by this conversation so far. Incremented every time a completions call returns
+            usage from Bedrock, including message-omitted calls (re-querying existing history, tool_result continuations,
+            attachment-only turns, etc. — calls whose response is not persisted); accumulation is independent of whether the
+            turn was persisted.
         message_count:
           type: integer
         created_at:
