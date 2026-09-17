@@ -25,6 +25,7 @@ JSON配列（1会話分のターン一覧）としてスナップショット保
 
 import json
 import os
+import re
 import time
 from datetime import datetime, timezone
 from typing import Optional, List, Dict
@@ -51,15 +52,90 @@ from services.ai_assistant.message_service import get_message_service
 
 import globals
 
+# Bedrock応答生成時のデフォルト最大トークン数(環境変数で上書き可能)
+# Default max_tokens for Bedrock response generation (overridable via env var)
+AI_ASSISTANT_MAX_TOKENS_DEFAULT = int(os.getenv("AI_ASSISTANT_MAX_TOKENS_DEFAULT", "20480"))
+
+# max_tokensがモデルの上限を超えた場合の自動リトライ回数(環境変数で上書き可能)
+# Number of automatic retries when max_tokens exceeds the model's limit (overridable via env var)
+AI_ASSISTANT_MAX_TOKENS_RETRY_COUNT = int(os.getenv("AI_ASSISTANT_MAX_TOKENS_RETRY_COUNT", "3"))
+
+# 学習事項をシステムプロンプトへ注入する際の最大件数(環境変数で上書き可能)
+# Maximum number of lessons to inject into the system prompt (overridable via env var)
+AI_ASSISTANT_LESSONS_MAX_ITEMS = int(os.getenv("AI_ASSISTANT_LESSONS_MAX_ITEMS", "20"))
+
+# 学習事項セクション全体の最大文字数(環境変数で上書き可能)
+# Max character length of the lessons section as a whole (overridable via env var)
+AI_ASSISTANT_LESSONS_MAX_CHARS = int(os.getenv("AI_ASSISTANT_LESSONS_MAX_CHARS", "6000"))
+
+# AWS/Bedrockのデフォルトリージョン(環境変数で上書き可能)
+# Default AWS/Bedrock region (overridable via env var)
+AI_ASSISTANT_DEFAULT_REGION = os.getenv("AI_ASSISTANT_DEFAULT_REGION", "ap-northeast-1")
+
 
 class ConversationNotFound(Exception):
     """会話が見つからない"""
     pass
 
 
+def _extract_max_tokens_limit(message: str) -> Optional[int]:
+    """
+    BedrockのValidationExceptionのメッセージから、モデルのmaxTokens上限を抽出する
+    (ai_providers/bedrock/provider.pyの_extract_max_tokens_limitと同じ抽出ロジック)
+
+    Extract the model's maxTokens limit from a Bedrock ValidationException message
+    (same extraction logic as ai_providers/bedrock/provider.py's _extract_max_tokens_limit)
+
+    Args:
+        message: エラーメッセージ
+
+    Returns:
+        Optional[int]: 上限値(見つからない場合はNone)
+    """
+    m = re.search(r"model limit of (\d+)", message or "")
+    return int(m.group(1)) if m else None
+
+
 def _now_iso() -> str:
     """UTCの現在時刻をISO8601(Z終端)で返す（フロントエンドの_timestampと同じ形式）"""
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+
+
+def _build_lessons_prompt_section(organization_id: str, workspace_id: str, user_id: str) -> str:
+    """
+    ユーザーの有効な学習事項からシステムプロンプトへ追記するセクションを構築する
+
+    過去の会話から学習した失敗・教訓・注意点を、重要度(priority)の高い順・更新日時の新しい順に列挙する。
+    学習事項が無い場合は空文字列を返す。
+    """
+    from services.users.lesson_service import get_lesson_service
+
+    lessons = get_lesson_service().get_enabled_lessons_for_prompt(
+        organization_id=organization_id,
+        workspace_id=workspace_id,
+        user_id=user_id,
+        limit=AI_ASSISTANT_LESSONS_MAX_ITEMS,
+    )
+    if not lessons:
+        return ""
+
+    lines = [
+        "",
+        "",
+        "# 過去セッションからの学習事項（前提知識）",
+        "以下は過去の会話で判明した失敗・教訓・注意点です。同種の作業では同じ失敗を繰り返さないよう考慮してください。",
+        "ただし現在の依頼と無関係な項目は、無理に適用しないでください。",
+        "",
+    ]
+    for item in lessons:
+        category = item.category if item.category else "その他"
+        lines.append(f"- [優先度:{item.priority}][{category}] {item.lesson}")
+    section = "\n".join(lines)
+
+    if len(section) > AI_ASSISTANT_LESSONS_MAX_CHARS:
+        section = section[:AI_ASSISTANT_LESSONS_MAX_CHARS] + "\n（以下省略）"
+
+    return section
 
 
 class ConversationService:
@@ -190,6 +266,110 @@ class ConversationService:
         )
 
         return conversations, total_count
+
+    def update_conversation(
+        self,
+        organization_id: str,
+        workspace_id: str,
+        user_id: str,
+        conversation_id: str,
+        title: Optional[str] = None,
+        status: Optional[str] = None,
+    ) -> Dict:
+        """
+        会話を部分更新（PATCH。title/statusのうち指定された項目のみ更新する）
+
+        Args:
+            organization_id: Organization ID (DB接続用、テーブルには保存しない)
+            workspace_id: Workspace ID (DB接続用、テーブルには保存しない)
+            user_id: User ID
+            conversation_id: Conversation ID
+            title: 変更後の会話タイトル (省略時は変更しない)
+            status: 変更後のステータス (active/closed/archived。省略時は変更しない)
+
+        Returns:
+            Dict: 更新後の{conversation_id, title, status}
+
+        Raises:
+            ConversationNotFound: 会話が見つからない
+        """
+        with closing(DBconnector().connect_workspacedb(organization_id, workspace_id)) as conn:
+            with closing(conn.cursor()) as cursor:
+                cursor.execute(
+                    queries_ai_assistant.SQL_SELECT_CONVERSATION_FOR_PATCH,
+                    {"conversation_id": conversation_id, "user_id": user_id},
+                )
+                conversation = cursor.fetchone()
+
+                if not conversation:
+                    raise ConversationNotFound(
+                        f"Conversation not found: id={conversation_id}, user={user_id}"
+                    )
+
+                cursor.execute(
+                    queries_ai_assistant.SQL_UPDATE_CONVERSATION,
+                    {
+                        "conversation_id": conversation_id,
+                        "user_id": user_id,
+                        "title": title,
+                        "status": status,
+                    },
+                )
+                conn.commit()
+
+        globals.logger.debug(
+            f"Conversation updated: id={conversation_id}, user={user_id}, "
+            f"title={title}, status={status}"
+        )
+
+        # COALESCEで更新した内容をDBへ再度問い合わせずに反映する（未指定の項目は更新前の値を維持）
+        # Reflect the COALESCE-based update without re-querying the DB (fields not specified keep their prior value)
+        return {
+            "conversation_id": conversation_id,
+            "title": title if title is not None else conversation["TITLE"],
+            "status": status if status is not None else conversation["STATUS"],
+        }
+
+    def delete_conversation(
+        self,
+        organization_id: str,
+        workspace_id: str,
+        user_id: str,
+        conversation_id: str,
+    ) -> None:
+        """
+        会話を削除（紐づくT_CHAT_MESSAGEも合わせて削除する）
+
+        Args:
+            organization_id: Organization ID (DB接続用、テーブルには保存しない)
+            workspace_id: Workspace ID (DB接続用、テーブルには保存しない)
+            user_id: User ID
+            conversation_id: Conversation ID
+
+        Raises:
+            ConversationNotFound: 会話が見つからない
+        """
+        with closing(DBconnector().connect_workspacedb(organization_id, workspace_id)) as conn:
+            with closing(conn.cursor()) as cursor:
+                cursor.execute(
+                    queries_ai_assistant.SQL_DELETE_MESSAGES,
+                    {"conversation_id": conversation_id},
+                )
+                cursor.execute(
+                    queries_ai_assistant.SQL_DELETE_CONVERSATION,
+                    {"conversation_id": conversation_id, "user_id": user_id},
+                )
+                deleted = cursor.rowcount > 0
+                conn.commit()
+
+        if not deleted:
+            raise ConversationNotFound(
+                f"Conversation not found: id={conversation_id}, user={user_id}"
+            )
+
+        globals.logger.debug(
+            f"Conversation deleted: id={conversation_id}, user={user_id}"
+        )
 
     def create_completion(
         self,
@@ -330,7 +510,7 @@ class ConversationService:
                 # credential_data.apiKeyにキャッシュファイル全体のJSON文字列が入っているので展開する
                 # credential_data.apiKey holds the entire cache-file content as a JSON string, so unwrap it
                 cache_data = json.loads(credential.credential_data["apiKey"])
-                region = cache_data.get("region", "ap-northeast-1")
+                region = cache_data.get("region", AI_ASSISTANT_DEFAULT_REGION)
                 aws_session = create_bedrock_session_from_credential_data(
                     credential_data=cache_data,
                     region=region,
@@ -361,7 +541,7 @@ class ConversationService:
                     aws_access_key_id=credential_data.get("accessKeyId"),
                     aws_secret_access_key=credential_data.get("secretAccessKey"),
                     aws_session_token=credential_data.get("sessionToken"),
-                    region_name=credential_data.get("region", "ap-northeast-1"),
+                    region_name=credential_data.get("region", AI_ASSISTANT_DEFAULT_REGION),
                 )
 
                 bedrock_client = session.client(
@@ -393,6 +573,12 @@ class ConversationService:
             except FileNotFoundError as e:
                 globals.logger.warning(f"System prompt not found: {e}. Using empty prompt.")
                 system_prompt = None
+
+            # 過去セッションからの学習事項をシステムプロンプトに追記する
+            # Append lessons learned from past sessions to the system prompt
+            lessons_section = _build_lessons_prompt_section(organization_id, workspace_id, user_id)
+            if lessons_section:
+                system_prompt = (system_prompt or "") + lessons_section
 
             # menu_idが指定されている場合は追加プロンプトを読み込み
             # Load the additional prompt only when menu_id is specified
@@ -430,7 +616,7 @@ class ConversationService:
             # Anthropic Messages API request body (via Bedrock InvokeModel), matching the same shape as amazon_bedrock.js's this.model
             request_body = {
                 "anthropic_version": "bedrock-2023-05-31",
-                "max_tokens": 4096,
+                "max_tokens": AI_ASSISTANT_MAX_TOKENS_DEFAULT,
                 "messages": bedrock_messages,
             }
             if system_prompt:
@@ -441,14 +627,71 @@ class ConversationService:
                 request_body["tools"] = tools
                 request_body["tool_choice"] = {"type": "auto"}
 
-            request_start = time.monotonic()
-            raw_response = bedrock_client.invoke_model(
-                modelId=effective_model_id,
-                body=json.dumps(request_body),
-                contentType="application/json",
-                accept="application/json",
-            )
-            thinking_ms = round((time.monotonic() - request_start) * 1000)
+            # max_tokensがモデルの実際の上限を超えるとBedrockはValidationExceptionを返す。
+            # エラーメッセージから実際の上限値("model limit of {N}")を抽出できた場合は、
+            # その値に差し替えて最大AI_ASSISTANT_MAX_TOKENS_RETRY_COUNT回まで自動的に再試行する。
+            # リトライを使い切ってもmax_tokensエラーが解消しない場合は、max_tokensの値を含めてエラーを返す。
+            # If max_tokens exceeds the model's actual limit, Bedrock returns a ValidationException.
+            # When the actual limit ("model limit of {N}") can be extracted from the error message,
+            # substitute it and retry automatically, up to AI_ASSISTANT_MAX_TOKENS_RETRY_COUNT times.
+            # If the max_tokens error persists after exhausting all retries, return an error that includes the max_tokens value.
+            current_max_tokens = request_body["max_tokens"]
+            max_tokens_retry_count = 0
+            while True:
+                request_body["max_tokens"] = current_max_tokens
+                try:
+                    request_start = time.monotonic()
+                    raw_response = bedrock_client.invoke_model(
+                        modelId=effective_model_id,
+                        body=json.dumps(request_body),
+                        contentType="application/json",
+                        accept="application/json",
+                    )
+                    thinking_ms = round((time.monotonic() - request_start) * 1000)
+                    break
+                except ClientError as e:
+                    error_info = e.response.get("Error", {})
+                    error_code = error_info.get("Code", "")
+                    error_message = error_info.get("Message", str(e))
+                    limit = (
+                        _extract_max_tokens_limit(error_message)
+                        if error_code == "ValidationException"
+                        else None
+                    )
+                    if limit is None:
+                        # max_tokens以外のエラーは外側のexcept ClientErrorへそのまま伝播する
+                        # Errors unrelated to max_tokens propagate to the outer except ClientError as-is
+                        raise
+
+                    if max_tokens_retry_count >= AI_ASSISTANT_MAX_TOKENS_RETRY_COUNT:
+                        globals.logger.error(
+                            f"max_tokens validation error persisted after {max_tokens_retry_count} retries "
+                            f"(last attempted max_tokens={current_max_tokens}, model limit={limit})"
+                        )
+                        status_code = e.response.get("ResponseMetadata", {}).get("HTTPStatusCode", 400)
+                        raise common.OtherException(
+                            status_code=status_code,
+                            data={
+                                "max_tokens": current_max_tokens,
+                                "model_max_tokens_limit": limit,
+                                "retry_count": max_tokens_retry_count,
+                            },
+                            # message_idは追跡用に固定値とする(実際に呼び出し元へ返すHTTPステータスはstatus_codeでAIサービスの実値をそのまま伝播する)
+                            # Keep message_id fixed for traceability (the actual HTTP status returned to the caller still propagates the AI service's real status via status_code)
+                            message_id="500-45002",
+                            message=(
+                                f"max_tokensがモデルの上限を超えています"
+                                f"(要求値: {current_max_tokens}, モデル上限: {limit}, リトライ回数: {max_tokens_retry_count})"
+                            ),
+                        ) from e
+
+                    max_tokens_retry_count += 1
+                    globals.logger.warning(
+                        f"max_tokens({current_max_tokens}) exceeds model limit; "
+                        f"retrying with max_tokens={limit} "
+                        f"({max_tokens_retry_count}/{AI_ASSISTANT_MAX_TOKENS_RETRY_COUNT})"
+                    )
+                    current_max_tokens = limit
 
             # AIサービスが返したHTTPステータスコードをそのまま呼び出し元に返す
             # （ai_assistant_client.js / amazon_bedrock.jsのfetchWithRetryと同様、

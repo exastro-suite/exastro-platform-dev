@@ -258,4 +258,33 @@ class update_workspace_db:
                                                   organization_id, workspace_id)
                     raise common.InternalErrorException(message_id=message_id, message=message)
 
+                # 3. T_USER_LESSON テーブル作成
+                try:
+                    globals.logger.info(f"[{self.step_count}/{self.step_max}] - create table T_USER_LESSON: organization_id:[{organization_id}] workspace_id:[{workspace_id}]")
+
+                    # テーブル存在確認
+                    cursor.execute(queries_db_workspace.CHECK_TABLE_EXISTS, ('T_USER_LESSON',))
+                    result = cursor.fetchone()
+
+                    if result['count'] == 0:
+                        query = queries_db_workspace.CREATE_TABLE_USER_LESSON
+                        globals.logger.debug(f'EXECUTE SQL:{query}')
+                        cursor.execute(query)
+                        globals.logger.info(f"[{self.step_count}/{self.step_max}] -- OK: create table T_USER_LESSON: organization_id:[{organization_id}] workspace_id:[{workspace_id}]")
+                        self.ok_count += 1
+                    else:
+                        globals.logger.info(f"[{self.step_count}/{self.step_max}] -- SKIP: table T_USER_LESSON already exists: organization_id:[{organization_id}] workspace_id:[{workspace_id}]")
+                        self.skip_count += 1
+
+                    conn.commit()
+
+                except Exception as e:
+                    globals.logger.info(f"[{self.step_count}/{self.step_max}] -- NG: create table T_USER_LESSON: organization_id:[{organization_id}] workspace_id:[{workspace_id}]")
+                    globals.logger.error(f"exception:{e.args}")
+                    message_id = "500-90036"
+                    message = multi_lang.get_text(message_id,
+                                                  "workspace_db create table T_USER_LESSON failed. organization_id:[{0}] workspace_id:[{1}]",
+                                                  organization_id, workspace_id)
+                    raise common.InternalErrorException(message_id=message_id, message=message)
+
         return

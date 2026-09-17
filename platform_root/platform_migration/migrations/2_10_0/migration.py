@@ -36,6 +36,7 @@ def main():
     # Update workspace database
     # - T_AI_CONVERSATION テーブル作成（ワークスペース単位）
     # - T_AI_MESSAGE テーブル作成（ワークスペース単位）
+    # - T_USER_LESSON テーブル作成（ワークスペース単位）
     api = update_workspace_db.update_workspace_db()
     result.append(api.start())
 

@@ -2386,6 +2386,153 @@ paths:
               schema:
                 $ref: "#/components/schemas/runtimeError"
       x-openapi-router-controller: controllers.ai_assistant_service_controller
+  /api/{organization_id}/platform/workspaces/{workspace_id}/conversations/{conversation_id}:
+    delete:
+      tags:
+      - AIAssistantService
+      summary: |-
+        会話を削除
+        Delete a conversation
+      description: |-
+        会話を削除する。会話に紐づくメッセージ履歴（T_CHAT_MESSAGE）も合わせて削除する。
+        Delete a conversation. The message history (T_CHAT_MESSAGE) associated with the conversation is also deleted.
+      operationId: delete_conversation
+      parameters:
+      - name: organization_id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      - name: workspace_id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      - name: conversation_id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      responses:
+        "200":
+          description: |-
+            削除成功
+            Deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_200_29"
+        "403":
+          description: |-
+            AIアシスタント機能が有効になっていない
+            The AI assistant feature is not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/runtimeError"
+        "404":
+          description: |-
+            会話が見つからない
+            Conversation not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/runtimeError"
+        "500":
+          description: |-
+            サーバーエラー
+            Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/runtimeError"
+      x-openapi-router-controller: controllers.ai_assistant_service_controller
+    patch:
+      tags:
+      - AIAssistantService
+      summary: |-
+        会話を部分更新
+        Partially update a conversation
+      description: |-
+        会話を部分更新する。title・statusのうち、リクエストボディで指定された項目のみを更新し、指定しなかった項目は変更しない（PATCH）。
+        Partially update a conversation. Only the fields provided in the request body (title, status) are updated; fields not provided are left unchanged (PATCH semantics).
+      operationId: update_conversation
+      parameters:
+      - name: organization_id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      - name: workspace_id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      - name: conversation_id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/conversations_conversation_id_body"
+        required: true
+      responses:
+        "200":
+          description: |-
+            更新成功
+            Updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_200_30"
+        "400":
+          description: |-
+            バリデーションエラー
+            Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/runtimeError"
+        "403":
+          description: |-
+            AIアシスタント機能が有効になっていない
+            The AI assistant feature is not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/runtimeError"
+        "404":
+          description: |-
+            会話が見つからない
+            Conversation not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/runtimeError"
+        "500":
+          description: |-
+            サーバーエラー
+            Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/runtimeError"
+      x-openapi-router-controller: controllers.ai_assistant_service_controller
   /api/{organization_id}/platform/workspaces/{workspace_id}/conversations/{conversation_id}/completions:
     post:
       tags:
@@ -2433,7 +2580,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_29"
+                $ref: "#/components/schemas/inline_response_200_31"
         "400":
           description: |-
             バリデーションエラー
@@ -2539,7 +2686,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_30"
+                $ref: "#/components/schemas/inline_response_200_32"
         "403":
           description: |-
             AIアシスタント機能が有効になっていない
@@ -2609,7 +2756,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_30"
+                $ref: "#/components/schemas/inline_response_200_32"
         "400":
           description: |-
             バリデーションエラー
@@ -2689,7 +2836,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_31"
+                $ref: "#/components/schemas/inline_response_200_33"
         "400":
           description: |-
             バリデーションエラー
@@ -2763,7 +2910,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_32"
+                $ref: "#/components/schemas/inline_response_200_34"
         "403":
           description: |-
             AIアシスタント機能が有効になっていない
@@ -2776,6 +2923,443 @@ paths:
           description: |-
             会話が見つからない
             Conversation not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/runtimeError"
+        "500":
+          description: |-
+            サーバーエラー
+            Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/runtimeError"
+      x-openapi-router-controller: controllers.ai_assistant_service_controller
+  /api/{organization_id}/platform/workspaces/{workspace_id}/lessons:
+    get:
+      tags:
+      - AIAssistantService
+      summary: |-
+        学習事項一覧を取得
+        Get the list of lessons
+      description: |-
+        ユーザーの学習事項一覧を取得する(ワークスペース単位)。有効/無効フラグや分類での絞り込み、ページングが可能。
+        Get the list of the user's lessons for this workspace. Supports filtering by enabled flag or category, and pagination.
+      operationId: list_lessons
+      parameters:
+      - name: organization_id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      - name: workspace_id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      - name: enabled
+        in: query
+        description: |-
+          有効/無効フィルター(省略時は絞り込みなし)
+          Enabled-flag filter (no filtering if omitted)
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: boolean
+      - name: category
+        in: query
+        description: |-
+          分類フィルター(省略時は絞り込みなし)
+          Category filter (no filtering if omitted)
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+      - name: limit
+        in: query
+        description: |-
+          取得件数
+          Number of items to retrieve
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: integer
+          default: 50
+      - name: offset
+        in: query
+        description: |-
+          オフセット
+          Offset
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: integer
+          default: 0
+      responses:
+        "200":
+          description: |-
+            成功
+            Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_200_35"
+        "403":
+          description: |-
+            AIアシスタント機能が有効になっていない
+            The AI assistant feature is not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/runtimeError"
+        "500":
+          description: |-
+            サーバーエラー
+            Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/runtimeError"
+      x-openapi-router-controller: controllers.ai_assistant_service_controller
+    post:
+      tags:
+      - AIAssistantService
+      summary: |-
+        学習事項を作成
+        Create a lesson
+      description: |-
+        ユーザーの学習事項(過去の会話から判明した失敗・教訓・注意点)を新規登録する。登録した学習事項はenabledがtrueの間、AIアシスタントのシステムプロンプトへ自動的に反映される。
+        Register a new lesson (a failure, lesson, or caveat learned from a past conversation) for the user. While a lesson's enabled flag is true, it is automatically injected into the AI assistant's system prompt.
+      operationId: create_lesson
+      parameters:
+      - name: organization_id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      - name: workspace_id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/workspace_id_lessons_body"
+        required: true
+      responses:
+        "200":
+          description: |-
+            登録成功
+            Registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_200_36"
+        "400":
+          description: |-
+            バリデーションエラー
+            Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/runtimeError"
+        "403":
+          description: |-
+            AIアシスタント機能が有効になっていない
+            The AI assistant feature is not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/runtimeError"
+        "500":
+          description: |-
+            サーバーエラー
+            Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/runtimeError"
+      x-openapi-router-controller: controllers.ai_assistant_service_controller
+    patch:
+      tags:
+      - AIAssistantService
+      summary: |-
+        複数の学習事項の有効/無効を一括更新
+        Bulk-update the enabled flag for multiple lessons
+      description: |-
+        複数の学習事項について、有効/無効フラグをまとめて更新する(要素ごとに異なる有効/無効を指定できるため、混在した状態を1回の呼び出しで反映できる)。存在しない・他ユーザー所有のIDが含まれる場合、そのIDは更新されず件数に反映されない(エラーにはならない)。
+        Bulk-update the enabled flag for multiple lessons at once (each item may specify a different enabled value, so a mixed set of changes can be applied in a single call). IDs that don't exist or belong to another user are simply not updated and excluded from the count (this is not treated as an error).
+      operationId: bulk_update_lessons
+      parameters:
+      - name: organization_id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      - name: workspace_id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/workspace_id_lessons_body_1"
+        required: true
+      responses:
+        "200":
+          description: |-
+            更新成功
+            Updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_200_37"
+        "400":
+          description: |-
+            バリデーションエラー
+            Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/runtimeError"
+        "403":
+          description: |-
+            AIアシスタント機能が有効になっていない
+            The AI assistant feature is not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/runtimeError"
+        "500":
+          description: |-
+            サーバーエラー
+            Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/runtimeError"
+      x-openapi-router-controller: controllers.ai_assistant_service_controller
+  /api/{organization_id}/platform/workspaces/{workspace_id}/lessons/{lesson_id}:
+    get:
+      tags:
+      - AIAssistantService
+      summary: |-
+        学習事項を取得
+        Get a lesson
+      description: |-
+        指定した学習事項を1件取得する。
+        Get a single lesson by ID.
+      operationId: get_lesson
+      parameters:
+      - name: organization_id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      - name: workspace_id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      - name: lesson_id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      responses:
+        "200":
+          description: |-
+            成功
+            Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_200_36"
+        "403":
+          description: |-
+            AIアシスタント機能が有効になっていない
+            The AI assistant feature is not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/runtimeError"
+        "404":
+          description: |-
+            学習事項が見つからない
+            Lesson not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/runtimeError"
+        "500":
+          description: |-
+            サーバーエラー
+            Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/runtimeError"
+      x-openapi-router-controller: controllers.ai_assistant_service_controller
+    delete:
+      tags:
+      - AIAssistantService
+      summary: |-
+        学習事項を削除
+        Delete a lesson
+      description: |-
+        指定した学習事項をID単位で削除する。
+        Delete a single lesson by ID.
+      operationId: delete_lesson
+      parameters:
+      - name: organization_id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      - name: workspace_id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      - name: lesson_id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      responses:
+        "200":
+          description: |-
+            削除成功
+            Deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_200_38"
+        "403":
+          description: |-
+            AIアシスタント機能が有効になっていない
+            The AI assistant feature is not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/runtimeError"
+        "404":
+          description: |-
+            学習事項が見つからない
+            Lesson not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/runtimeError"
+        "500":
+          description: |-
+            サーバーエラー
+            Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/runtimeError"
+      x-openapi-router-controller: controllers.ai_assistant_service_controller
+    patch:
+      tags:
+      - AIAssistantService
+      summary: |-
+        学習事項を部分更新
+        Partially update a lesson
+      description: |-
+        学習事項を部分更新する。lesson・category・priority・enabledのうち、リクエストボディで指定された項目のみを更新し、指定しなかった項目は変更しない(PATCH)。主な用途は一覧UIでの有効/無効の切り替えや内容の修正。
+        Partially update a lesson. Only the fields provided in the request body (lesson, category, priority, enabled) are updated; fields not provided are left unchanged (PATCH semantics). The main use is toggling enabled or correcting content from a list UI.
+      operationId: update_lesson
+      parameters:
+      - name: organization_id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      - name: workspace_id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      - name: lesson_id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/lessons_lesson_id_body"
+        required: true
+      responses:
+        "200":
+          description: |-
+            更新成功
+            Updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_200_36"
+        "400":
+          description: |-
+            バリデーションエラー
+            Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/runtimeError"
+        "403":
+          description: |-
+            AIアシスタント機能が有効になっていない
+            The AI assistant feature is not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/runtimeError"
+        "404":
+          description: |-
+            学習事項が見つからない
+            Lesson not found
           content:
             application/json:
               schema:
@@ -2838,7 +3422,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_33"
+                $ref: "#/components/schemas/inline_response_200_39"
         default:
           description: An unexpected error response.
           content:
@@ -2907,7 +3491,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_34"
+                $ref: "#/components/schemas/inline_response_200_40"
         default:
           description: An unexpected error response.
           content:
@@ -3023,7 +3607,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_35"
+                $ref: "#/components/schemas/inline_response_200_41"
         default:
           description: An unexpected error response.
           content:
@@ -3202,7 +3786,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_36"
+                $ref: "#/components/schemas/inline_response_200_42"
         default:
           description: An unexpected error response.
           content:
@@ -3414,7 +3998,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_37"
+                $ref: "#/components/schemas/inline_response_200_43"
         default:
           description: An unexpected error response.
           content:
@@ -3449,7 +4033,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_38"
+                $ref: "#/components/schemas/inline_response_200_44"
         default:
           description: An unexpected error response.
           content:
@@ -3526,7 +4110,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_39"
+                $ref: "#/components/schemas/inline_response_200_45"
         default:
           description: An unexpected error response.
           content:
@@ -3554,7 +4138,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_40"
+                $ref: "#/components/schemas/inline_response_200_46"
         default:
           description: An unexpected error response.
           content:
@@ -3589,7 +4173,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_41"
+                $ref: "#/components/schemas/inline_response_200_47"
         default:
           description: An unexpected error response.
           content:
@@ -3653,7 +4237,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_42"
+                $ref: "#/components/schemas/inline_response_200_48"
         default:
           description: An unexpected error response.
           content:
@@ -3706,7 +4290,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_42"
+                $ref: "#/components/schemas/inline_response_200_48"
         default:
           description: An unexpected error response.
           content:
@@ -3734,7 +4318,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_43"
+                $ref: "#/components/schemas/inline_response_200_49"
               example:
                 value:
                   result: 200
@@ -3863,7 +4447,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_44"
+                $ref: "#/components/schemas/inline_response_200_50"
         default:
           description: An unexpected error response.
           content:
@@ -3896,7 +4480,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_45"
+                $ref: "#/components/schemas/inline_response_200_51"
         default:
           description: An unexpected error response.
           content:
@@ -3974,7 +4558,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_46"
+                $ref: "#/components/schemas/inline_response_200_52"
         default:
           description: An unexpected error response.
           content:
@@ -4057,7 +4641,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_47"
+                $ref: "#/components/schemas/inline_response_200_53"
         default:
           description: An unexpected error response.
           content:
@@ -4190,7 +4774,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_48"
+                $ref: "#/components/schemas/inline_response_200_54"
         default:
           description: An unexpected error response.
           content:
@@ -4238,7 +4822,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_49"
+                $ref: "#/components/schemas/inline_response_200_55"
         default:
           description: An unexpected error response.
           content:
@@ -4531,7 +5115,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_50"
+                $ref: "#/components/schemas/inline_response_200_56"
         default:
           description: An unexpected error response.
           content:
@@ -4586,7 +5170,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_51"
+                $ref: "#/components/schemas/inline_response_200_57"
         default:
           description: An unexpected error response.
           content:
@@ -4704,7 +5288,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_52"
+                $ref: "#/components/schemas/inline_response_200_58"
         default:
           description: An unexpected error response.
           content:
@@ -4760,7 +5344,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_33"
+                $ref: "#/components/schemas/inline_response_200_39"
         default:
           description: An unexpected error response.
           content:
@@ -4816,7 +5400,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_53"
+                $ref: "#/components/schemas/inline_response_200_59"
         default:
           description: An unexpected error response.
           content:
@@ -4837,7 +5421,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_42"
+                $ref: "#/components/schemas/inline_response_200_48"
         default:
           description: An unexpected error response.
           content:
@@ -5199,7 +5783,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_46"
+                $ref: "#/components/schemas/inline_response_200_52"
         default:
           description: An unexpected error response.
           content:
@@ -5282,7 +5866,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_48"
+                $ref: "#/components/schemas/inline_response_200_54"
         default:
           description: An unexpected error response.
           content:
@@ -5330,7 +5914,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_49"
+                $ref: "#/components/schemas/inline_response_200_55"
         default:
           description: An unexpected error response.
           content:
@@ -6837,6 +7421,61 @@ components:
               title: 認証情報（Login Cache）
               type: password
               required: true
+    lessonInfo:
+      type: object
+      properties:
+        lesson_id:
+          type: string
+          description: |-
+            学習事項ID(ULID)
+            Lesson ID (ULID)
+          example: 01J9Z8Q8Q8Q8Q8Q8Q8Q8Q8Q8Q8
+        lesson:
+          type: string
+          description: |-
+            学習事項の内容(過去の会話から判明した失敗・教訓・注意点等)
+            Lesson content (a failure, lesson, or caveat learned from a past conversation)
+          example: 本番環境への反映前に、必ずdry-run実行で差分を確認すること
+        category:
+          type: string
+          description: |-
+            分類(任意)
+            Category (optional)
+          nullable: true
+          example: Ansible
+        priority:
+          maximum: 10
+          minimum: 1
+          type: integer
+          description: |-
+            重要度(1:最低 〜 10:最高)。システムプロンプトへの掲載順に使用する
+            Priority (1: lowest - 10: highest). Used to order lessons when injecting them into the system prompt
+          example: 8
+        enabled:
+          type: boolean
+          description: |-
+            有効/無効フラグ(trueの場合のみシステムプロンプトへ反映される)
+            Enabled flag (only lessons with true are injected into the system prompt)
+          example: true
+        conversation_id:
+          type: string
+          description: |-
+            学習元の会話ID(任意。Workspace内DB側のIDのため外部キーではない)
+            Originating conversation ID (optional; not a foreign key since conversations live in a separate, workspace-scoped database)
+          nullable: true
+          example: conv-001
+        created_at:
+          type: string
+          description: |-
+            作成日時
+            Created at
+          example: 2026-09-15T02:00:00.000Z
+        updated_at:
+          type: string
+          description: |-
+            最終更新日時
+            Last updated at
+          example: 2026-09-15T02:00:00.000Z
     inline_response_200:
       allOf:
       - $ref: "#/components/schemas/responseOk"
@@ -7232,6 +7871,39 @@ components:
         properties:
           data:
             $ref: "#/components/schemas/inline_response_200_28_data"
+    inline_response_200_29:
+      allOf:
+      - $ref: "#/components/schemas/responseOk"
+      - type: object
+        properties:
+          data:
+            $ref: "#/components/schemas/inline_response_200_29_data"
+    conversations_conversation_id_body:
+      type: object
+      properties:
+        title:
+          type: string
+          description: |-
+            変更後の会話タイトル(省略時は変更しない)
+            New conversation title (unchanged if omitted)
+          example: nginx構築Playbook生成(更新後)
+        status:
+          type: string
+          description: |-
+            変更後のステータス(省略時は変更しない)
+            New status (unchanged if omitted)
+          example: closed
+          enum:
+          - active
+          - closed
+          - archived
+    inline_response_200_30:
+      allOf:
+      - $ref: "#/components/schemas/responseOk"
+      - type: object
+        properties:
+          data:
+            $ref: "#/components/schemas/inline_response_200_30_data"
     conversation_id_completions_body:
       type: object
       properties:
@@ -7264,20 +7936,20 @@ components:
             ITA画面ID(指定時はメニュー固有のシステムプロンプトを追加)
             ITA screen ID (when specified, a menu-specific system prompt is appended)
           example: menu_001
-    inline_response_200_29:
+    inline_response_200_31:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - type: object
         properties:
           data:
-            $ref: "#/components/schemas/inline_response_200_29_data"
-    inline_response_200_30:
+            $ref: "#/components/schemas/inline_response_200_31_data"
+    inline_response_200_32:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - type: object
         properties:
           data:
-            $ref: "#/components/schemas/inline_response_200_30_data"
+            $ref: "#/components/schemas/inline_response_200_32_data"
     apiorganization_idplatformworkspacesworkspace_idconversationsconversation_idmessages_messages:
       required:
       - contents
@@ -7361,32 +8033,165 @@ components:
             _model: global.anthropic.claude-opus-5
           items:
             $ref: "#/components/schemas/apiorganization_idplatformworkspacesworkspace_idconversationsconversation_idmessages_contents"
-    inline_response_200_31:
-      allOf:
-      - $ref: "#/components/schemas/responseOk"
-      - type: object
-        properties:
-          data:
-            $ref: "#/components/schemas/inline_response_200_31_data"
-    inline_response_200_32:
-      allOf:
-      - $ref: "#/components/schemas/responseOk"
-      - type: object
-        properties:
-          data:
-            $ref: "#/components/schemas/inline_response_200_32_data"
     inline_response_200_33:
       allOf:
       - $ref: "#/components/schemas/responseOk"
-      - $ref: "#/components/schemas/userList"
+      - type: object
+        properties:
+          data:
+            $ref: "#/components/schemas/inline_response_200_33_data"
     inline_response_200_34:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - type: object
         properties:
           data:
-            $ref: "#/components/schemas/user"
+            $ref: "#/components/schemas/inline_response_200_34_data"
     inline_response_200_35:
+      allOf:
+      - $ref: "#/components/schemas/responseOk"
+      - type: object
+        properties:
+          data:
+            $ref: "#/components/schemas/inline_response_200_35_data"
+    workspace_id_lessons_body:
+      required:
+      - lesson
+      type: object
+      properties:
+        lesson:
+          type: string
+          description: |-
+            学習事項の内容
+            Lesson content
+          example: 本番環境への反映前に、必ずdry-run実行で差分を確認すること
+        category:
+          type: string
+          description: |-
+            分類(任意)
+            Category (optional)
+          nullable: true
+          example: Ansible
+        priority:
+          maximum: 10
+          minimum: 1
+          type: integer
+          description: |-
+            重要度(1:最低 〜 10:最高。省略時は5)
+            Priority (1: lowest - 10: highest; defaults to 5 if omitted)
+          example: 8
+          default: 5
+        enabled:
+          type: boolean
+          description: |-
+            有効/無効フラグ(省略時はtrue)
+            Enabled flag (defaults to true if omitted)
+          example: true
+          default: true
+        conversation_id:
+          type: string
+          description: |-
+            学習元の会話ID(任意)
+            Originating conversation ID (optional)
+          nullable: true
+          example: conv-001
+    inline_response_200_36:
+      allOf:
+      - $ref: "#/components/schemas/responseOk"
+      - type: object
+        properties:
+          data:
+            $ref: "#/components/schemas/lessonInfo"
+    apiorganization_idplatformworkspacesworkspace_idlessons_lessons:
+      required:
+      - enabled
+      - lesson_id
+      type: object
+      properties:
+        lesson_id:
+          type: string
+          description: |-
+            学習事項ID
+            Lesson ID
+        enabled:
+          type: boolean
+          description: |-
+            変更後の有効/無効フラグ
+            New enabled flag for this lesson
+    workspace_id_lessons_body_1:
+      required:
+      - lessons
+      type: object
+      properties:
+        lessons:
+          minItems: 1
+          type: array
+          description: |-
+            更新対象。要素ごとに異なるenabledを指定できる
+            Items to update. Each item may specify a different enabled value
+          example:
+          - lesson_id: 01J9Z8Q8Q8Q8Q8Q8Q8Q8Q8Q8Q8
+            enabled: true
+          - lesson_id: 01J9Z8Q8Q8Q8Q8Q8Q8Q8Q8Q8Q9
+            enabled: false
+          items:
+            $ref: "#/components/schemas/apiorganization_idplatformworkspacesworkspace_idlessons_lessons"
+    inline_response_200_37:
+      allOf:
+      - $ref: "#/components/schemas/responseOk"
+      - type: object
+        properties:
+          data:
+            $ref: "#/components/schemas/inline_response_200_37_data"
+    inline_response_200_38:
+      allOf:
+      - $ref: "#/components/schemas/responseOk"
+      - type: object
+        properties:
+          data:
+            $ref: "#/components/schemas/inline_response_200_38_data"
+    lessons_lesson_id_body:
+      type: object
+      properties:
+        lesson:
+          type: string
+          description: |-
+            変更後の学習事項の内容(省略時は変更しない)
+            New lesson content (unchanged if omitted)
+          example: 本番環境への反映前に、必ずdry-run実行で差分を確認すること
+        category:
+          type: string
+          description: |-
+            変更後の分類(省略時は変更しない)
+            New category (unchanged if omitted)
+          nullable: true
+          example: Ansible
+        priority:
+          maximum: 10
+          minimum: 1
+          type: integer
+          description: |-
+            変更後の重要度(1:最低 〜 10:最高。省略時は変更しない)
+            New priority (1: lowest - 10: highest; unchanged if omitted)
+          example: 9
+        enabled:
+          type: boolean
+          description: |-
+            変更後の有効/無効フラグ(省略時は変更しない)
+            New enabled flag (unchanged if omitted)
+          example: false
+    inline_response_200_39:
+      allOf:
+      - $ref: "#/components/schemas/responseOk"
+      - $ref: "#/components/schemas/userList"
+    inline_response_200_40:
+      allOf:
+      - $ref: "#/components/schemas/responseOk"
+      - type: object
+        properties:
+          data:
+            $ref: "#/components/schemas/user"
+    inline_response_200_41:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - $ref: "#/components/schemas/roleDetailList"
@@ -7396,7 +8201,7 @@ components:
     roles_role_name_body:
       oneOf:
       - $ref: "#/components/schemas/roleDetailWorkspacePut"
-    inline_response_200_36:
+    inline_response_200_42:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - title: roleList is list of Role resources.
@@ -7406,11 +8211,11 @@ components:
             type: array
             items:
               $ref: "#/components/schemas/roleUser"
-    inline_response_200_37:
+    inline_response_200_43:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - $ref: "#/components/schemas/jobsUserBulkStatusList"
-    inline_response_200_38:
+    inline_response_200_44:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - title: Jobs user bulk processing result.
@@ -7418,7 +8223,7 @@ components:
         properties:
           data:
             $ref: "#/components/schemas/jobsUserBulkStatus"
-    inline_response_200_39:
+    inline_response_200_45:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - type: object
@@ -7427,11 +8232,11 @@ components:
             type: object
             example:
               job_id: XXXXXXXXXXXXXXXXXXXXXXXXXX
-    inline_response_200_40:
+    inline_response_200_46:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - $ref: "#/components/schemas/jobsUserExportStatusList"
-    inline_response_200_41:
+    inline_response_200_47:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - title: Jobs user export processing result.
@@ -7439,7 +8244,7 @@ components:
         properties:
           data:
             $ref: "#/components/schemas/jobsUserExportStatus"
-    inline_response_200_42:
+    inline_response_200_48:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - $ref: "#/components/schemas/maintenanceModeSettings"
@@ -7452,15 +8257,15 @@ components:
         data_update_stop:
           type: string
           example: "1"
-    inline_response_200_43:
+    inline_response_200_49:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - $ref: "#/components/schemas/settingsMailserverList"
-    inline_response_200_44:
+    inline_response_200_50:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - $ref: "#/components/schemas/AuditLogDownloadList"
-    inline_response_200_45:
+    inline_response_200_51:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - type: object
@@ -7469,44 +8274,44 @@ components:
             type: object
             example:
               download_id: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-    inline_response_200_46:
+    inline_response_200_52:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - $ref: "#/components/schemas/serviceAccountUserList"
-    inline_response_200_47:
+    inline_response_200_53:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - type: object
         properties:
           data:
             $ref: "#/components/schemas/serviceAccountUser"
-    inline_response_200_48:
+    inline_response_200_54:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - $ref: "#/components/schemas/serviceAccountUserTokenList"
-    inline_response_200_49:
+    inline_response_200_55:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - type: object
         properties:
           data:
-            $ref: "#/components/schemas/inline_response_200_49_data"
-    inline_response_200_50:
+            $ref: "#/components/schemas/inline_response_200_55_data"
+    inline_response_200_56:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - $ref: "#/components/schemas/limitsList"
-    inline_response_200_51:
+    inline_response_200_57:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - type: object
         properties:
           data:
             $ref: "#/components/schemas/planItem"
-    inline_response_200_52:
+    inline_response_200_58:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - $ref: "#/components/schemas/roleList"
-    inline_response_200_53:
+    inline_response_200_59:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - $ref: "#/components/schemas/userWorkspaceList"
@@ -7981,7 +8786,23 @@ components:
           type: string
         status:
           type: string
-    inline_response_200_29_data_usage:
+    inline_response_200_29_data:
+      type: object
+      properties:
+        conversation_id:
+          type: string
+        message:
+          type: string
+    inline_response_200_30_data:
+      type: object
+      properties:
+        conversation_id:
+          type: string
+        title:
+          type: string
+        status:
+          type: string
+    inline_response_200_31_data_usage:
       type: object
       properties:
         input_tokens:
@@ -7990,7 +8811,7 @@ components:
           type: integer
         total_tokens:
           type: integer
-    inline_response_200_29_data:
+    inline_response_200_31_data:
       type: object
       properties:
         conversation_id:
@@ -8047,8 +8868,8 @@ components:
             AIサービスのAPIが返したHTTPステータスコード(通常200)。リトライ判断等に利用できる。
             The HTTP status code returned by the AI service's API (normally 200). Can be used for retry decisions, etc.
         usage:
-          $ref: "#/components/schemas/inline_response_200_29_data_usage"
-    inline_response_200_30_data:
+          $ref: "#/components/schemas/inline_response_200_31_data_usage"
+    inline_response_200_32_data:
       type: object
       properties:
         messages:
@@ -8059,7 +8880,7 @@ components:
           type: integer
         conversation_id:
           type: string
-    inline_response_200_31_data:
+    inline_response_200_33_data:
       type: object
       properties:
         message_id:
@@ -8096,7 +8917,7 @@ components:
             最終更新日時
             Last updated timestamp
           format: date-time
-    inline_response_200_32_data:
+    inline_response_200_34_data:
       type: object
       properties:
         conversation_id:
@@ -8106,7 +8927,39 @@ components:
           description: |-
             削除したメッセージレコード件数
             Number of deleted message records
-    inline_response_200_49_data:
+    inline_response_200_35_data:
+      type: object
+      properties:
+        lessons:
+          type: array
+          items:
+            $ref: "#/components/schemas/lessonInfo"
+        count:
+          type: integer
+          description: |-
+            このレスポンスに含まれる件数(limit/offset適用後、lessonsの要素数)
+            Number of items included in this response (after applying limit/offset; the length of lessons)
+        total_count:
+          type: integer
+          description: |-
+            絞り込み条件(enabled・category)に合致する総件数(limit/offset適用前)
+            Total number of items matching the filter conditions (enabled, category), before applying limit/offset
+    inline_response_200_37_data:
+      type: object
+      properties:
+        updated_count:
+          type: integer
+          description: |-
+            実際に更新された件数(lesson_idsの件数以下になることがある)
+            Number of lessons actually updated (may be less than the number of lesson_ids provided)
+    inline_response_200_38_data:
+      type: object
+      properties:
+        lesson_id:
+          type: string
+        message:
+          type: string
+    inline_response_200_55_data:
       type: object
       properties:
         refresh_token:

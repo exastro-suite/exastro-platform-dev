@@ -37,8 +37,8 @@ from ai_providers.base import (
     AIProviderQuotaError,
     AIProviderValidationError,
     AIProviderTimeoutError,
+    AwsRoleCredential,
 )
-from services.ai_assistant.user_manual_credential_service import AwsRoleCredential
 
 import globals
 

@@ -55,6 +55,10 @@ require_ai_assistant_driver = organization_options.require_ita_driver(
 
 MSG_FUNCTION_ID = "25"
 
+# AWS/Bedrockのデフォルトリージョン(環境変数で上書き可能)
+# Default AWS/Bedrock region (overridable via env var)
+AI_ASSISTANT_DEFAULT_REGION = os.getenv("AI_ASSISTANT_DEFAULT_REGION", "ap-northeast-1")
+
 
 def _is_valid_bedrock_cache_api_key(api_key):
     """bedrock-cacheのcredential_data.apiKeyが、idTokenを含む有効なキャッシュファイルJSON文字列かを確認する
@@ -1106,7 +1110,7 @@ def _verify_by_service(credential_type: str, credential_data: dict) -> dict:
                 aws_access_key_id=credential_data.get("accessKeyId"),
                 aws_secret_access_key=credential_data.get("secretAccessKey"),
                 aws_session_token=credential_data.get("sessionToken"),
-                region_name=credential_data.get("region", "ap-northeast-1"),
+                region_name=credential_data.get("region", AI_ASSISTANT_DEFAULT_REGION),
             )
             sts = session.client(
                 "sts",
@@ -1161,7 +1165,7 @@ def _verify_by_service(credential_type: str, credential_data: dict) -> dict:
                 }
 
             # AWS Login Cacheセッションを作成して検証
-            region = cache_data.get("region", "ap-northeast-1")
+            region = cache_data.get("region", AI_ASSISTANT_DEFAULT_REGION)
             aws_session = create_bedrock_session_from_credential_data(
                 credential_data=cache_data,
                 region=region,
@@ -1531,4 +1535,3 @@ def update_current_ai_preference(body, organization_id):
             message_id, "現在選択中のAIサービスの保存に失敗しました: {}", str(e)
         )
         raise common.InternalErrorException(message_id=message_id, message=message)
-

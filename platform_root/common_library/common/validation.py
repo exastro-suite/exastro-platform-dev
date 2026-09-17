@@ -2259,3 +2259,121 @@ def validate_messages(messages):
             )
 
     return result(True)
+
+
+def validate_conversation_status(status):
+    """Validate AI Assistant conversation status (active/closed/archived)
+
+    Args:
+        status (str): conversation status
+
+    Returns:
+        result: Validation result
+    """
+    if status not in const.CONVERSATION_STATUSES:
+        return result(
+            False, 400, '400-00037', '指定可能な値ではありません({0})',
+            multi_lang.get_text('000-00231', "会話ステータス")
+        )
+
+    return result(True)
+
+
+def validate_lesson_content(lesson):
+    """Validate AI Assistant lesson content
+
+    Args:
+        lesson (str): lesson content
+
+    Returns:
+        result: Validation result
+    """
+    if lesson is None or lesson == "":
+        return result(
+            False, 400, '400-{}011'.format(MSG_FUNCTION_ID), '必須項目が不足しています。({0})',
+            multi_lang.get_text('000-00232', "学習事項の内容")
+        )
+
+    if len(lesson) > const.length_lesson_content:
+        return result(
+            False, 400, '400-{}012'.format(MSG_FUNCTION_ID), '指定可能な文字数を超えています。(項目:{0},最大文字数:{1})',
+            multi_lang.get_text('000-00232', "学習事項の内容"),
+            str(const.length_lesson_content)
+        )
+
+    return result(True)
+
+
+def validate_lesson_category(category):
+    """Validate AI Assistant lesson category (任意項目。指定された場合のみ文字数を検証する)
+
+    Args:
+        category (str): lesson category
+
+    Returns:
+        result: Validation result
+    """
+    if category is None or category == "":
+        return result(True)
+
+    if len(category) > const.length_lesson_category:
+        return result(
+            False, 400, '400-{}012'.format(MSG_FUNCTION_ID), '指定可能な文字数を超えています。(項目:{0},最大文字数:{1})',
+            multi_lang.get_text('000-00233', "学習事項の分類"),
+            str(const.length_lesson_category)
+        )
+
+    return result(True)
+
+
+def validate_lesson_priority(priority):
+    """Validate AI Assistant lesson priority (任意項目。指定された場合のみ範囲を検証する)
+
+    Args:
+        priority (int): lesson priority
+
+    Returns:
+        result: Validation result
+    """
+    if priority is None:
+        return result(True)
+
+    if not isinstance(priority, int) or not (const.LESSON_PRIORITY_MIN <= priority <= const.LESSON_PRIORITY_MAX):
+        return result(
+            False, 400, '400-00037', '指定可能な値ではありません({0})',
+            multi_lang.get_text('000-00234', "学習事項の重要度")
+        )
+
+    return result(True)
+
+
+def validate_lesson_bulk_items(lessons):
+    """Validate AI Assistant bulk-update items
+    (必須。空でないリストで、各要素はlesson_id(空でない文字列)とenabled(bool)を持つオブジェクトであること。
+    要素ごとに異なるenabledを指定できる)
+
+    Args:
+        lessons (list): [{"lesson_id": str, "enabled": bool}, ...]
+
+    Returns:
+        result: Validation result
+    """
+    if not lessons or type(lessons) is not list:
+        return result(
+            False, 400, '400-{}011'.format(MSG_FUNCTION_ID), '必須項目が不足しています。({0})',
+            multi_lang.get_text('000-00235', "学習事項一覧")
+        )
+
+    for item in lessons:
+        if (
+            not isinstance(item, dict)
+            or not isinstance(item.get("lesson_id"), str)
+            or not item.get("lesson_id")
+            or not isinstance(item.get("enabled"), bool)
+        ):
+            return result(
+                False, 400, '400-{}002'.format(MSG_FUNCTION_ID), 'リクエストボディのパラメータ({0})が不正です。',
+                multi_lang.get_text('000-00235', "学習事項一覧")
+            )
+
+    return result(True)

@@ -34,6 +34,24 @@ ENV DB_CONNECT_TIMEOUT      10
 ENV DB_CONNECT_RETRY_SLEEP_TIME    0.5
 ENV DB_CONNECT_RETRY_LIMIT  3
 
+# AIアシスタント機能の設定 / AI assistant feature settings
+#   BedrockへのHTTPリクエストの読み込みタイムアウト(秒) / Read timeout (seconds) for HTTP requests to Bedrock
+ENV AI_ASSISTANT_READ_TIMEOUT               120
+#   Bedrockへの接続タイムアウト(秒) / Connect timeout (seconds) for Bedrock
+ENV AI_ASSISTANT_CONNECT_TIMEOUT            30
+#   Bedrock呼び出しのリトライ最大回数(boto3の標準リトライ) / Maximum retry attempts for Bedrock calls (boto3 standard retry mode)
+ENV AI_ASSISTANT_MAX_ATTEMPTS               1
+#   Bedrock応答生成時のデフォルト最大トークン数 / Default max_tokens for Bedrock response generation
+ENV AI_ASSISTANT_MAX_TOKENS_DEFAULT         20480
+#   max_tokensがモデルの上限を超えた場合の自動リトライ回数 / Number of automatic retries when max_tokens exceeds the model's limit
+ENV AI_ASSISTANT_MAX_TOKENS_RETRY_COUNT     3
+#   学習事項をシステムプロンプトへ注入する際の最大件数 / Maximum number of lessons to inject into the system prompt
+ENV AI_ASSISTANT_LESSONS_MAX_ITEMS          20
+#   学習事項セクション全体の最大文字数 / Max character length of the lessons section as a whole
+ENV AI_ASSISTANT_LESSONS_MAX_CHARS          6000
+#   AWS/Bedrockのデフォルトリージョン / Default AWS/Bedrock region
+ENV AI_ASSISTANT_DEFAULT_REGION             ap-northeast-1
+
 RUN --mount=type=secret,id=host_certificate_file,dst=/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem \
     dnf install -y \
     langpacks-en \
