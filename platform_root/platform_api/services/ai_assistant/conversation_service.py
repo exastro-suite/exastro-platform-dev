@@ -606,6 +606,25 @@ class ConversationService:
                 if turn.get("content")
             ]
 
+            # Prompt Caching: 最新のターンより前の履歴があれば、その直前のターン(=最新ターンを除いた
+            # 履歴全体)の最後のcontentブロックにcache_controlを付与する。ターンが増えるたびに境界が
+            # 1つずつ後ろへずれていくため、そのターンまでの履歴プレフィックスはキャッシュヒットし、
+            # 新規追加分のみが実際に処理される。DBへ保存するmessages本体は変更しないよう、
+            # bedrock_messages側でのみ新しいdict/listを作って付与する(元のturnやcontentブロックは変更しない)。
+            # Prompt caching: if there is history before the newest turn, attach cache_control to the last
+            # content block of the turn immediately preceding it (i.e. all history except the newest turn).
+            # The boundary shifts forward by one turn each time, so the prefix up to that point hits the
+            # cache and only the newly added content is processed fresh. Only bedrock_messages (not the
+            # messages persisted to the DB) is touched; new dicts/lists are created instead of mutating originals.
+            if len(bedrock_messages) >= 2:
+                cache_boundary_content = list(bedrock_messages[-2].get("content") or [])
+                if cache_boundary_content:
+                    cache_boundary_content[-1] = {
+                        **cache_boundary_content[-1],
+                        "cache_control": {"type": "ephemeral"},
+                    }
+                    bedrock_messages[-2] = {**bedrock_messages[-2], "content": cache_boundary_content}
+
             # Anthropic Messages API(Bedrock InvokeModel経由)のリクエストボディ。amazon_bedrock.jsのthis.modelと同じ形式に揃えている
             # Anthropic Messages API request body (via Bedrock InvokeModel), matching the same shape as amazon_bedrock.js's this.model
             request_body = {
@@ -614,12 +633,33 @@ class ConversationService:
                 "messages": bedrock_messages,
             }
             if system_prompt:
-                request_body["system"] = system_prompt
+                # Prompt Caching: systemプロンプト(学習事項の注入分含む)は会話中ほぼ不変のため、
+                # 文字列ではなくcontentブロック配列形式にしてcache_controlを付与する
+                # (両形式ともAnthropic Messages APIで受理されるが、cache_controlの付与には配列形式が必要)
+                # Prompt caching: the system prompt (including injected lessons) rarely changes within a
+                # conversation, so use the content-block array form (instead of a plain string) with
+                # cache_control attached (both forms are accepted by the Anthropic Messages API, but
+                # cache_control requires the array form)
+                request_body["system"] = [
+                    {"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}
+                ]
             # 会話作成時にtoolsが指定されている場合のみ付与する（amazon_bedrock.jsのthis.model.tools/tool_choiceと同様）
             # Only attach tools when specified at conversation creation (matching this.model.tools/tool_choice in amazon_bedrock.js)
             if tools:
                 request_body["tools"] = tools
                 request_body["tool_choice"] = {"type": "auto"}
+                # Prompt Caching: キャッシュのプレフィックス順序はtools→system→messagesで固定されているため、
+                # system側にcache_controlを付与していればtoolsも同じキャッシュ範囲に含まれ、ここで別途
+                # 付与する必要はない(むしろキャッシュ書き込みポイントが分かれ、無駄なcache creationが増える)。
+                # system_promptが無い場合のみ、tools自体をキャッシュ対象にするフォールバックとして付与する。
+                # Prompt caching: the cache prefix order is fixed as tools -> system -> messages, so attaching
+                # cache_control on the system block already covers tools in the same cached range; attaching
+                # it separately here would only split the cache into extra write points for no benefit.
+                # Only fall back to marking tools itself when there is no system_prompt to carry the breakpoint.
+                if not system_prompt:
+                    cached_tools = [dict(tool) for tool in tools]
+                    cached_tools[-1] = {**cached_tools[-1], "cache_control": {"type": "ephemeral"}}
+                    request_body["tools"] = cached_tools
 
             # max_tokensがモデルの実際の上限を超えるとBedrockはValidationExceptionを返す。
             # エラーメッセージから実際の上限値("model limit of {N}")を抽出できた場合は、
@@ -705,6 +745,12 @@ class ConversationService:
             stop_reason = response.get("stop_reason")
             input_tokens = response["usage"]["input_tokens"]
             output_tokens = response["usage"]["output_tokens"]
+            # Prompt Cachingが有効な場合にBedrockが追加で返すusageフィールド。キャッシュ書き込み/ヒットが
+            # 発生していない場合は含まれないため、呼び出し元での確認用にget(...,0)でデフォルト0にしておく
+            # Additional usage fields Bedrock returns when Prompt Caching is active. Absent when no cache
+            # write/read occurred, so default to 0 for the caller's visibility into whether caching took effect
+            cache_creation_input_tokens = response["usage"].get("cache_creation_input_tokens", 0)
+            cache_read_input_tokens = response["usage"].get("cache_read_input_tokens", 0)
 
             # トークン数は「新規発言を保存したか」とは無関係に、Bedrock呼び出しが成功して
             # usageを取得できた時点で常に加算する。message省略時の問い合わせ(既存履歴のみでの
@@ -759,7 +805,8 @@ class ConversationService:
                     f"Message sent and response received: "
                     f"conv={conversation_id}, message_id={saved_message_id}, "
                     f"user_seq={user_message_seq}, assistant_seq={assistant_message_seq}, "
-                    f"tokens={input_tokens}+{output_tokens}"
+                    f"tokens={input_tokens}+{output_tokens}, "
+                    f"cache_read={cache_read_input_tokens}, cache_creation={cache_creation_input_tokens}"
                 )
             else:
                 # messageを指定しない問い合わせ：既存履歴のみで応答を取得し、保存は行わない
@@ -770,7 +817,8 @@ class ConversationService:
 
                 globals.logger.debug(
                     f"Completion generated without persisting (no message provided): "
-                    f"conv={conversation_id}, tokens={input_tokens}+{output_tokens}"
+                    f"conv={conversation_id}, tokens={input_tokens}+{output_tokens}, "
+                    f"cache_read={cache_read_input_tokens}, cache_creation={cache_creation_input_tokens}"
                 )
 
             # 最終使用日時とトークン更新（Bedrock呼び出し後）
@@ -813,6 +861,8 @@ class ConversationService:
                     "input_tokens": input_tokens,
                     "output_tokens": output_tokens,
                     "total_tokens": input_tokens + output_tokens,
+                    "cache_creation_input_tokens": cache_creation_input_tokens,
+                    "cache_read_input_tokens": cache_read_input_tokens,
                 },
             }
 
