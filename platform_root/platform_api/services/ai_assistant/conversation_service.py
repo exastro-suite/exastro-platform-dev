@@ -77,10 +77,8 @@ class ConversationNotFound(Exception):
 def _extract_max_tokens_limit(message: str) -> Optional[int]:
     """
     BedrockのValidationExceptionのメッセージから、モデルのmaxTokens上限を抽出する
-    (ai_providers/bedrock/provider.pyの_extract_max_tokens_limitと同じ抽出ロジック)
 
     Extract the model's maxTokens limit from a Bedrock ValidationException message
-    (same extraction logic as ai_providers/bedrock/provider.py's _extract_max_tokens_limit)
 
     Args:
         message: エラーメッセージ
