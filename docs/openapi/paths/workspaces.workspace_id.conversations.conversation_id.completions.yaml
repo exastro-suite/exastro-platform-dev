@@ -144,10 +144,23 @@ post:
                         properties:
                           input_tokens:
                             type: integer
+                            description: |-
+                              入力トークン数(Prompt Cachingがヒットした場合、cache_read_input_tokensの分は含まれない)
+                              Input token count (excludes cache_read_input_tokens when a prompt cache hit occurs)
                           output_tokens:
                             type: integer
                           total_tokens:
                             type: integer
+                          cache_creation_input_tokens:
+                            type: integer
+                            description: |-
+                              Prompt Cachingで新たに書き込まれたトークン数(キャッシュ未使用時は0)
+                              Tokens newly written to the prompt cache (0 when caching was not used)
+                          cache_read_input_tokens:
+                            type: integer
+                            description: |-
+                              Prompt Cachingから読み取られたトークン数(キャッシュヒットしなかった場合は0)
+                              Tokens read from the prompt cache (0 when there was no cache hit)
     400:
       description: |-
         バリデーションエラー
