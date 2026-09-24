@@ -2456,6 +2456,13 @@ components:
             分類(任意)
             Category (optional)
           example: Ansible
+        prompt_profile:
+          type: string
+          nullable: true
+          description: |-
+            システムプロンプトへの反映対象prompt_profile(未設定の場合はnull=全プロファイル共通)
+            Target prompt_profile for system-prompt injection (null means it applies to all profiles)
+          example: LLMEditor
         priority:
           type: integer
           minimum: 1

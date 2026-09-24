@@ -95,19 +95,32 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
 
-def _build_lessons_prompt_section(organization_id: str, workspace_id: str, user_id: str) -> str:
+# 学習事項を注入しないprompt_profile(学習事項抽出・タイトル生成専用の裏側の会話。既存の学習事項を
+# 前提知識として混ぜる必要が無い、あるいは混ぜると目的と噛み合わない)
+# prompt_profiles that never get lessons injected (behind-the-scenes conversations for extracting lessons
+# or generating a title; injecting existing lessons as background knowledge doesn't apply or fits poorly here)
+_PROMPT_PROFILES_WITHOUT_LESSONS = ("Lessons", "GenerateTitle")
+
+
+def _build_lessons_prompt_section(organization_id: str, workspace_id: str, user_id: str, prompt_profile: str) -> str:
     """
     ユーザーの有効な学習事項からシステムプロンプトへ追記するセクションを構築する
 
     過去の会話から学習した失敗・教訓・注意点を、重要度(priority)の高い順・更新日時の新しい順に列挙する。
+    対象prompt_profileが未設定(全プロファイル共通)の学習事項に加え、引数のprompt_profileに一致する
+    学習事項のみを対象にする。prompt_profileが_PROMPT_PROFILES_WITHOUT_LESSONSに該当する場合や、
     学習事項が無い場合は空文字列を返す。
     """
+    if prompt_profile in _PROMPT_PROFILES_WITHOUT_LESSONS:
+        return ""
+
     from services.users.lesson_service import get_lesson_service
 
     lessons = get_lesson_service().get_enabled_lessons_for_prompt(
         organization_id=organization_id,
         workspace_id=workspace_id,
         user_id=user_id,
+        prompt_profile=prompt_profile,
         limit=AI_ASSISTANT_LESSONS_MAX_ITEMS,
     )
     if not lessons:
@@ -570,7 +583,7 @@ class ConversationService:
 
             # 過去セッションからの学習事項をシステムプロンプトに追記する
             # Append lessons learned from past sessions to the system prompt
-            lessons_section = _build_lessons_prompt_section(organization_id, workspace_id, user_id)
+            lessons_section = _build_lessons_prompt_section(organization_id, workspace_id, user_id, prompt_profile)
             if lessons_section:
                 system_prompt = (system_prompt or "") + lessons_section
 

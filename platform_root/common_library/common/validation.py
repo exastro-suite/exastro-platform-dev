@@ -2261,6 +2261,30 @@ def validate_messages(messages):
     return result(True)
 
 
+def validate_lesson_prompt_profile(prompt_profile):
+    """Validate AI Assistant lesson prompt_profile (required; LLMEditor/AgenticAI only)
+
+    Args:
+        prompt_profile (str): target prompt_profile
+
+    Returns:
+        result: Validation result
+    """
+    if prompt_profile is None or prompt_profile == "":
+        return result(
+            False, 400, '400-{}011'.format(MSG_FUNCTION_ID), '必須項目が不足しています。({0})',
+            multi_lang.get_text('000-00237', "対象prompt_profile")
+        )
+
+    if prompt_profile not in const.LESSON_PROMPT_PROFILES:
+        return result(
+            False, 400, '400-00037', '指定可能な値ではありません({0})',
+            multi_lang.get_text('000-00237', "対象prompt_profile")
+        )
+
+    return result(True)
+
+
 def validate_conversation_status(status):
     """Validate AI Assistant conversation status (active/closed/archived)
 

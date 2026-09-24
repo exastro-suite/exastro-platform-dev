@@ -847,6 +847,7 @@ def _lesson_response(lesson):
         "lesson_id": lesson.lesson_id,
         "lesson": lesson.lesson,
         "category": lesson.category,
+        "prompt_profile": lesson.prompt_profile,
         "priority": lesson.priority,
         "enabled": lesson.enabled,
         "conversation_id": lesson.conversation_id,
@@ -878,12 +879,17 @@ def create_lesson(body, organization_id, workspace_id):
     body = r.get_json()
     lesson = body.get("lesson")
     category = body.get("category")
+    prompt_profile = body.get("prompt_profile")
     priority = body.get("priority")
     enabled = body.get("enabled")
     conversation_id = body.get("conversation_id")
 
     # バリデーション（共通のvalidationモジュールを使用）
     validate = validation.validate_lesson_content(lesson)
+    if not validate.ok:
+        return common.response_validation_error(validate)
+
+    validate = validation.validate_lesson_prompt_profile(prompt_profile)
     if not validate.ok:
         return common.response_validation_error(validate)
 
@@ -909,6 +915,7 @@ def create_lesson(body, organization_id, workspace_id):
             user_id=user_id,
             lesson=lesson,
             category=category,
+            prompt_profile=prompt_profile,
             priority=priority,
             enabled=enabled,
             conversation_id=conversation_id,
@@ -941,7 +948,7 @@ def create_lesson(body, organization_id, workspace_id):
 
 @common.platform_exception_handler
 @require_ai_assistant_driver
-def list_lessons(organization_id, workspace_id, enabled=None, category=None, limit=50, offset=0):
+def list_lessons(organization_id, workspace_id, prompt_profile, enabled=None, category=None, limit=50, offset=0):
     """
     学習事項一覧を取得
 
@@ -949,6 +956,8 @@ def list_lessons(organization_id, workspace_id, enabled=None, category=None, lim
     :type organization_id: str
     :param workspace_id:
     :type workspace_id: str
+    :param prompt_profile:
+    :type prompt_profile: str
     :param enabled:
     :type enabled: bool
     :param category:
@@ -965,6 +974,11 @@ def list_lessons(organization_id, workspace_id, enabled=None, category=None, lim
     r = connexion.request
     user_id = r.headers.get("User-id")
 
+    # バリデーション（共通のvalidationモジュールを使用。GETのため必須項目のみ検証する）
+    validate = validation.validate_lesson_prompt_profile(prompt_profile)
+    if not validate.ok:
+        return common.response_validation_error(validate)
+
     try:
         lessons, total_count = get_lesson_service().list_lessons(
             organization_id=organization_id,
@@ -972,6 +986,7 @@ def list_lessons(organization_id, workspace_id, enabled=None, category=None, lim
             user_id=user_id,
             enabled=enabled,
             category=category,
+            prompt_profile=prompt_profile,
             limit=limit,
             offset=offset,
         )
@@ -1065,6 +1080,7 @@ def update_lesson(body, lesson_id, organization_id, workspace_id):
     body = r.get_json()
     lesson = body.get("lesson")
     category = body.get("category")
+    prompt_profile = body.get("prompt_profile")
     priority = body.get("priority")
     enabled = body.get("enabled")
 
@@ -1093,6 +1109,7 @@ def update_lesson(body, lesson_id, organization_id, workspace_id):
             lesson_id=lesson_id,
             lesson=lesson,
             category=category,
+            prompt_profile=prompt_profile,
             priority=priority,
             enabled=enabled,
         )

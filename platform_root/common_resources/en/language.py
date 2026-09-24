@@ -156,6 +156,7 @@ class LanguageList:
     lang_array['000-00234'] = 'Lesson Priority'
     lang_array['000-00235'] = 'Lesson List'
     lang_array['000-00236'] = 'Lesson'
+    lang_array['000-00237'] = 'Target Prompt Profile'
     lang_array['000-44001'] = 'Authentication method that uses AWS Login Cache and automatically refreshes the token'
     lang_array['000-44002'] = 'Credential (Login Cache)'
     lang_array['000-44003'] = 'Authentication method that uses a fixed Credential, such as a manually registered access key'

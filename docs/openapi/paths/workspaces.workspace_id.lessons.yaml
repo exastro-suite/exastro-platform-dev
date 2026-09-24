@@ -42,6 +42,7 @@ post:
           type: object
           required:
             - lesson
+            - prompt_profile
           properties:
             lesson:
               type: string
@@ -56,6 +57,15 @@ post:
                 分類(任意)
                 Category (optional)
               example: "Ansible"
+            prompt_profile:
+              type: string
+              enum: [LLMEditor, AgenticAI]
+              description: |-
+                システムプロンプトへの反映対象prompt_profile(必須)。Lessons/GenerateTitleは学習事項を
+                注入しない専用のprompt_profileのため指定不可。
+                Target prompt_profile for system-prompt injection (required). Lessons/GenerateTitle never
+                receive injected lessons, so they cannot be specified here.
+              example: "LLMEditor"
             priority:
               type: integer
               minimum: 1
@@ -125,8 +135,8 @@ get:
     学習事項一覧を取得
     Get the list of lessons
   description: |-
-    ユーザーの学習事項一覧を取得する(ワークスペース単位)。有効/無効フラグや分類での絞り込み、ページングが可能。
-    Get the list of the user's lessons for this workspace. Supports filtering by enabled flag or category, and pagination.
+    ユーザーの学習事項一覧を取得する(ワークスペース単位)。対象prompt_profileは必須(一覧は常にこの値で絞り込む)。有効/無効フラグ・分類でも絞り込み可能で、ページングもできる。
+    Get the list of the user's lessons for this workspace. The target prompt_profile is required (the list is always filtered by this value). Also supports filtering by enabled flag or category, and pagination.
   operationId: list_lessons
   x-openapi-router-controller: controllers.ai_assistant_service_controller
   parameters:
@@ -156,6 +166,17 @@ get:
       description: |-
         分類フィルター(省略時は絞り込みなし)
         Category filter (no filtering if omitted)
+    - name: prompt_profile
+      in: query
+      required: true
+      schema:
+        type: string
+        enum: [LLMEditor, AgenticAI]
+      description: |-
+        対象prompt_profileフィルター(必須。全プロファイル共通(未設定)の学習事項はこのフィルターでは
+        対象外になる点に注意。完全一致のみ)
+        Target prompt_profile filter (required; note that lessons with no prompt_profile set
+        (applying to all profiles) are excluded by this filter — exact match only)
     - name: limit
       in: query
       required: false
@@ -201,8 +222,16 @@ get:
                       total_count:
                         type: integer
                         description: |-
-                          絞り込み条件(enabled・category)に合致する総件数(limit/offset適用前)
-                          Total number of items matching the filter conditions (enabled, category), before applying limit/offset
+                          絞り込み条件(enabled・category・prompt_profile)に合致する総件数(limit/offset適用前)
+                          Total number of items matching the filter conditions (enabled, category, prompt_profile), before applying limit/offset
+    400:
+      description: |-
+        prompt_profile未指定・不正な値
+        prompt_profile is missing or invalid
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/runtimeError.yaml'
     403:
       description: |-
         AIアシスタント機能が有効になっていない

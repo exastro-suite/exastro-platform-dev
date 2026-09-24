@@ -125,6 +125,14 @@ patch:
                 変更後の分類(省略時は変更しない)
                 New category (unchanged if omitted)
               example: "Ansible"
+            prompt_profile:
+              type: string
+              nullable: true
+              enum: [LLMEditor, AgenticAI]
+              description: |-
+                変更後の対象prompt_profile(省略時は変更しない)
+                New target prompt_profile (unchanged if omitted)
+              example: "LLMEditor"
             priority:
               type: integer
               minimum: 1
