@@ -99,6 +99,10 @@ length_lesson_category = 255
 LESSON_PRIORITY_MIN = 1
 LESSON_PRIORITY_MAX = 10
 
+# 学習事項の対象prompt_profileとして指定可能な値(Lessons/GenerateTitleは学習事項を注入しないprompt_profileのため対象外)
+# Allowed values for a lesson's target prompt_profile (Lessons/GenerateTitle are excluded since they never receive injected lessons)
+LESSON_PROMPT_PROFILES = ["LLMEditor", "AgenticAI"]
+
 # ロール種別
 # Role Kind
 ROLE_KIND_ORGANIZATION = "organization"

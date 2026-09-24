@@ -413,6 +413,7 @@ SQL_WORKSPACE_CREATE_TABLES = [
         USER_ID                         VARCHAR(256) NOT NULL,                          -- User ID
         LESSON                          LONGTEXT NOT NULL,                              -- 学習事項の内容
         CATEGORY                        VARCHAR(255) NULL,                              -- 分類
+        PROMPT_PROFILE                   VARCHAR(20) NULL,                               -- システムプロンプトへの反映対象prompt_profile (NULL=全プロファイル共通)
         PRIORITY                        TINYINT NOT NULL DEFAULT 5,                     -- 重要度 (1:最低 〜 10:最高)
         ENABLED                         TINYINT(1) NOT NULL DEFAULT 1,                  -- 有効/無効フラグ (システムプロンプトへの反映有無)
         CONVERSATION_ID                 VARCHAR(36) NULL,                               -- 学習元の会話ID (ワークスペースDB側のIDのため外部キーではない)

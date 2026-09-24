@@ -2936,8 +2936,8 @@ paths:
         学習事項一覧を取得
         Get the list of lessons
       description: |-
-        ユーザーの学習事項一覧を取得する(ワークスペース単位)。有効/無効フラグや分類での絞り込み、ページングが可能。
-        Get the list of the user's lessons for this workspace. Supports filtering by enabled flag or category, and pagination.
+        ユーザーの学習事項一覧を取得する(ワークスペース単位)。対象prompt_profileは必須(一覧は常にこの値で絞り込む)。有効/無効フラグ・分類でも絞り込み可能で、ページングもできる。
+        Get the list of the user's lessons for this workspace. The target prompt_profile is required (the list is always filtered by this value). Also supports filtering by enabled flag or category, and pagination.
       operationId: list_lessons
       parameters:
       - name: organization_id
@@ -2974,6 +2974,21 @@ paths:
         explode: true
         schema:
           type: string
+      - name: prompt_profile
+        in: query
+        description: |-
+          対象prompt_profileフィルター(必須。全プロファイル共通(未設定)の学習事項はこのフィルターでは
+          対象外になる点に注意。完全一致のみ)
+          Target prompt_profile filter (required; note that lessons with no prompt_profile set
+          (applying to all profiles) are excluded by this filter — exact match only)
+        required: true
+        style: form
+        explode: true
+        schema:
+          type: string
+          enum:
+          - LLMEditor
+          - AgenticAI
       - name: limit
         in: query
         description: |-
@@ -3005,6 +3020,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/inline_response_200_35"
+        "400":
+          description: |-
+            prompt_profile未指定・不正な値
+            prompt_profile is missing or invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/runtimeError"
         "403":
           description: |-
             AIアシスタント機能が有効になっていない
@@ -7441,6 +7464,13 @@ components:
             Category (optional)
           nullable: true
           example: Ansible
+        prompt_profile:
+          type: string
+          description: |-
+            システムプロンプトへの反映対象prompt_profile(未設定の場合はnull=全プロファイル共通)
+            Target prompt_profile for system-prompt injection (null means it applies to all profiles)
+          nullable: true
+          example: LLMEditor
         priority:
           maximum: 10
           minimum: 1
@@ -8053,6 +8083,7 @@ components:
     workspace_id_lessons_body:
       required:
       - lesson
+      - prompt_profile
       type: object
       properties:
         lesson:
@@ -8068,6 +8099,17 @@ components:
             Category (optional)
           nullable: true
           example: Ansible
+        prompt_profile:
+          type: string
+          description: |-
+            システムプロンプトへの反映対象prompt_profile(必須)。Lessons/GenerateTitleは学習事項を
+            注入しない専用のprompt_profileのため指定不可。
+            Target prompt_profile for system-prompt injection (required). Lessons/GenerateTitle never
+            receive injected lessons, so they cannot be specified here.
+          example: LLMEditor
+          enum:
+          - LLMEditor
+          - AgenticAI
         priority:
           maximum: 10
           minimum: 1
@@ -8162,6 +8204,16 @@ components:
             New category (unchanged if omitted)
           nullable: true
           example: Ansible
+        prompt_profile:
+          type: string
+          description: |-
+            変更後の対象prompt_profile(省略時は変更しない)
+            New target prompt_profile (unchanged if omitted)
+          nullable: true
+          example: LLMEditor
+          enum:
+          - LLMEditor
+          - AgenticAI
         priority:
           maximum: 10
           minimum: 1
@@ -8951,8 +9003,8 @@ components:
         total_count:
           type: integer
           description: |-
-            絞り込み条件(enabled・category)に合致する総件数(limit/offset適用前)
-            Total number of items matching the filter conditions (enabled, category), before applying limit/offset
+            絞り込み条件(enabled・category・prompt_profile)に合致する総件数(limit/offset適用前)
+            Total number of items matching the filter conditions (enabled, category, prompt_profile), before applying limit/offset
     inline_response_200_37_data:
       type: object
       properties:

@@ -310,11 +310,11 @@ WHERE USER_ID = %(user_id)s AND AI_SERVICE_ID = %(ai_service_id)s
 SQL_INSERT_LESSON = """
 INSERT INTO T_USER_LESSON
 (
-    LESSON_ID, USER_ID, LESSON, CATEGORY, PRIORITY, ENABLED, CONVERSATION_ID,
+    LESSON_ID, USER_ID, LESSON, CATEGORY, PROMPT_PROFILE, PRIORITY, ENABLED, CONVERSATION_ID,
     CREATE_TIMESTAMP, CREATE_USER, LAST_UPDATE_TIMESTAMP, LAST_UPDATE_USER
 )
 VALUES (
-    %(lesson_id)s, %(user_id)s, %(lesson)s, %(category)s, %(priority)s, %(enabled)s, %(conversation_id)s,
+    %(lesson_id)s, %(user_id)s, %(lesson)s, %(category)s, %(prompt_profile)s, %(priority)s, %(enabled)s, %(conversation_id)s,
     NOW(), %(user_id)s, NOW(), %(user_id)s
 )
 """
@@ -322,19 +322,20 @@ VALUES (
 # 所有者チェックをWHERE条件に含める
 # Ownership check is folded into the WHERE condition
 SQL_SELECT_LESSON = """
-SELECT LESSON_ID, USER_ID, LESSON, CATEGORY, PRIORITY, ENABLED, CONVERSATION_ID, CREATE_TIMESTAMP, LAST_UPDATE_TIMESTAMP
+SELECT LESSON_ID, USER_ID, LESSON, CATEGORY, PROMPT_PROFILE, PRIORITY, ENABLED, CONVERSATION_ID, CREATE_TIMESTAMP, LAST_UPDATE_TIMESTAMP
 FROM T_USER_LESSON
 WHERE LESSON_ID = %(lesson_id)s AND USER_ID = %(user_id)s
 """
 
-# ENABLED/CATEGORYによる絞り込みは任意のため、固定のWHERE句のみを定義する。
-# サービス層がこの句の後ろに " AND ENABLED = %(enabled)s" / " AND CATEGORY = %(category)s" を必要に応じて連結し、
+# ENABLED/CATEGORY/PROMPT_PROFILEによる絞り込みは任意のため、固定のWHERE句のみを定義する。
+# サービス層がこの句の後ろに " AND ENABLED = %(enabled)s" / " AND CATEGORY = %(category)s" /
+# " AND PROMPT_PROFILE = %(prompt_profile)s" を必要に応じて連結し、
 # 最後にSQL_LIST_LESSONS_ORDER_LIMITを連結して完成させる
-# Filtering by ENABLED/CATEGORY is optional, so this defines only the fixed WHERE clause.
-# The service layer appends " AND ENABLED = %(enabled)s" / " AND CATEGORY = %(category)s" as needed,
-# then appends SQL_LIST_LESSONS_ORDER_LIMIT to complete the query
+# Filtering by ENABLED/CATEGORY/PROMPT_PROFILE is optional, so this defines only the fixed WHERE clause.
+# The service layer appends " AND ENABLED = %(enabled)s" / " AND CATEGORY = %(category)s" /
+# " AND PROMPT_PROFILE = %(prompt_profile)s" as needed, then appends SQL_LIST_LESSONS_ORDER_LIMIT to complete the query
 SQL_LIST_LESSONS = """
-SELECT LESSON_ID, USER_ID, LESSON, CATEGORY, PRIORITY, ENABLED, CONVERSATION_ID, CREATE_TIMESTAMP, LAST_UPDATE_TIMESTAMP
+SELECT LESSON_ID, USER_ID, LESSON, CATEGORY, PROMPT_PROFILE, PRIORITY, ENABLED, CONVERSATION_ID, CREATE_TIMESTAMP, LAST_UPDATE_TIMESTAMP
 FROM T_USER_LESSON
 WHERE USER_ID = %(user_id)s
 """
@@ -356,12 +357,14 @@ FROM T_USER_LESSON
 WHERE USER_ID = %(user_id)s
 """
 
-# PATCH(部分更新)。lesson/category/priority/enabledは指定された項目のみ更新し、未指定(NULL)の項目は現在値を維持する
+# PATCH(部分更新)。lesson/category/prompt_profile/priority/enabledは指定された項目のみ更新し、
+# 未指定(NULL)の項目は現在値を維持する
 # PATCH (partial update). Only the fields provided are updated; unspecified (NULL) fields keep their current value
 SQL_UPDATE_LESSON = """
 UPDATE T_USER_LESSON
 SET LESSON = COALESCE(%(lesson)s, LESSON),
     CATEGORY = COALESCE(%(category)s, CATEGORY),
+    PROMPT_PROFILE = COALESCE(%(prompt_profile)s, PROMPT_PROFILE),
     PRIORITY = COALESCE(%(priority)s, PRIORITY),
     ENABLED = COALESCE(%(enabled)s, ENABLED),
     LAST_UPDATE_TIMESTAMP = NOW(),
@@ -374,12 +377,16 @@ DELETE FROM T_USER_LESSON
 WHERE LESSON_ID = %(lesson_id)s AND USER_ID = %(user_id)s
 """
 
-# 有効な学習事項を優先度の高い順・更新日時の新しい順に取得する。AIアシスタントのシステムプロンプトへの注入に使用する
-# Fetches enabled lessons ordered by highest priority, then most recently updated. Used to inject lessons into the AI assistant's system prompt
+# 有効な学習事項を優先度の高い順・更新日時の新しい順に取得する。AIアシスタントのシステムプロンプトへの注入に使用する。
+# PROMPT_PROFILEが未設定(NULL)の学習事項は全プロファイル共通として扱い、指定されたprompt_profileにも含める
+# Fetches enabled lessons ordered by highest priority, then most recently updated. Used to inject lessons into the
+# AI assistant's system prompt. Lessons with no PROMPT_PROFILE (NULL) are treated as applying to all profiles and
+# are included regardless of the requested prompt_profile
 SQL_SELECT_ENABLED_LESSONS_FOR_PROMPT = """
 SELECT LESSON, CATEGORY, PRIORITY
 FROM T_USER_LESSON
 WHERE USER_ID = %(user_id)s AND ENABLED = 1
+  AND (PROMPT_PROFILE IS NULL OR PROMPT_PROFILE = %(prompt_profile)s)
 ORDER BY PRIORITY DESC, LAST_UPDATE_TIMESTAMP DESC
 LIMIT %(limit)s
 """

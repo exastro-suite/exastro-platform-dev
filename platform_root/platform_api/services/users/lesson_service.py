@@ -50,6 +50,7 @@ class Lesson:
     lesson_id: str
     lesson: str
     category: Optional[str]
+    prompt_profile: Optional[str]
     priority: int
     enabled: bool
     conversation_id: Optional[str]
@@ -75,6 +76,7 @@ class LessonService:
         workspace_id: str,
         user_id: str,
         lesson: str,
+        prompt_profile: str,
         category: Optional[str] = None,
         priority: int = 5,
         enabled: bool = True,
@@ -88,6 +90,7 @@ class LessonService:
             workspace_id: Workspace ID (DB接続用、テーブルには保存しない)
             user_id: User ID
             lesson: 学習事項の内容
+            prompt_profile: システムプロンプトへの反映対象prompt_profile (必須。LLMEditor/AgenticAIのみ)
             category: 分類 (任意)
             priority: 重要度 (1〜10。デフォルト5)
             enabled: 有効/無効フラグ (デフォルトTrue)
@@ -124,6 +127,7 @@ class LessonService:
                         "user_id": user_id,
                         "lesson": lesson,
                         "category": category,
+                        "prompt_profile": prompt_profile,
                         "priority": priority,
                         "enabled": enabled,
                         "conversation_id": conversation_id,
@@ -132,13 +136,15 @@ class LessonService:
                 conn.commit()
 
         globals.logger.debug(
-            f"Lesson created: id={lesson_id}, user={user_id}, category={category}, priority={priority}"
+            f"Lesson created: id={lesson_id}, user={user_id}, category={category}, "
+            f"prompt_profile={prompt_profile}, priority={priority}"
         )
 
         return Lesson(
             lesson_id=lesson_id,
             lesson=lesson,
             category=category,
+            prompt_profile=prompt_profile,
             priority=priority,
             enabled=enabled,
             conversation_id=conversation_id,
@@ -185,6 +191,7 @@ class LessonService:
         user_id: str,
         enabled: Optional[bool] = None,
         category: Optional[str] = None,
+        prompt_profile: Optional[str] = None,
         limit: int = 50,
         offset: int = 0,
     ) -> Tuple[List[Lesson], int]:
@@ -197,6 +204,7 @@ class LessonService:
             user_id: User ID
             enabled: 有効/無効フィルター (任意)
             category: 分類フィルター (任意)
+            prompt_profile: 対象prompt_profileフィルター (任意。NULL(全プロファイル共通)の学習事項は含まない、完全一致のみ)
             limit: 取得件数
             offset: オフセット
 
@@ -205,8 +213,8 @@ class LessonService:
         """
         params = {"user_id": user_id}
 
-        # ENABLED/CATEGORYの絞り込みは任意なので、指定された場合のみAND句を連結する
-        # Filtering by ENABLED/CATEGORY is optional, so append the AND clause only when specified
+        # ENABLED/CATEGORY/PROMPT_PROFILEの絞り込みは任意なので、指定された場合のみAND句を連結する
+        # Filtering by ENABLED/CATEGORY/PROMPT_PROFILE is optional, so append the AND clause only when specified
         extra_where = ""
         if enabled is not None:
             extra_where += " AND ENABLED = %(enabled)s"
@@ -214,6 +222,9 @@ class LessonService:
         if category is not None:
             extra_where += " AND CATEGORY = %(category)s"
             params["category"] = category
+        if prompt_profile is not None:
+            extra_where += " AND PROMPT_PROFILE = %(prompt_profile)s"
+            params["prompt_profile"] = prompt_profile
 
         list_query = queries_ai_assistant.SQL_LIST_LESSONS + extra_where + queries_ai_assistant.SQL_LIST_LESSONS_ORDER_LIMIT
         count_query = queries_ai_assistant.SQL_COUNT_LESSONS + extra_where
@@ -246,6 +257,7 @@ class LessonService:
         lesson_id: str,
         lesson: Optional[str] = None,
         category: Optional[str] = None,
+        prompt_profile: Optional[str] = None,
         priority: Optional[int] = None,
         enabled: Optional[bool] = None,
     ) -> Optional[Lesson]:
@@ -259,6 +271,7 @@ class LessonService:
             lesson_id: Lesson ID
             lesson: 変更後の学習事項の内容 (省略時は変更しない)
             category: 変更後の分類 (省略時は変更しない)
+            prompt_profile: 変更後の対象prompt_profile (省略時は変更しない)
             priority: 変更後の重要度 (省略時は変更しない)
             enabled: 変更後の有効/無効フラグ (省略時は変更しない)
 
@@ -283,6 +296,7 @@ class LessonService:
                         "user_id": user_id,
                         "lesson": lesson,
                         "category": category,
+                        "prompt_profile": prompt_profile,
                         "priority": priority,
                         "enabled": enabled,
                     },
@@ -299,6 +313,7 @@ class LessonService:
             lesson_id=lesson_id,
             lesson=lesson if lesson is not None else existing["LESSON"],
             category=category if category is not None else existing["CATEGORY"],
+            prompt_profile=prompt_profile if prompt_profile is not None else existing["PROMPT_PROFILE"],
             priority=priority if priority is not None else existing["PRIORITY"],
             enabled=enabled if enabled is not None else bool(existing["ENABLED"]),
             conversation_id=existing["CONVERSATION_ID"],
@@ -401,15 +416,21 @@ class LessonService:
         organization_id: str,
         workspace_id: str,
         user_id: str,
+        prompt_profile: str,
         limit: int = AI_ASSISTANT_LESSONS_MAX_ITEMS,
     ) -> List[Lesson]:
         """
         有効な学習事項を優先度・更新日時の降順で取得する（AIアシスタントのシステムプロンプトへの注入用）
 
+        対象prompt_profile(PROMPT_PROFILE)が未設定(NULL)の学習事項は全プロファイル共通として扱い、
+        指定したprompt_profileに関わらず含める。特定のprompt_profileが設定されている場合は、
+        一致するもののみを含める。
+
         Args:
             organization_id: Organization ID (DB接続用、テーブルには保存しない)
             workspace_id: Workspace ID (DB接続用、テーブルには保存しない)
             user_id: User ID
+            prompt_profile: 問い合わせ対象のprompt_profile
             limit: 取得件数
 
         Returns:
@@ -419,7 +440,7 @@ class LessonService:
             with closing(conn.cursor()) as cursor:
                 cursor.execute(
                     queries_ai_assistant.SQL_SELECT_ENABLED_LESSONS_FOR_PROMPT,
-                    {"user_id": user_id, "limit": limit},
+                    {"user_id": user_id, "prompt_profile": prompt_profile, "limit": limit},
                 )
                 rows = cursor.fetchall()
 
@@ -428,6 +449,7 @@ class LessonService:
                 lesson_id=None,
                 lesson=row["LESSON"],
                 category=row["CATEGORY"],
+                prompt_profile=None,
                 priority=row["PRIORITY"],
                 enabled=True,
                 conversation_id=None,
@@ -444,6 +466,7 @@ class LessonService:
             lesson_id=row["LESSON_ID"],
             lesson=row["LESSON"],
             category=row["CATEGORY"],
+            prompt_profile=row["PROMPT_PROFILE"],
             priority=row["PRIORITY"],
             enabled=bool(row["ENABLED"]),
             conversation_id=row["CONVERSATION_ID"],
