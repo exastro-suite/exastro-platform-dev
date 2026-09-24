@@ -36,7 +36,7 @@ ENV DB_CONNECT_RETRY_LIMIT  3
 
 # AIアシスタント機能の設定 / AI assistant feature settings
 #   BedrockへのHTTPリクエストの読み込みタイムアウト(秒) / Read timeout (seconds) for HTTP requests to Bedrock
-ENV AI_ASSISTANT_READ_TIMEOUT               120
+ENV AI_ASSISTANT_READ_TIMEOUT               300
 #   Bedrockへの接続タイムアウト(秒) / Connect timeout (seconds) for Bedrock
 ENV AI_ASSISTANT_CONNECT_TIMEOUT            30
 #   Bedrock呼び出しのリトライ最大回数(boto3の標準リトライ) / Maximum retry attempts for Bedrock calls (boto3 standard retry mode)

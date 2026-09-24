@@ -539,7 +539,7 @@ class ConversationService:
                 import boto3
                 from botocore.config import Config
 
-                read_timeout = int(os.getenv("AI_ASSISTANT_READ_TIMEOUT", "120"))
+                read_timeout = int(os.getenv("AI_ASSISTANT_READ_TIMEOUT", "300"))
                 connect_timeout = int(os.getenv("AI_ASSISTANT_CONNECT_TIMEOUT", "30"))
                 max_attempts = int(os.getenv("AI_ASSISTANT_MAX_ATTEMPTS", "1"))
 

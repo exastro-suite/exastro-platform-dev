@@ -120,7 +120,7 @@ class AwsSessionFromToken:
         from botocore.config import Config
 
         # 環境変数からタイムアウト・リトライ設定を読み取り
-        read_timeout = int(os.getenv("AI_ASSISTANT_READ_TIMEOUT", "120"))
+        read_timeout = int(os.getenv("AI_ASSISTANT_READ_TIMEOUT", "300"))
         connect_timeout = int(os.getenv("AI_ASSISTANT_CONNECT_TIMEOUT", "30"))
         max_attempts = int(os.getenv("AI_ASSISTANT_MAX_ATTEMPTS", "1"))
 
