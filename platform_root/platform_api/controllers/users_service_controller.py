@@ -1252,7 +1252,7 @@ def list_models(organization_id, credential_type):
         if credential_type not in ["bedrock-cache", "bedrock"]:
             message_id = "400-25010"
             message = multi_lang.get_text(
-                message_id, f"Model list not supported for service: {credential_type}"
+                message_id, "モデル一覧の取得に対応していないAIサービスです: {0}", credential_type
             )
             raise common.BadRequestException(message_id=message_id, message=message)
 
@@ -1275,6 +1275,11 @@ def list_models(organization_id, credential_type):
                 "credential_type": credential_type,
             }
         )
+
+    except common.BadRequestException:
+        # 未対応のcredential_type(400-25010)を500に潰さずそのまま伝播させる
+        # Re-raise the unsupported-credential_type error (400-25010) instead of collapsing it into 500
+        raise
 
     except CredentialNotFound:
         message_id = "404-25005"

@@ -39,7 +39,7 @@ from botocore.exceptions import (
 )
 
 from common_library.common.db import DBconnector
-from common_library.common import common
+from common_library.common import common, multi_lang
 from libs import queries_ai_assistant
 from services.users.ai_credential_service import (
     get_ai_credential_service,
@@ -479,9 +479,10 @@ class ConversationService:
         elif not messages:
             # 新規メッセージも既存履歴も無い場合は問い合わせ不可
             # Cannot query when there is neither a new message nor any existing history
+            message_id = "400-45001"
             raise common.BadRequestException(
-                message_id="400-45001",
-                message="messageが未指定で、会話に既存の履歴もありません",
+                message_id=message_id,
+                message=multi_lang.get_text(message_id, "messageが未指定で、会話に既存の履歴もありません"),
             )
         elif messages[-1].get("role") == "assistant":
             # 直前のassistant応答を一時的に取り除き、再生成（結果は保存しない）
@@ -490,9 +491,12 @@ class ConversationService:
             if not llm_input_messages:
                 # assistantターンを除いた結果userターンも残らない＝問い合わせ可能な発言が無いため400エラー
                 # No user turn remains after removing the assistant turn, i.e. nothing to query, so raise a 400 error
+                message_id = "400-45002"
                 raise common.BadRequestException(
-                    message_id="400-45002",
-                    message="messageが未指定で、会話に問い合わせ可能なユーザーメッセージがありません",
+                    message_id=message_id,
+                    message=multi_lang.get_text(
+                        message_id, "messageが未指定で、会話に問い合わせ可能なユーザーメッセージがありません"
+                    ),
                 )
 
         # Bedrockを呼び出し
@@ -716,6 +720,7 @@ class ConversationService:
                             f"(last attempted max_tokens={current_max_tokens}, model limit={limit})"
                         )
                         status_code = e.response.get("ResponseMetadata", {}).get("HTTPStatusCode", 400)
+                        message_id = "500-45002"
                         raise common.OtherException(
                             status_code=status_code,
                             data={
@@ -725,10 +730,13 @@ class ConversationService:
                             },
                             # message_idは追跡用に固定値とする(実際に呼び出し元へ返すHTTPステータスはstatus_codeでAIサービスの実値をそのまま伝播する)
                             # Keep message_id fixed for traceability (the actual HTTP status returned to the caller still propagates the AI service's real status via status_code)
-                            message_id="500-45002",
-                            message=(
-                                f"max_tokensがモデルの上限を超えています"
-                                f"(要求値: {current_max_tokens}, モデル上限: {limit}, リトライ回数: {max_tokens_retry_count})"
+                            message_id=message_id,
+                            message=multi_lang.get_text(
+                                message_id,
+                                "max_tokensがモデルの上限を超えています(要求値: {0}, モデル上限: {1}, リトライ回数: {2})",
+                                current_max_tokens,
+                                limit,
+                                max_tokens_retry_count,
                             ),
                         ) from e
 
@@ -890,37 +898,48 @@ class ConversationService:
             globals.logger.error(
                 f"Bedrock ClientError: status={status_code}, code={error_code}, message={error_message}"
             )
+            message_id = "500-45001"
             raise common.OtherException(
                 status_code=status_code,
                 # message_idは追跡用に固定値とする(実際に呼び出し元へ返すHTTPステータスはstatus_codeでAIサービスの実値をそのまま伝播する)
                 # Keep message_id fixed for traceability (the actual HTTP status returned to the caller still propagates the AI service's real status via status_code)
-                message_id="500-45001",
-                message=f"AIサービスAPIエラー ({error_code}): {error_message}",
+                message_id=message_id,
+                message=multi_lang.get_text(message_id, "AIサービスAPIエラー ({0}): {1}", error_code, error_message),
             ) from e
 
         except (ReadTimeoutError, ConnectTimeoutError) as e:
             # HTTPステータスが存在しないネットワークタイムアウトのため、JS版のtimeoutStatuses([408, 504])に合わせて408として返す
             # No HTTP status exists for a network-level timeout, so return 408 to match the JS client's timeoutStatuses ([408, 504])
             globals.logger.error(f"Bedrock request timeout: {e}")
+            message_id = "408-45001"
             raise common.OtherException(
                 status_code=408,
-                message_id="408-45001",
-                message=f"AIサービスへのリクエストがタイムアウトしました: {str(e)}",
+                message_id=message_id,
+                message=multi_lang.get_text(message_id, "AIサービスへのリクエストがタイムアウトしました: {0}", str(e)),
             ) from e
 
         except BotoCoreError as e:
             # Bedrock自体からのHTTPステータスコードが得られないその他の接続エラー（DNS失敗等）は503として返す
             # Other connection-level errors with no HTTP status code from Bedrock itself (e.g. DNS failure) are returned as 503
             globals.logger.error(f"Bedrock request failed (connection error): {e}")
+            message_id = "503-45001"
             raise common.OtherException(
                 status_code=503,
-                message_id="503-45001",
-                message=f"AIサービスへの接続に失敗しました: {str(e)}",
+                message_id=message_id,
+                message=multi_lang.get_text(message_id, "AIサービスへの接続に失敗しました: {0}", str(e)),
             ) from e
 
         except CredentialNotFound as e:
+            # 使用するai_service_idのactiveなCredentialが無い(会話作成後に削除された等)ため404で返す
+            # No active credential for the ai_service_id in use (e.g. deleted after the conversation was created), so return 404
             globals.logger.error(f"Credential not found: {e}")
-            raise Exception("AWS Credentialが登録されていません。先にCredentialを登録してください。")
+            message_id = "404-45001"
+            raise common.NotFoundException(
+                message_id=message_id,
+                message=multi_lang.get_text(
+                    message_id, "指定したai_service_idのCredentialが登録されていません: {0}", effective_ai_service_id
+                ),
+            ) from e
 
         except Exception as e:
             globals.logger.error(f"Failed to call Bedrock: {e}", exc_info=True)
