@@ -568,6 +568,11 @@ def create_completion(body, conversation_id, organization_id, workspace_id):
         )
         raise common.NotFoundException(message_id=message_id, message=message)
 
+    except common.NotFoundException:
+        # サービス層で判定した404（使用するai_service_idのCredentialが未登録等）を500に潰さずそのまま伝播させる
+        # Re-raise 404s detected in the service layer (e.g. no credential registered for the ai_service_id in use) instead of collapsing them into 500
+        raise
+
     except common.BadRequestException:
         # サービス層で判定したバリデーションエラー（message省略時の会話状態チェック等）を500に潰さずそのまま伝播させる
         # Re-raise validation errors detected in the service layer (e.g. conversation-state checks when message is omitted) instead of collapsing them into 500
@@ -636,9 +641,10 @@ def create_message(conversation_id, organization_id, workspace_id):
         message_id = "404-44003"
         message = multi_lang.get_text(
             message_id,
-            f"会話が見つかりません: {str(e)}"
+            "会話が見つかりません: {0}",
+            conversation_id,
         )
-        raise common.NotFoundException(message_id=message_id, message=message)
+        raise common.NotFoundException(message_id=message_id, message=message) from e
 
     except Exception as e:
         globals.logger.error(f"Failed to create message: {e}", exc_info=True)
@@ -697,9 +703,10 @@ def list_messages(conversation_id, organization_id, workspace_id, limit=100, off
         message_id = "404-44004"
         message = multi_lang.get_text(
             message_id,
-            f"会話が見つかりません: {str(e)}"
+            "会話が見つかりません: {0}",
+            conversation_id,
         )
-        raise common.NotFoundException(message_id=message_id, message=message)
+        raise common.NotFoundException(message_id=message_id, message=message) from e
 
     except Exception as e:
         globals.logger.error(f"Failed to list messages: {e}", exc_info=True)
@@ -770,9 +777,10 @@ def replace_messages(conversation_id, organization_id, workspace_id):
         message_id = "404-44005"
         message = multi_lang.get_text(
             message_id,
-            f"会話が見つかりません: {str(e)}"
+            "会話が見つかりません: {0}",
+            conversation_id,
         )
-        raise common.NotFoundException(message_id=message_id, message=message)
+        raise common.NotFoundException(message_id=message_id, message=message) from e
 
     except Exception as e:
         globals.logger.error(f"Failed to replace messages: {e}", exc_info=True)
@@ -826,9 +834,10 @@ def delete_messages(conversation_id, organization_id, workspace_id):
         message_id = "404-44006"
         message = multi_lang.get_text(
             message_id,
-            f"会話が見つかりません: {str(e)}"
+            "会話が見つかりません: {0}",
+            conversation_id,
         )
-        raise common.NotFoundException(message_id=message_id, message=message)
+        raise common.NotFoundException(message_id=message_id, message=message) from e
 
     except Exception as e:
         globals.logger.error(f"Failed to delete messages: {e}", exc_info=True)

@@ -15,7 +15,7 @@
 """
 AWS Session Manager with Token Auto-Refresh
 
-aws login --remoteのキャッシュファイルを使用して、
+aws login --remoteのキャッシュファイルの内容(Credentialとして登録しDBに保存したもの)を使用して、
 自動的にトークンを更新しながらAWSサービスを利用する
 """
 
@@ -23,14 +23,12 @@ import base64
 import json
 import re
 import os
-import glob
 from typing import Optional
 
 import boto3
 import botocore.session
 from botocore.credentials import (
     LoginCredentialFetcher,
-    LoginRefreshRequired,
     RefreshableCredentials,
 )
 from botocore.utils import LoginTokenLoader
@@ -55,7 +53,6 @@ class AwsSessionFromToken:
         """
         self.token: dict = {}
         self._login_session_arn = None
-        self._original_token = token.copy()  # 元のトークンを保持
         self._token_updated = False  # トークンが更新されたかのフラグ
         self._token_loader = None  # TokenLoader を保持
 
@@ -103,7 +100,6 @@ class AwsSessionFromToken:
         botocore_session.set_config_variable("region", self.region)
 
         self._session = boto3.Session(botocore_session=botocore_session)
-        self._refresh_client = None
 
         globals.logger.debug(
             f"AWS Session initialized: region={self.region}, "
@@ -163,38 +159,6 @@ class AwsSessionFromToken:
 
         return token
 
-    def refresh_token(self) -> bool:
-        """
-        トークンを明示的に更新
-
-        Returns:
-            bool: トークンが更新された場合True
-
-        Raises:
-            LoginRefreshRequired: リフレッシュトークンが期限切れの場合
-        """
-        before_token_str = json.dumps(self.token)
-
-        try:
-            # リフレッシュトリガー用のダミー呼び出し
-            if self._refresh_client is None:
-                self._refresh_client = self._session.client("bedrock")
-
-            self._refresh_client.list_inference_profiles()
-        except LoginRefreshRequired:
-            globals.logger.error(
-                "Refresh token has expired. Run 'aws login --remote' again."
-            )
-            raise
-
-        after_token_str = json.dumps(self.token)
-        refreshed = (before_token_str != after_token_str)
-
-        if refreshed:
-            globals.logger.debug("AWS token refreshed successfully")
-
-        return refreshed
-
     def _extract_login_session_arn(self, token: dict) -> str:
         """idTokenのsubクレームからlogin_session ARNを取り出す"""
         claims = self._decode_id_token(token["idToken"])
@@ -213,61 +177,6 @@ class AwsSessionFromToken:
         payload_b64 = id_token.split(".")[1]
         padded = payload_b64 + "=" * (-len(payload_b64) % 4)
         return json.loads(base64.urlsafe_b64decode(padded))
-
-
-def load_latest_login_cache(cache_dir: Optional[str] = None) -> dict:
-    """
-    ~/.aws/login/cache/ から最新のキャッシュファイルを読み込む
-
-    Args:
-        cache_dir: キャッシュディレクトリパス（省略時は~/.aws/login/cache/）
-
-    Returns:
-        dict: トークン情報
-
-    Raises:
-        FileNotFoundError: キャッシュファイルが見つからない
-    """
-    if cache_dir is None:
-        cache_dir = os.path.expanduser("~/.aws/login/cache")
-
-    cache_files = glob.glob(os.path.join(cache_dir, "*.json"))
-
-    if not cache_files:
-        raise FileNotFoundError(
-            f"AWS login cache not found in {cache_dir}. "
-            "Run 'aws login --remote' first."
-        )
-
-    # 最新のファイルを取得
-    latest_cache = max(cache_files, key=os.path.getmtime)
-
-    globals.logger.debug(f"Loading AWS login cache from: {latest_cache}")
-
-    with open(latest_cache, "r") as f:
-        token = json.load(f)
-
-    return token
-
-
-def create_bedrock_session_from_cache(
-    cache_dir: Optional[str] = None,
-    region: Optional[str] = None
-) -> AwsSessionFromToken:
-    """
-    キャッシュファイルからBedrockセッションを作成
-
-    非推奨: create_bedrock_session_from_credential_data() を使用してください
-
-    Args:
-        cache_dir: キャッシュディレクトリパス
-        region: リージョン
-
-    Returns:
-        AwsSessionFromToken: セッションオブジェクト
-    """
-    token = load_latest_login_cache(cache_dir)
-    return AwsSessionFromToken(token, region)
 
 
 def create_bedrock_session_from_credential_data(

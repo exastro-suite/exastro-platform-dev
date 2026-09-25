@@ -3051,8 +3051,8 @@ paths:
                 $ref: '#/components/schemas/runtimeError'
         '404':
           description: |-
-            会話が見つからない
-            Conversation not found
+            会話が見つからない、または使用するai_service_idのactiveなCredentialが登録されていない
+            Conversation not found, or no active credential is registered for the ai_service_id in use
           content:
             application/json:
               schema:
