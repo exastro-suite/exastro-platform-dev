@@ -54,6 +54,8 @@ tags:
   description: メンテナンスモードに関する操作
 - name: NotificationService
   description: 通知機能に関する操作
+- name: NotificationJobService
+  description: 通知ジョブに関する操作
 - name: MailserverSettings
   description: メールサーバーに関する操作
 - name: AuditLogService
@@ -74,6 +76,8 @@ tags:
   description: メンテナンスモードに関する操作(内部用)
 - name: InternalNotificationService
   description: 通知機能に関する操作(内部用)
+- name: InternalNotificationJobService
+  description: 通知ジョブに関する操作(内部用)
 - name: InternalHealthCheckService
   description: ヘルスチェックに関する操作(内部用)
 - name: InternalServiceAccountUsersService
@@ -2198,7 +2202,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_2"
+                $ref: "#/components/schemas/inline_response_200_27"
         default:
           description: An unexpected error response.
           content:
@@ -2206,6 +2210,150 @@ paths:
               schema:
                 $ref: "#/components/schemas/runtimeError"
       x-openapi-router-controller: controllers.notification_service_controller
+  /api/{organization_id}/platform/workspaces/{workspace_id}/notification-jobs:
+    get:
+      tags:
+      - NotificationJobService
+      summary: Get notification job list
+      operationId: notification_job_list
+      parameters:
+      - name: organization_id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      - name: workspace_id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      - name: page_size
+        in: query
+        description: "Maximum number of return values at one time (default: 100)"
+        required: false
+        style: form
+        explode: true
+        schema:
+          minimum: 1
+          type: integer
+          default: 100
+      - name: current_page
+        in: query
+        description: "Current display page (default: 1)"
+        required: false
+        style: form
+        explode: true
+        schema:
+          minimum: 1
+          type: integer
+          default: 1
+      - name: notification_status
+        in: query
+        description: Filter by notification status
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+          enum:
+          - Unsent
+          - Successful
+          - Failed
+          - AbortedExpired
+      - name: func_id
+        in: query
+        description: Filter by function ID
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+      - name: destination_id
+        in: query
+        description: Filter by destination ID
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+      - name: from_date
+        in: query
+        description: Filter by date range (from)
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+          format: date-time
+      - name: to_date
+        in: query
+        description: Filter by date range (to)
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+          format: date-time
+      responses:
+        "200":
+          description: A successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_200_28"
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/runtimeError"
+      x-openapi-router-controller: controllers.notification_job_service_controller
+  /api/{organization_id}/platform/workspaces/{workspace_id}/notification-jobs/{notification_id}:
+    get:
+      tags:
+      - NotificationJobService
+      summary: Get notification job by ID
+      operationId: notification_job_get
+      parameters:
+      - name: organization_id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      - name: workspace_id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      - name: notification_id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      responses:
+        "200":
+          description: A successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_200_29"
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/runtimeError"
+      x-openapi-router-controller: controllers.notification_job_service_controller
   /api/{organization_id}/platform/workspaces/{workspace_id}/conversations:
     get:
       tags:
@@ -2289,7 +2437,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_27"
+                $ref: "#/components/schemas/inline_response_200_30"
         "403":
           description: |-
             AIアシスタント機能が有効になっていない
@@ -2344,7 +2492,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_28"
+                $ref: "#/components/schemas/inline_response_200_31"
         "400":
           description: |-
             バリデーションエラー
@@ -2419,7 +2567,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_29"
+                $ref: "#/components/schemas/inline_response_200_32"
         "403":
           description: |-
             AIアシスタント機能が有効になっていない
@@ -2491,7 +2639,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_30"
+                $ref: "#/components/schemas/inline_response_200_33"
         "400":
           description: |-
             バリデーションエラー
@@ -2572,7 +2720,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_31"
+                $ref: "#/components/schemas/inline_response_200_34"
         "400":
           description: |-
             バリデーションエラー
@@ -2678,7 +2826,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_32"
+                $ref: "#/components/schemas/inline_response_200_35"
         "403":
           description: |-
             AIアシスタント機能が有効になっていない
@@ -2748,7 +2896,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_32"
+                $ref: "#/components/schemas/inline_response_200_35"
         "400":
           description: |-
             バリデーションエラー
@@ -2828,7 +2976,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_33"
+                $ref: "#/components/schemas/inline_response_200_36"
         "400":
           description: |-
             バリデーションエラー
@@ -2902,7 +3050,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_34"
+                $ref: "#/components/schemas/inline_response_200_37"
         "403":
           description: |-
             AIアシスタント機能が有効になっていない
@@ -3019,7 +3167,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_35"
+                $ref: "#/components/schemas/inline_response_200_38"
         "400":
           description: |-
             prompt_profile未指定・不正な値
@@ -3084,7 +3232,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_36"
+                $ref: "#/components/schemas/inline_response_200_39"
         "400":
           description: |-
             バリデーションエラー、またはこのユーザー・このWorkspaceの学習事項登録件数が上限(AI_ASSISTANT_LESSONS_MAX_COUNT環境変数、既定200件)に達している
@@ -3149,7 +3297,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_37"
+                $ref: "#/components/schemas/inline_response_200_40"
         "400":
           description: |-
             バリデーションエラー
@@ -3216,7 +3364,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_36"
+                $ref: "#/components/schemas/inline_response_200_39"
         "403":
           description: |-
             AIアシスタント機能が有効になっていない
@@ -3282,7 +3430,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_38"
+                $ref: "#/components/schemas/inline_response_200_41"
         "403":
           description: |-
             AIアシスタント機能が有効になっていない
@@ -3354,7 +3502,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_36"
+                $ref: "#/components/schemas/inline_response_200_39"
         "400":
           description: |-
             バリデーションエラー
@@ -3437,7 +3585,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_39"
+                $ref: "#/components/schemas/inline_response_200_42"
         default:
           description: An unexpected error response.
           content:
@@ -3506,7 +3654,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_40"
+                $ref: "#/components/schemas/inline_response_200_43"
         default:
           description: An unexpected error response.
           content:
@@ -3622,7 +3770,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_41"
+                $ref: "#/components/schemas/inline_response_200_44"
         default:
           description: An unexpected error response.
           content:
@@ -3801,7 +3949,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_42"
+                $ref: "#/components/schemas/inline_response_200_45"
         default:
           description: An unexpected error response.
           content:
@@ -4013,7 +4161,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_43"
+                $ref: "#/components/schemas/inline_response_200_46"
         default:
           description: An unexpected error response.
           content:
@@ -4048,7 +4196,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_44"
+                $ref: "#/components/schemas/inline_response_200_47"
         default:
           description: An unexpected error response.
           content:
@@ -4125,7 +4273,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_45"
+                $ref: "#/components/schemas/inline_response_200_48"
         default:
           description: An unexpected error response.
           content:
@@ -4153,7 +4301,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_46"
+                $ref: "#/components/schemas/inline_response_200_49"
         default:
           description: An unexpected error response.
           content:
@@ -4188,7 +4336,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_47"
+                $ref: "#/components/schemas/inline_response_200_50"
         default:
           description: An unexpected error response.
           content:
@@ -4252,7 +4400,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_48"
+                $ref: "#/components/schemas/inline_response_200_51"
         default:
           description: An unexpected error response.
           content:
@@ -4305,7 +4453,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_48"
+                $ref: "#/components/schemas/inline_response_200_51"
         default:
           description: An unexpected error response.
           content:
@@ -4333,7 +4481,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_49"
+                $ref: "#/components/schemas/inline_response_200_52"
               example:
                 value:
                   result: 200
@@ -4462,7 +4610,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_50"
+                $ref: "#/components/schemas/inline_response_200_53"
         default:
           description: An unexpected error response.
           content:
@@ -4495,7 +4643,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_51"
+                $ref: "#/components/schemas/inline_response_200_54"
         default:
           description: An unexpected error response.
           content:
@@ -4573,7 +4721,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_52"
+                $ref: "#/components/schemas/inline_response_200_55"
         default:
           description: An unexpected error response.
           content:
@@ -4656,7 +4804,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_53"
+                $ref: "#/components/schemas/inline_response_200_56"
         default:
           description: An unexpected error response.
           content:
@@ -4789,7 +4937,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_54"
+                $ref: "#/components/schemas/inline_response_200_57"
         default:
           description: An unexpected error response.
           content:
@@ -4837,7 +4985,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_55"
+                $ref: "#/components/schemas/inline_response_200_58"
         default:
           description: An unexpected error response.
           content:
@@ -5130,7 +5278,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_56"
+                $ref: "#/components/schemas/inline_response_200_59"
         default:
           description: An unexpected error response.
           content:
@@ -5185,7 +5333,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_57"
+                $ref: "#/components/schemas/inline_response_200_60"
         default:
           description: An unexpected error response.
           content:
@@ -5303,7 +5451,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_58"
+                $ref: "#/components/schemas/inline_response_200_61"
         default:
           description: An unexpected error response.
           content:
@@ -5359,7 +5507,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_39"
+                $ref: "#/components/schemas/inline_response_200_42"
         default:
           description: An unexpected error response.
           content:
@@ -5415,7 +5563,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_59"
+                $ref: "#/components/schemas/inline_response_200_62"
         default:
           description: An unexpected error response.
           content:
@@ -5436,7 +5584,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_48"
+                $ref: "#/components/schemas/inline_response_200_51"
         default:
           description: An unexpected error response.
           content:
@@ -5723,7 +5871,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_2"
+                $ref: "#/components/schemas/inline_response_200_27"
         default:
           description: An unexpected error response.
           content:
@@ -5731,6 +5879,150 @@ paths:
               schema:
                 $ref: "#/components/schemas/runtimeError"
       x-openapi-router-controller: controllers.internal_notification_service_controller
+  /internal-api/{organization_id}/platform/workspaces/{workspace_id}/notification-jobs:
+    get:
+      tags:
+      - InternalNotificationJobService
+      summary: Get notification job list (Internal API)
+      operationId: internal_notification_job_list
+      parameters:
+      - name: organization_id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      - name: workspace_id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      - name: page_size
+        in: query
+        description: "Maximum number of return values at one time (default: 100)"
+        required: false
+        style: form
+        explode: true
+        schema:
+          minimum: 1
+          type: integer
+          default: 100
+      - name: current_page
+        in: query
+        description: "Current display page (default: 1)"
+        required: false
+        style: form
+        explode: true
+        schema:
+          minimum: 1
+          type: integer
+          default: 1
+      - name: notification_status
+        in: query
+        description: Filter by notification status
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+          enum:
+          - Unsent
+          - Successful
+          - Failed
+          - AbortedExpired
+      - name: func_id
+        in: query
+        description: Filter by function ID
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+      - name: destination_id
+        in: query
+        description: Filter by destination ID
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+      - name: from_date
+        in: query
+        description: Filter by date range (from)
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+          format: date-time
+      - name: to_date
+        in: query
+        description: Filter by date range (to)
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+          format: date-time
+      responses:
+        "200":
+          description: A successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_200_63"
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/runtimeError"
+      x-openapi-router-controller: controllers.internal_notification_job_service_controller
+  /internal-api/{organization_id}/platform/workspaces/{workspace_id}/notification-jobs/{notification_id}:
+    get:
+      tags:
+      - InternalNotificationJobService
+      summary: Get notification job by ID (Internal API)
+      operationId: internal_notification_job_get
+      parameters:
+      - name: organization_id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      - name: workspace_id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      - name: notification_id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      responses:
+        "200":
+          description: A successful response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_200_64"
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/runtimeError"
+      x-openapi-router-controller: controllers.internal_notification_job_service_controller
   /internal-api/health-check/liveness:
     get:
       tags:
@@ -5798,7 +6090,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_52"
+                $ref: "#/components/schemas/inline_response_200_55"
         default:
           description: An unexpected error response.
           content:
@@ -5881,7 +6173,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_54"
+                $ref: "#/components/schemas/inline_response_200_57"
         default:
           description: An unexpected error response.
           content:
@@ -5929,7 +6221,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_55"
+                $ref: "#/components/schemas/inline_response_200_58"
         default:
           description: An unexpected error response.
           content:
@@ -7834,7 +8126,44 @@ components:
       - type: object
         properties:
           data:
-            $ref: "#/components/schemas/inline_response_200_27_data"
+            type: array
+            description: List of notification IDs
+            items:
+              type: string
+    inline_response_200_28:
+      allOf:
+      - $ref: "#/components/schemas/responseOk"
+      - title: Notification job list result.
+        type: object
+        properties:
+          data:
+            type: array
+            items:
+              $ref: "#/paths/~1api~1%7Borganization_id%7D~1platform~1workspaces~1%7Bworkspace_id%7D~1notification-jobs~1%7Bnotification_id%7D/get/responses/200/content/application~1json/schema/allOf/1/properties/data"
+          total:
+            type: integer
+            description: Total count of records
+          page:
+            type: integer
+            description: Current page number
+          page_size:
+            type: integer
+            description: Records per page
+    inline_response_200_29:
+      allOf:
+      - $ref: "#/components/schemas/responseOk"
+      - title: Notification job single result.
+        type: object
+        properties:
+          data:
+            $ref: "#/components/schemas/Notification job data."
+    inline_response_200_30:
+      allOf:
+      - $ref: "#/components/schemas/responseOk"
+      - type: object
+        properties:
+          data:
+            $ref: "#/components/schemas/inline_response_200_30_data"
     workspace_id_conversations_body:
       required:
       - ai_service_id
@@ -7892,20 +8221,20 @@ components:
               - location
           items:
             type: object
-    inline_response_200_28:
+    inline_response_200_31:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - type: object
         properties:
           data:
-            $ref: "#/components/schemas/inline_response_200_28_data"
-    inline_response_200_29:
+            $ref: "#/components/schemas/inline_response_200_31_data"
+    inline_response_200_32:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - type: object
         properties:
           data:
-            $ref: "#/components/schemas/inline_response_200_29_data"
+            $ref: "#/components/schemas/inline_response_200_32_data"
     conversations_conversation_id_body:
       type: object
       properties:
@@ -7925,13 +8254,13 @@ components:
           - active
           - closed
           - archived
-    inline_response_200_30:
+    inline_response_200_33:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - type: object
         properties:
           data:
-            $ref: "#/components/schemas/inline_response_200_30_data"
+            $ref: "#/components/schemas/inline_response_200_33_data"
     conversation_id_completions_body:
       type: object
       properties:
@@ -7962,20 +8291,20 @@ components:
             ITA画面ID(指定時はメニュー固有のシステムプロンプトを追加)
             ITA screen ID (when specified, a menu-specific system prompt is appended)
           example: menu_001
-    inline_response_200_31:
+    inline_response_200_34:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - type: object
         properties:
           data:
-            $ref: "#/components/schemas/inline_response_200_31_data"
-    inline_response_200_32:
+            $ref: "#/components/schemas/inline_response_200_34_data"
+    inline_response_200_35:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - type: object
         properties:
           data:
-            $ref: "#/components/schemas/inline_response_200_32_data"
+            $ref: "#/components/schemas/inline_response_200_35_data"
     apiorganization_idplatformworkspacesworkspace_idconversationsconversation_idmessages_messages:
       required:
       - contents
@@ -8059,27 +8388,27 @@ components:
             _model: global.anthropic.claude-opus-5
           items:
             $ref: "#/components/schemas/apiorganization_idplatformworkspacesworkspace_idconversationsconversation_idmessages_contents"
-    inline_response_200_33:
+    inline_response_200_36:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - type: object
         properties:
           data:
-            $ref: "#/components/schemas/inline_response_200_33_data"
-    inline_response_200_34:
+            $ref: "#/components/schemas/inline_response_200_36_data"
+    inline_response_200_37:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - type: object
         properties:
           data:
-            $ref: "#/components/schemas/inline_response_200_34_data"
-    inline_response_200_35:
+            $ref: "#/components/schemas/inline_response_200_37_data"
+    inline_response_200_38:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - type: object
         properties:
           data:
-            $ref: "#/components/schemas/inline_response_200_35_data"
+            $ref: "#/components/schemas/inline_response_200_38_data"
     workspace_id_lessons_body:
       required:
       - lesson
@@ -8133,7 +8462,7 @@ components:
             Originating conversation ID (optional)
           nullable: true
           example: conv-001
-    inline_response_200_36:
+    inline_response_200_39:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - type: object
@@ -8174,20 +8503,20 @@ components:
             enabled: false
           items:
             $ref: "#/components/schemas/apiorganization_idplatformworkspacesworkspace_idlessons_lessons"
-    inline_response_200_37:
+    inline_response_200_40:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - type: object
         properties:
           data:
-            $ref: "#/components/schemas/inline_response_200_37_data"
-    inline_response_200_38:
+            $ref: "#/components/schemas/inline_response_200_40_data"
+    inline_response_200_41:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - type: object
         properties:
           data:
-            $ref: "#/components/schemas/inline_response_200_38_data"
+            $ref: "#/components/schemas/inline_response_200_41_data"
     lessons_lesson_id_body:
       type: object
       properties:
@@ -8228,18 +8557,18 @@ components:
             変更後の有効/無効フラグ(省略時は変更しない)
             New enabled flag (unchanged if omitted)
           example: false
-    inline_response_200_39:
+    inline_response_200_42:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - $ref: "#/components/schemas/userList"
-    inline_response_200_40:
+    inline_response_200_43:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - type: object
         properties:
           data:
             $ref: "#/components/schemas/user"
-    inline_response_200_41:
+    inline_response_200_44:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - $ref: "#/components/schemas/roleDetailList"
@@ -8249,7 +8578,7 @@ components:
     roles_role_name_body:
       oneOf:
       - $ref: "#/components/schemas/roleDetailWorkspacePut"
-    inline_response_200_42:
+    inline_response_200_45:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - title: roleList is list of Role resources.
@@ -8259,11 +8588,11 @@ components:
             type: array
             items:
               $ref: "#/components/schemas/roleUser"
-    inline_response_200_43:
+    inline_response_200_46:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - $ref: "#/components/schemas/jobsUserBulkStatusList"
-    inline_response_200_44:
+    inline_response_200_47:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - title: Jobs user bulk processing result.
@@ -8271,7 +8600,7 @@ components:
         properties:
           data:
             $ref: "#/components/schemas/jobsUserBulkStatus"
-    inline_response_200_45:
+    inline_response_200_48:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - type: object
@@ -8280,11 +8609,11 @@ components:
             type: object
             example:
               job_id: XXXXXXXXXXXXXXXXXXXXXXXXXX
-    inline_response_200_46:
+    inline_response_200_49:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - $ref: "#/components/schemas/jobsUserExportStatusList"
-    inline_response_200_47:
+    inline_response_200_50:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - title: Jobs user export processing result.
@@ -8292,7 +8621,7 @@ components:
         properties:
           data:
             $ref: "#/components/schemas/jobsUserExportStatus"
-    inline_response_200_48:
+    inline_response_200_51:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - $ref: "#/components/schemas/maintenanceModeSettings"
@@ -8305,15 +8634,15 @@ components:
         data_update_stop:
           type: string
           example: "1"
-    inline_response_200_49:
+    inline_response_200_52:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - $ref: "#/components/schemas/settingsMailserverList"
-    inline_response_200_50:
+    inline_response_200_53:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - $ref: "#/components/schemas/AuditLogDownloadList"
-    inline_response_200_51:
+    inline_response_200_54:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - type: object
@@ -8322,47 +8651,74 @@ components:
             type: object
             example:
               download_id: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-    inline_response_200_52:
+    inline_response_200_55:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - $ref: "#/components/schemas/serviceAccountUserList"
-    inline_response_200_53:
+    inline_response_200_56:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - type: object
         properties:
           data:
             $ref: "#/components/schemas/serviceAccountUser"
-    inline_response_200_54:
+    inline_response_200_57:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - $ref: "#/components/schemas/serviceAccountUserTokenList"
-    inline_response_200_55:
+    inline_response_200_58:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - type: object
         properties:
           data:
-            $ref: "#/components/schemas/inline_response_200_55_data"
-    inline_response_200_56:
+            $ref: "#/components/schemas/inline_response_200_58_data"
+    inline_response_200_59:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - $ref: "#/components/schemas/limitsList"
-    inline_response_200_57:
+    inline_response_200_60:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - type: object
         properties:
           data:
             $ref: "#/components/schemas/planItem"
-    inline_response_200_58:
+    inline_response_200_61:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - $ref: "#/components/schemas/roleList"
-    inline_response_200_59:
+    inline_response_200_62:
       allOf:
       - $ref: "#/components/schemas/responseOk"
       - $ref: "#/components/schemas/userWorkspaceList"
+    inline_response_200_63:
+      allOf:
+      - $ref: "#/components/schemas/responseOk"
+      - title: Notification job list result (Internal).
+        type: object
+        properties:
+          data:
+            type: array
+            items:
+              $ref: "#/paths/~1internal-api~1%7Borganization_id%7D~1platform~1workspaces~1%7Bworkspace_id%7D~1notification-jobs~1%7Bnotification_id%7D/get/responses/200/content/application~1json/schema/allOf/1/properties/data"
+          total:
+            type: integer
+            description: Total count of records
+          page:
+            type: integer
+            description: Current page number
+          page_size:
+            type: integer
+            description: Records per page
+    inline_response_200_64:
+      allOf:
+      - $ref: "#/components/schemas/responseOk"
+      - title: Notification job single result (Internal).
+        type: object
+        properties:
+          data:
+            $ref: "#/components/schemas/Notification job data Internal."
     organization_organization_managers:
       type: object
       properties:
@@ -8786,7 +9142,83 @@ components:
             $ref: "#/components/schemas/aiServiceInfo"
         count:
           type: integer
-    inline_response_200_27_data:
+    Notification job data.:
+      title: Notification job data.
+      type: object
+      properties:
+        id:
+          type: string
+          description: Notification ID (ULID format)
+        destination_id:
+          type: string
+          description: Destination ID
+        destination_name:
+          type: string
+          description: Destination name
+        destination_kind:
+          type: string
+          description: Notification method
+          enum:
+          - Mail
+          - Teams_WF
+          - Teams
+          - Webhook
+          - ServiceNow
+        func_id:
+          type: string
+          description: Function ID
+        func_informations:
+          type: object
+          description: Function information details
+        message_informations:
+          type: object
+          description: Notification message content
+        notification_status:
+          type: string
+          description: Notification status
+          enum:
+          - Unsent
+          - Successful
+          - Failed
+          - AbortedExpired
+        notification_timestamp:
+          type: string
+          description: Notification sent timestamp
+          format: date-time
+          nullable: true
+        http_response_code:
+          type: integer
+          description: HTTP response code
+          nullable: true
+        http_response_body:
+          type: string
+          description: HTTP response body
+          nullable: true
+        enable_retry:
+          type: boolean
+          description: Whether retry is enabled
+        retry_count_limit:
+          type: integer
+          description: Retry count limit
+          nullable: true
+        retry_count:
+          type: integer
+          description: Current retry count
+        create_timestamp:
+          type: string
+          description: Creation timestamp
+          format: date-time
+        create_user:
+          type: string
+          description: Creator user ID
+        last_update_timestamp:
+          type: string
+          description: Last update timestamp
+          format: date-time
+        last_update_user:
+          type: string
+          description: Last update user ID
+    inline_response_200_30_data:
       type: object
       properties:
         conversations:
@@ -8803,7 +9235,7 @@ components:
           description: |-
             絞り込み条件(prompt_profile・status)に合致する総件数(limit/offset適用前)
             Total number of items matching the filter conditions (prompt_profile, status), before applying limit/offset
-    inline_response_200_28_data:
+    inline_response_200_31_data:
       type: object
       properties:
         conversation_id:
@@ -8834,14 +9266,14 @@ components:
           type: string
         status:
           type: string
-    inline_response_200_29_data:
+    inline_response_200_32_data:
       type: object
       properties:
         conversation_id:
           type: string
         message:
           type: string
-    inline_response_200_30_data:
+    inline_response_200_33_data:
       type: object
       properties:
         conversation_id:
@@ -8850,7 +9282,7 @@ components:
           type: string
         status:
           type: string
-    inline_response_200_31_data_usage:
+    inline_response_200_34_data_usage:
       type: object
       properties:
         input_tokens:
@@ -8872,7 +9304,7 @@ components:
           description: |-
             Prompt Cachingから読み取られたトークン数(キャッシュヒットしなかった場合は0)
             Tokens read from the prompt cache (0 when there was no cache hit)
-    inline_response_200_31_data:
+    inline_response_200_34_data:
       type: object
       properties:
         conversation_id:
@@ -8929,8 +9361,8 @@ components:
             AIサービスのAPIが返したHTTPステータスコード(通常200)。リトライ判断等に利用できる。
             The HTTP status code returned by the AI service's API (normally 200). Can be used for retry decisions, etc.
         usage:
-          $ref: "#/components/schemas/inline_response_200_31_data_usage"
-    inline_response_200_32_data:
+          $ref: "#/components/schemas/inline_response_200_34_data_usage"
+    inline_response_200_35_data:
       type: object
       properties:
         messages:
@@ -8941,7 +9373,7 @@ components:
           type: integer
         conversation_id:
           type: string
-    inline_response_200_33_data:
+    inline_response_200_36_data:
       type: object
       properties:
         message_id:
@@ -8978,7 +9410,7 @@ components:
             最終更新日時
             Last updated timestamp
           format: date-time
-    inline_response_200_34_data:
+    inline_response_200_37_data:
       type: object
       properties:
         conversation_id:
@@ -8988,7 +9420,7 @@ components:
           description: |-
             削除したメッセージレコード件数
             Number of deleted message records
-    inline_response_200_35_data:
+    inline_response_200_38_data:
       type: object
       properties:
         lessons:
@@ -9005,7 +9437,7 @@ components:
           description: |-
             絞り込み条件(enabled・category・prompt_profile)に合致する総件数(limit/offset適用前)
             Total number of items matching the filter conditions (enabled, category, prompt_profile), before applying limit/offset
-    inline_response_200_37_data:
+    inline_response_200_40_data:
       type: object
       properties:
         updated_count:
@@ -9013,18 +9445,94 @@ components:
           description: |-
             実際に更新された件数(lesson_idsの件数以下になることがある)
             Number of lessons actually updated (may be less than the number of lesson_ids provided)
-    inline_response_200_38_data:
+    inline_response_200_41_data:
       type: object
       properties:
         lesson_id:
           type: string
         message:
           type: string
-    inline_response_200_55_data:
+    inline_response_200_58_data:
       type: object
       properties:
         refresh_token:
           type: string
+    Notification job data Internal.:
+      title: Notification job data (Internal).
+      type: object
+      properties:
+        id:
+          type: string
+          description: Notification ID (ULID format)
+        destination_id:
+          type: string
+          description: Destination ID
+        destination_name:
+          type: string
+          description: Destination name
+        destination_kind:
+          type: string
+          description: Notification method
+          enum:
+          - Mail
+          - Teams_WF
+          - Teams
+          - Webhook
+          - ServiceNow
+        func_id:
+          type: string
+          description: Function ID
+        func_informations:
+          type: object
+          description: Function information details
+        message_informations:
+          type: object
+          description: Notification message content
+        notification_status:
+          type: string
+          description: Notification status
+          enum:
+          - Unsent
+          - Successful
+          - Failed
+          - AbortedExpired
+        notification_timestamp:
+          type: string
+          description: Notification sent timestamp
+          format: date-time
+          nullable: true
+        http_response_code:
+          type: integer
+          description: HTTP response code
+          nullable: true
+        http_response_body:
+          type: string
+          description: HTTP response body
+          nullable: true
+        enable_retry:
+          type: boolean
+          description: Whether retry is enabled
+        retry_count_limit:
+          type: integer
+          description: Retry count limit
+          nullable: true
+        retry_count:
+          type: integer
+          description: Current retry count
+        create_timestamp:
+          type: string
+          description: Creation timestamp
+          format: date-time
+        create_user:
+          type: string
+          description: Creator user ID
+        last_update_timestamp:
+          type: string
+          description: Last update timestamp
+          format: date-time
+        last_update_user:
+          type: string
+          description: Last update user ID
   responses:
     UnauthorizedError:
       description: Access token is missing or invalid
