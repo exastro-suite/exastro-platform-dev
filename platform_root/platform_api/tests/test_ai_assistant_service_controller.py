@@ -2554,16 +2554,20 @@ def test_completions_other_users_conversation_not_found(connexion_client):
 
 # ==================== POST .../completions : 言語判定・menu_id ====================
 
-def test_completions_accept_language_detection(connexion_client):
-    """Accept-Languageヘッダーからユーザー言語を判定してシステムプロンプトを読み込む(ja/jp→jp、en→en、それ以外→None)"""
+def test_completions_language_detection(connexion_client):
+    """Languageヘッダーからユーザー言語を判定してシステムプロンプトを読み込む(ja→jp、en→en、それ以外→None)
+    Accept-Language(ブラウザ設定)は判定に使用しない"""
     organization_id, workspace_id, user_id, conversation_id = _setup_chat(connexion_client)
 
     cases = [
-        ({"Accept-Language": "ja-JP,ja;q=0.9"}, "jp"),
-        ({"Accept-Language": "ja"}, "jp"),
-        ({"Accept-Language": "en-US,en;q=0.9"}, "en"),
-        ({"Accept-Language": "fr-FR"}, None),
-        ({}, None),
+        ({"Language": "ja"}, "jp"),
+        ({"Language": "en"}, "en"),
+        ({"Language": "EN"}, "en"),
+        ({"Language": "en", "Accept-Language": "ja-JP,ja;q=0.9"}, "en"),
+        ({"Language": "ja", "Accept-Language": "en-US,en;q=0.9"}, "jp"),
+        ({"Language": "fr"}, None),
+        ({"Language": "", "Accept-Language": "ja-JP,ja;q=0.9"}, None),
+        ({"Language": ""}, None),
     ]
     for headers, expected_language in cases:
         fake_session = _mocked_bedrock_session(_fake_invoke_model_response(10, 5))
@@ -2604,7 +2608,7 @@ def test_completions_menu_prompt_appended(connexion_client):
                        return_value="MENU_PROMPT") as menu_loader:
         response = _post_completion(
             connexion_client, organization_id, workspace_id, user_id, conversation_id,
-            {"message": "こんにちは", "menu_id": "menu_001"}, extra_headers={"Accept-Language": "ja-JP"})
+            {"message": "こんにちは", "menu_id": "menu_001"}, extra_headers={"Language": "ja"})
     assert response.status_code == 200
 
     menu_loader.assert_called_once_with("menu_001", "jp")
@@ -2669,7 +2673,7 @@ def test_completions_real_menu_prompt_file(connexion_client):
     with test_common.requsts_mocker_default(), mock.patch(_COMPLETION_TARGET, return_value=fake_session):
         response = _post_completion(
             connexion_client, organization_id, workspace_id, user_id, conversation_id,
-            {"message": "こんにちは", "menu_id": "menu_001"}, extra_headers={"Accept-Language": "ja-JP"})
+            {"message": "こんにちは", "menu_id": "menu_001"}, extra_headers={"Language": "ja"})
     assert response.status_code == 200
     assert _sent_bodies(fake_session)[0]["system"][0]["text"].endswith(expected_menu_prompt)
 

@@ -44,17 +44,28 @@ def _make_loader(tmp_path, system_files=None, menu_files=None):
 
 # ==================== load_prompt ====================
 
-def test_load_prompt_language_specific_preferred(connexion_client, tmp_path):
-    """言語別プロンプトがあればベースより優先される"""
+def test_load_prompt_language_specific_appended(connexion_client, tmp_path):
+    """言語別プロンプトがあればベースプロンプトの後ろに追記される"""
     loader = _make_loader(tmp_path, system_files={
         "llmeditor_base.md": "BASE",
         "llmeditor_jp.md": "JAPANESE",
+        "llmeditor_en.md": "ENGLISH",
     })
-    assert loader.load_prompt("LLMEditor", "jp") == "JAPANESE"
+    assert loader.load_prompt("LLMEditor", "jp") == "BASE\n\nJAPANESE"
+    assert loader.load_prompt("LLMEditor", "en") == "BASE\n\nENGLISH"
+
+
+def test_load_prompt_empty_language_file_not_appended(connexion_client, tmp_path):
+    """言語別プロンプトが空の場合は何も追記しない"""
+    loader = _make_loader(tmp_path, system_files={
+        "llmeditor_base.md": "BASE",
+        "llmeditor_jp.md": "\n",
+    })
+    assert loader.load_prompt("LLMEditor", "jp") == "BASE"
 
 
 def test_load_prompt_falls_back_to_base(connexion_client, tmp_path):
-    """言語別プロンプトが無い場合はベースプロンプトを使う"""
+    """言語別プロンプトが無い場合はベースプロンプトのみを使う"""
     loader = _make_loader(tmp_path, system_files={"llmeditor_base.md": "BASE"})
     assert loader.load_prompt("LLMEditor", "en") == "BASE"
 
@@ -90,6 +101,13 @@ def test_load_prompt_not_found_raises(connexion_client, tmp_path):
         loader.load_prompt("Unknown", None)
 
 
+def test_load_prompt_base_required(connexion_client, tmp_path):
+    """ベースプロンプトは必須。言語別プロンプトのみの場合もFileNotFoundError"""
+    loader = _make_loader(tmp_path, system_files={"llmeditor_jp.md": "JAPANESE"})
+    with pytest.raises(FileNotFoundError, match="llmeditor_base.md"):
+        loader.load_prompt("LLMEditor", "jp")
+
+
 def test_load_prompt_read_error_raises(connexion_client, tmp_path):
     """ファイルの読み込み自体に失敗した場合(例: 同名のディレクトリ)は例外をそのまま送出する"""
     loader = _make_loader(tmp_path)
@@ -100,13 +118,13 @@ def test_load_prompt_read_error_raises(connexion_client, tmp_path):
 
 # ==================== load_menu_prompt ====================
 
-def test_load_menu_prompt_language_specific_preferred(connexion_client, tmp_path):
-    """メニュー固有プロンプトも言語別がベースより優先される"""
+def test_load_menu_prompt_language_specific_appended(connexion_client, tmp_path):
+    """メニュー固有プロンプトも言語別がベースの後ろに追記される"""
     loader = _make_loader(tmp_path, menu_files={
         "menu_001_base.md": "MENU_BASE",
         "menu_001_jp.md": "MENU_JP",
     })
-    assert loader.load_menu_prompt("menu_001", "jp") == "MENU_JP"
+    assert loader.load_menu_prompt("menu_001", "jp") == "MENU_BASE\n\nMENU_JP"
 
 
 def test_load_menu_prompt_falls_back_to_base(connexion_client, tmp_path):
@@ -121,6 +139,12 @@ def test_load_menu_prompt_not_found_returns_none(connexion_client, tmp_path):
     loader = _make_loader(tmp_path)
     assert loader.load_menu_prompt("no_such_menu", "jp") is None
     assert loader.load_menu_prompt("no_such_menu", None) is None
+
+
+def test_load_menu_prompt_base_required(connexion_client, tmp_path):
+    """メニュー固有プロンプトもベースが無い場合は言語別があってもNone"""
+    loader = _make_loader(tmp_path, menu_files={"menu_001_jp.md": "MENU_JP"})
+    assert loader.load_menu_prompt("menu_001", "jp") is None
 
 
 # ==================== get_available_services ====================
@@ -147,10 +171,13 @@ def test_get_available_services_missing_dir(connexion_client, tmp_path):
 @pytest.mark.parametrize("user_language", [None, "jp", "en"])
 def test_real_prompt_files_exist_for_all_profiles(connexion_client, prompt_profile, user_language):
     """会話作成APIで指定可能な全prompt_profileについて、実際のプロンプトファイルが読み込める
-    (言語別が無いprompt_profileはベースへフォールバックする)
+    (常にベースプロンプトが含まれ、言語別があればその後ろに追記される)
     """
-    prompt = SystemPromptLoader().load_prompt(prompt_profile, user_language)
+    loader = SystemPromptLoader()
+    prompt = loader.load_prompt(prompt_profile, user_language)
+    base = loader.load_prompt(prompt_profile, None)
     assert prompt, f"prompt for {prompt_profile}/{user_language} is not empty"
+    assert prompt.startswith(base), f"prompt for {prompt_profile}/{user_language} starts with base prompt"
 
 
 def test_real_default_dirs(connexion_client):

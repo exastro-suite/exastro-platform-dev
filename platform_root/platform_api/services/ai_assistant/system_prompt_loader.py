@@ -30,9 +30,12 @@ class SystemPromptLoader:
     システムプロンプトローダー
 
     ファイル命名規則:
-    - {prompt_profile}_base.md: 基本プロンプト
-    - {prompt_profile}_jp.md: 日本語用プロンプト
-    - {prompt_profile}_en.md: 英語用プロンプト
+    - {prompt_profile}_base.md: 基本プロンプト（必須）
+    - {prompt_profile}_jp.md: 日本語用の追加プロンプト（任意）
+    - {prompt_profile}_en.md: 英語用の追加プロンプト（任意）
+
+    言語別プロンプトはベースプロンプトの後ろに追記される
+    The language-specific prompt is appended after the base prompt
     """
 
     def __init__(self, prompts_dir: Optional[str] = None):
@@ -62,6 +65,7 @@ class SystemPromptLoader:
     ) -> str:
         """
         システムプロンプトを読み込む
+        (ベースプロンプト + 言語別の追加プロンプト)
 
         Args:
             prompt_profile: プロンプトプロファイル (LLMEditor, AgenticAI)
@@ -71,32 +75,79 @@ class SystemPromptLoader:
             システムプロンプト文字列
 
         Raises:
-            FileNotFoundError: プロンプトファイルが見つからない場合
+            FileNotFoundError: ベースプロンプトファイルが見つからない場合
         """
         # prompt_profile を小文字に正規化
         prompt_profile_lower = prompt_profile.lower()
 
-        # 言語別プロンプトを優先的に読み込み
+        prompt = self._load_base_and_language(self.prompts_dir, prompt_profile_lower, user_language)
+        if prompt is None:
+            raise FileNotFoundError(
+                f"System prompt not found for prompt_profile={prompt_profile}, "
+                f"user_language={user_language}. "
+                f"Expected file: {self.prompts_dir / f'{prompt_profile_lower}_base.md'}"
+            )
+        return prompt
+
+    def load_menu_prompt(
+        self, menu_id: str, user_language: Optional[str] = None
+    ) -> Optional[str]:
+        """
+        メニュー固有の追加システムプロンプトを読み込む
+        (ベースプロンプト + 言語別の追加プロンプト)
+
+        Args:
+            menu_id: メニューID (ITA画面ID)
+            user_language: ユーザー言語 (jp, en, None)
+
+        Returns:
+            追加プロンプト文字列（ベースプロンプトファイルがない場合はNone）
+        """
+        # menu_id を小文字に正規化
+        menu_id_lower = menu_id.lower()
+
+        prompt = self._load_base_and_language(self.menu_prompts_dir, menu_id_lower, user_language)
+        if prompt is None:
+            # ベースが見つからない場合はNone（エラーにしない）
+            globals.logger.debug(
+                f"No menu-specific prompt found for menu_id={menu_id}, "
+                f"user_language={user_language}"
+            )
+        return prompt
+
+    def _load_base_and_language(
+        self, prompts_dir: Path, name: str, user_language: Optional[str]
+    ) -> Optional[str]:
+        """
+        ベースプロンプトを読み込み、言語別の追加プロンプトがあれば後ろに追記する
+        Load the base prompt and append the language-specific prompt if it exists
+
+        Args:
+            prompts_dir: プロンプトファイルのディレクトリ
+            name: ファイル名のプレフィックス (prompt_profile / menu_id を小文字にしたもの)
+            user_language: ユーザー言語 (jp, en, None)
+
+        Returns:
+            プロンプト文字列（ベースプロンプトファイルがない場合はNone）
+        """
+        base_file = prompts_dir / f"{name}_base.md"
+        if not base_file.exists():
+            return None
+
+        globals.logger.debug(f"Loading base prompt: {base_file}")
+        prompt = self._read_file(base_file)
+
         if user_language:
-            lang_file = self.prompts_dir / f"{prompt_profile_lower}_{user_language}.md"
+            lang_file = prompts_dir / f"{name}_{user_language}.md"
             if lang_file.exists():
-                globals.logger.debug(
-                    f"Loading language-specific prompt: {lang_file}"
-                )
-                return self._read_file(lang_file)
+                globals.logger.debug(f"Appending language-specific prompt: {lang_file}")
+                lang_prompt = self._read_file(lang_file)
+                if lang_prompt:
+                    prompt = f"{prompt}\n\n{lang_prompt}" if prompt else lang_prompt
+            else:
+                globals.logger.debug(f"No language-specific prompt: {lang_file}")
 
-        # 言語別プロンプトがない場合はベースプロンプトを使用
-        base_file = self.prompts_dir / f"{prompt_profile_lower}_base.md"
-        if base_file.exists():
-            globals.logger.debug(f"Loading base prompt: {base_file}")
-            return self._read_file(base_file)
-
-        # どちらも見つからない場合はエラー
-        raise FileNotFoundError(
-            f"System prompt not found for prompt_profile={prompt_profile}, "
-            f"user_language={user_language}. "
-            f"Expected files: {base_file} or {lang_file if user_language else 'N/A'}"
-        )
+        return prompt
 
     def _read_file(self, file_path: Path) -> str:
         """
@@ -118,44 +169,6 @@ class SystemPromptLoader:
         except Exception as e:
             globals.logger.error(f"Failed to read prompt file {file_path}: {e}")
             raise
-
-    def load_menu_prompt(
-        self, menu_id: str, user_language: Optional[str] = None
-    ) -> Optional[str]:
-        """
-        メニュー固有の追加システムプロンプトを読み込む
-
-        Args:
-            menu_id: メニューID (ITA画面ID)
-            user_language: ユーザー言語 (jp, en, None)
-
-        Returns:
-            追加プロンプト文字列（ファイルがない場合はNone）
-        """
-        # menu_id を小文字に正規化
-        menu_id_lower = menu_id.lower()
-
-        # 言語別プロンプトを優先的に読み込み
-        if user_language:
-            lang_file = self.menu_prompts_dir / f"{menu_id_lower}_{user_language}.md"
-            if lang_file.exists():
-                globals.logger.debug(
-                    f"Loading menu-specific prompt (language): {lang_file}"
-                )
-                return self._read_file(lang_file)
-
-        # 言語別プロンプトがない場合はベースプロンプトを使用
-        base_file = self.menu_prompts_dir / f"{menu_id_lower}_base.md"
-        if base_file.exists():
-            globals.logger.debug(f"Loading menu-specific prompt (base): {base_file}")
-            return self._read_file(base_file)
-
-        # どちらも見つからない場合はNone（エラーにしない）
-        globals.logger.debug(
-            f"No menu-specific prompt found for menu_id={menu_id}, "
-            f"user_language={user_language}"
-        )
-        return None
 
     def get_available_services(self) -> list[str]:
         """

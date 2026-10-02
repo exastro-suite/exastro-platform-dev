@@ -521,19 +521,13 @@ def create_completion(body, conversation_id, organization_id, workspace_id):
     try:
         service = get_conversation_service()
 
-        # ユーザー言語を取得 (Accept-Languageヘッダーから)
-        # Determine the user's language from the Accept-Language header
-        user_language = None
-        accept_language = connexion.request.headers.get('Accept-Language', '')
-        # "ja"/"jp"を含む部分一致で判定（"ja-JP"等の地域付き表記もカバーするため）。該当しなければenを見る
-        # Match by substring on "ja"/"jp" (to also cover region variants like "ja-JP"); fall back to checking for en
-        if 'ja' in accept_language or 'jp' in accept_language:
-            user_language = 'jp'
-        elif 'en' in accept_language:
-            user_language = 'en'
+        # ユーザー言語を取得 (platform-authが設定するLanguageヘッダー(ログイン画面で選択した言語: ja/en)から)
+        # Determine the user's language from the Language header set by platform-auth (language selected on the login screen: ja/en)
+        language = (connexion.request.headers.get('Language') or '').lower()
+        user_language = {'ja': 'jp', 'en': 'en'}.get(language)
 
         globals.logger.debug(
-            f"User language detected: {user_language} (Accept-Language: {accept_language}), "
+            f"User language detected: {user_language} (Language: {language}), "
             f"ai_service_id: {ai_service_id}, menu_id: {menu_id}"
         )
 
