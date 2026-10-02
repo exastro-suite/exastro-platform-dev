@@ -772,6 +772,7 @@ class LanguageList:
     lang_array['404-29001'] = 'Plan does not exist (id:{0})'
     lang_array['404-34001'] = 'Notification information does not exist (id:{0})'
     lang_array['404-35001'] = 'Notification information does not exist (id:{0})'
+    lang_array['404-35002'] = 'Notification job does not exist (notification_id:{0})'
     lang_array['404-38001'] = 'File does not exist (id:{0})'
     lang_array['404-40001'] = 'Audit log download file does not exist (id:{0})'
     lang_array['404-41001'] = 'Information does not exist (role:{0}, message{1})'

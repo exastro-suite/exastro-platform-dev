@@ -68,6 +68,8 @@ tags:
   description: メンテナンスモードに関する操作
 - name: NotificationService
   description: 通知機能に関する操作
+- name: NotificationJobService
+  description: 通知ジョブに関する操作
 - name: MailserverSettings
   description: メールサーバーに関する操作
 - name: AuditLogService
@@ -88,6 +90,8 @@ tags:
   description: メンテナンスモードに関する操作(内部用)
 - name: InternalNotificationService
   description: 通知機能に関する操作(内部用)
+- name: InternalNotificationJobService
+  description: 通知ジョブに関する操作(内部用)
 - name: InternalHealthCheckService
   description: ヘルスチェックに関する操作(内部用)
 - name: InternalServiceAccountUsersService
@@ -163,6 +167,12 @@ paths:
 
   # "/api/{organization_id}/platform/workspaces/{workspace_id}/notifications/{notifications_id}":
   #     $ref: './paths/workspaces.workspace_id.notifications.notification_id.yaml'
+
+  "/api/{organization_id}/platform/workspaces/{workspace_id}/notification-jobs":
+      $ref: './paths/workspaces.workspace_id.notification_jobs.yaml'
+
+  "/api/{organization_id}/platform/workspaces/{workspace_id}/notification-jobs/{notification_id}":
+      $ref: './paths/workspaces.workspace_id.notification_jobs.notification_id.yaml'
 
   "/api/{organization_id}/platform/workspaces/{workspace_id}/conversations":
       $ref: './paths/workspaces.workspace_id.conversations.yaml'
@@ -280,6 +290,12 @@ paths:
 
   "/internal-api/{organization_id}/platform/workspaces/{workspace_id}/notifications":
       $ref: './paths/internal_workspaces.workspace_id.notifications.yaml'
+
+  "/internal-api/{organization_id}/platform/workspaces/{workspace_id}/notification-jobs":
+      $ref: './paths/internal_workspaces.workspace_id.notification_jobs.yaml'
+
+  "/internal-api/{organization_id}/platform/workspaces/{workspace_id}/notification-jobs/{notification_id}":
+      $ref: './paths/internal_workspaces.workspace_id.notification_jobs.notification_id.yaml'
 
   "/internal-api/health-check/liveness":
       $ref: './paths/internal_health-check.liveness.yaml'
