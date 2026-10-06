@@ -787,7 +787,6 @@ langArray['404-44009'] = 'Lesson not found'
 langArray['404-44010'] = 'Lesson not found'
 langArray['404-44011'] = 'Lesson not found'
 langArray['404-45001'] = 'No credential registered for the specified ai_service_id: {0}'
-langArray['408-45001'] = 'The request to the AI service timed out: {0}'
 langArray['409-20001'] = 'The specified setting value already exists and cannot be created. (key: {0})'
 langArray['409-22001'] = 'The specified workspace cannot be created because it already exists.'
 langArray['409-24001'] = 'The specified role already exists and cannot be created.'
@@ -970,6 +969,7 @@ langArray['500-90029'] = 'Failed to create service account user role (target rol
 langArray['500-90030'] = 'Failed to set role to service account user role (organization id:{0} role name:{1})'
 langArray['500-90031'] = 'organization_db modify column audit_log failed. organization_id:[{0}]'
 langArray['503-45001'] = 'Failed to connect to the AI service: {0}'
+langArray['504-45001'] = 'The request to the AI service timed out: {0}'
 //
 //
 //

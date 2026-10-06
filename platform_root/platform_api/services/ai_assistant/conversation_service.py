@@ -908,12 +908,14 @@ class ConversationService:
             ) from e
 
         except (ReadTimeoutError, ConnectTimeoutError) as e:
-            # HTTPステータスが存在しないネットワークタイムアウトのため、JS版のtimeoutStatuses([408, 504])に合わせて408として返す
-            # No HTTP status exists for a network-level timeout, so return 408 to match the JS client's timeoutStatuses ([408, 504])
+            # HTTPステータスが存在しないネットワークタイムアウトのため、上流(AIサービス)のタイムアウトを表す504として返す
+            # (408はクライアント側の送信遅延を表し、ブラウザがリクエストを自動で再送してしまうため使わない)
+            # No HTTP status exists for a network-level timeout, so return 504 (upstream AI service timeout)
+            # (408 means the client was too slow to send, and browsers automatically resend the request, so it is not used)
             globals.logger.error(f"Bedrock request timeout: {e}")
-            message_id = "408-45001"
+            message_id = "504-45001"
             raise common.OtherException(
-                status_code=408,
+                status_code=504,
                 message_id=message_id,
                 message=multi_lang.get_text(message_id, "AIサービスへのリクエストがタイムアウトしました: {0}", str(e)),
             ) from e
