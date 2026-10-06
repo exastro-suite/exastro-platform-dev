@@ -2146,8 +2146,8 @@ def test_completions_client_error_503_propagated(connexion_client):
     assert response.json["result"] == "500-45001"
 
 
-def test_completions_read_timeout_returns_408(connexion_client):
-    """読み取りタイムアウト(ReadTimeoutError)は408-45001で返す"""
+def test_completions_read_timeout_returns_504(connexion_client):
+    """読み取りタイムアウト(ReadTimeoutError)は504-45001で返す(408はブラウザが自動で再送してしまうため使わない)"""
     organization_id, workspace_id, user_id, conversation_id = _setup_chat(connexion_client)
 
     fake_session = _mocked_bedrock_session(
@@ -2156,14 +2156,14 @@ def test_completions_read_timeout_returns_408(connexion_client):
         response = _post_completion(
             connexion_client, organization_id, workspace_id, user_id, conversation_id, {"message": "こんにちは"})
 
-    assert response.status_code == 408
-    assert response.json["result"] == "408-45001"
+    assert response.status_code == 504
+    assert response.json["result"] == "504-45001"
     assert response.json["message"].startswith("The request to the AI service timed out: ")
     assert "bedrock-runtime.ap-northeast-1.amazonaws.com" in response.json["message"]
 
 
-def test_completions_connect_timeout_returns_408(connexion_client):
-    """接続タイムアウト(ConnectTimeoutError)も408-45001で返す"""
+def test_completions_connect_timeout_returns_504(connexion_client):
+    """接続タイムアウト(ConnectTimeoutError)も504-45001で返す"""
     organization_id, workspace_id, user_id, conversation_id = _setup_chat(connexion_client)
 
     fake_session = _mocked_bedrock_session(
@@ -2172,8 +2172,8 @@ def test_completions_connect_timeout_returns_408(connexion_client):
         response = _post_completion(
             connexion_client, organization_id, workspace_id, user_id, conversation_id, {"message": "こんにちは"})
 
-    assert response.status_code == 408
-    assert response.json["result"] == "408-45001"
+    assert response.status_code == 504
+    assert response.json["result"] == "504-45001"
 
 
 def test_completions_connection_error_returns_503(connexion_client):
@@ -3048,7 +3048,7 @@ def test_completions_error_messages_japanese(connexion_client):
     assert response.json["result"] == "500-45002"
     assert response.json["message"] == "max_tokensがモデルの上限を超えています(要求値: 8192, モデル上限: 4096, リトライ回数: 1)"
 
-    # 408-45001 / 503-45001
+    # 504-45001 / 503-45001
     for error, expected_prefix in (
         (ReadTimeoutError(endpoint_url="https://example.com"), "AIサービスへのリクエストがタイムアウトしました: "),
         (EndpointConnectionError(endpoint_url="https://example.com"), "AIサービスへの接続に失敗しました: "),

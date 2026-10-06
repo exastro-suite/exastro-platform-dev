@@ -34,6 +34,14 @@ ENV DB_CONNECT_TIMEOUT      10
 ENV DB_CONNECT_RETRY_SLEEP_TIME    0.5
 ENV DB_CONNECT_RETRY_LIMIT  3
 
+# mod_wsgiのプロセス・スレッド数(config/httpd.conf/wsgi.conf参照) / mod_wsgi processes and threads (see config/httpd.conf/wsgi.conf)
+#   通常系(platform-api) / Default group (platform-api)
+ENV PLATFORM_API_WSGI_PROCESSES             1
+ENV PLATFORM_API_WSGI_THREADS               15
+#   AIアシスタント系(platform-api-ai-assistant) / AI assistant group (platform-api-ai-assistant)
+ENV AI_ASSISTANT_WSGI_PROCESSES             1
+ENV AI_ASSISTANT_WSGI_THREADS               15
+
 # AIアシスタント機能の設定 / AI assistant feature settings
 #   BedrockへのHTTPリクエストの読み込みタイムアウト(秒) / Read timeout (seconds) for HTTP requests to Bedrock
 ENV AI_ASSISTANT_READ_TIMEOUT               300

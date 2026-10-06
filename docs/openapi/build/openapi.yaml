@@ -3282,7 +3282,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/runtimeError'
         default:
-          description: 'AIサービスのAPIがエラー時に返したHTTPステータスコードをそのまま返す(例: 408, 429, 500, 503等)。 リトライ可否の判断はこのステータスコードを基準に行うこと。 Returns the HTTP status code exactly as returned by the AI service''s API on error (e.g. 408, 429, 500, 503, etc.). Retry decisions should be based on this status code.'
+          description: 'AIサービスのAPIがエラー時に返したHTTPステータスコードをそのまま返す(例: 429, 500, 503等)。 AIサービスへのリクエストがタイムアウトした場合は504、接続に失敗した場合は503を返す。 リトライ可否の判断はこのステータスコードを基準に行うこと。 Returns the HTTP status code exactly as returned by the AI service''s API on error (e.g. 429, 500, 503, etc.). Returns 504 when the request to the AI service times out, and 503 when the connection to it fails. Retry decisions should be based on this status code.'
           content:
             application/json:
               schema:

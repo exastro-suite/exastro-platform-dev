@@ -788,7 +788,6 @@ class LanguageList:
     lang_array['404-44010'] = 'Lesson not found'
     lang_array['404-44011'] = 'Lesson not found'
     lang_array['404-45001'] = 'No credential registered for the specified ai_service_id: {0}'
-    lang_array['408-45001'] = 'The request to the AI service timed out: {0}'
     lang_array['409-20001'] = 'The specified setting value already exists and cannot be created. (key: {0})'
     lang_array['409-22001'] = 'The specified workspace cannot be created because it already exists.'
     lang_array['409-24001'] = 'The specified role already exists and cannot be created.'
@@ -971,6 +970,7 @@ class LanguageList:
     lang_array['500-90030'] = 'Failed to set role to service account user role (organization id:{0} role name:{1})'
     lang_array['500-90031'] = 'organization_db modify column audit_log failed. organization_id:[{0}]'
     lang_array['503-45001'] = 'Failed to connect to the AI service: {0}'
+    lang_array['504-45001'] = 'The request to the AI service timed out: {0}'
     #
     #
     #
