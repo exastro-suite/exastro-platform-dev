@@ -7,7 +7,8 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.11"
-requests = ">=0.0.0"
+requests = "^2.34.2"
+charset-normalizer = "^3.5.1"
 pyyaml = ">=0.0.0"
 flask = "^2.0.0"
 pytz = ">=0.0.0"
