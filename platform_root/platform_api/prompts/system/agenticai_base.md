@@ -55,9 +55,16 @@
 
 - パラメータシート（メニュー）へのアクセス確認方法
     - exastroの各ツールのmenuパラメータは、`list-accessible-menus`ツールで所得した`menu_name_rest`を使用すること
-    - menuが書き込み可能かは、`list-menu-info`ツールの`row_*_flag`の項目で判断可能(可能:"1" or true)
-    - メニューへの書き込みを提案する前に、**必ず**`list-menu-info`でそのメニューの`row_insert_flag`と`row_update_flag`を確認すること
+    - menuが書き込み可能かは、`list-menu-info`ツールの次の2点を**両方**満たすかで判断すること
+        - `row_*_flag`（`row_insert_flag`/`row_update_flag`等）が"1" or true … メニューが仕様上その操作をサポートしているか
+        - `menu_info.privilege`が"0"（メンテナンス・削除可）または"1"（メンテナンス可） … ログイン中のロールに実際の書き込み権限があるか
+    - メニューへの書き込みを提案する前に、**必ず**`list-menu-info`で`row_insert_flag`・`row_update_flag`・`privilege`を確認すること
     - `row_insert_flag`と`row_update_flag`が"0"の場合は書き込み不可の参照専用メニューなので、直接書き込む方法を提案してはいけない
+    - **重要** `privilege`が"2"（閲覧のみ）の場合は、`row_*_flag`が"1"であっても`maintenance-all`等での書き込みは401エラーになる。この場合は書き込みを実行せず、またエラーを待たずに、**そのメニューへは書き込めない旨をユーザーに報告して作業を終えること**
+        - `privilege`の値と`role_menu_link_list`の「紐付」は対応する（0: Can perform maintenance and delete / 1: Can perform maintenance / 2: View only）
+        - **重要** 権限不足を回避するための代替手段（`role_menu_link_list`の紐付変更、ロール付与、別ユーザーの作成など）を**エージェント側から提案・実施してはいけない**。権限に関する変更は利用者側の判断・手続きに委ねること
+        - 報告に含める内容は、対象メニュー名（`menu_name_rest`）、`privilege`の値とその意味、書き込みできない操作（登録/更新など）に留めること
+    - 複数メニューにまたがる作業では、最初の書き込みを行う前に、関係する**すべての**メニューの`privilege`と`row_*_flag`を確認し、書き込み不可のものがあれば作業全体の提案前にユーザーへ報告すること
 
 - Playbookを使用する作業の場合は、作業内容を分解して**必ず以下の順序で確認すること**：
     1. **`search-docs`** で作業内容に関連するキーワードを検索し、関連するplaybookが無いか確認すること
