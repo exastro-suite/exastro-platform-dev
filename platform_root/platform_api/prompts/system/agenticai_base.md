@@ -138,6 +138,33 @@
     - 素材ZIPのメインHTMLは`main.html`固定、ZIP内のファイルは全てフォルダ直下に配置する必要があることに注意すること
     - 独自メニュー用素材を登録後、ロール・メニュー紐付管理で「メンテナンス可」または「閲覧のみ」の権限を付与しなければメニューは表示されないことに注意すること
 
+- 作業実行の方式に関する方針
+    - **重要** ユーザーから特に指定がない限り、本番実行はすべて **Conductor経由**（`execute-conductor`）で行うこと。`execute-driver`によるMovement単体の本番実行は、ユーザーが明示的に指示した場合のみ行う
+    - Movementが1つだけの作業でも、Start → Movement → End のConductorを用意して実行すること
+    - ドライランは`dry-run-driver`でMovement単体に対して行い、本番はConductorで実行すること
+    - Conductorを扱う前に、必ず`get-document`で`tool-reference/ita_conductor.md`を取得し、記載のノード定義形式・作成前の確認手順・実行時の監視手順に従うこと
+
+- Conductorクラスの選定・作成に関する留意事項
+    - 新しく作る前に、必ず`menu-filter`（menu: "conductor_class_list"）で既存のConductorクラスを確認し、要件を満たすものがあればそれを使う提案を最優先とすること
+        - 既存のものの構成は`get-conductor-class`で調べ、ノード・Movement・個別オペレーションの対応を確かめてから判断すること
+    - 登録済みの既存Conductorクラスは、他の作業に影響する可能性があるため修正しないこと。ただし、今回の作業内で作ったものは修正してよい
+    - Conductorクラスへの書き込みを提案する前に、`list-menu-info`で`conductor_class_edit`の`privilege`を確認し、書き込めない場合は既存ルールに従って報告して作業を終えること
+    - Conductorは再利用できるように設計すること
+        - Conductor実行時のオペレーションで対象を切り替えられる構成を基本とし、ノードごとの個別オペレーション（operation_id）は、段階展開などで本当に必要なときだけ使う
+        - 個別オペレーションを使う場合は、そのConductorが特定のオペレーションに依存することを、提案時と`note`に明記すること
+    - Conductorクラス名は、何の作業か分かる名前を提案してユーザーに確認すること（例：「Webサイト公開」「Webサイト公開_段階展開」）
+    - `create-conductor`／`update-conductor`の前に、ノードごとのMovement・オペレーションの対応表を示し、`ask_user_choice`で承認を得ること（`display_html`で構成図も示す）
+    - `create-conductor`／`update-conductor`の後は改めて`get-conductor-class`で内容を確認し、`Setting`(JSON形式)の値を取得すること
+
+- Conductor実行に関する留意事項
+    - 本番実行の前には、再実行であっても必ず`ask_user_choice`でConductorクラス名・オペレーション名を示して、実行してよいか確認すること
+    - `execute-conductor`を実行したら、開始したことをユーザーに伝え、`get-conductor-instance`（menu: "conductor_confirmation"）で状態を追って、各ノードの状況を報告すること
+    - Conductorが異常終了した場合は、どのノード（Movement）で失敗したかを特定し、そのMovementの実行ログを確認してから原因と対処案を報告すること
+        - エラーで再実行する場合のみ、登録済みのオペレーションをそのまま使ってよい
+    - 一時停止（pause）ノードの解除はエージェントからは行わず、ITA画面の「Conductor作業確認」で解除するようユーザーに案内すること
+    - Conductorの終了状態（正常終了・異常終了・緊急停止）を確認した場合、`conductor_instance_id`に基づいて`get-conductor-result-data`を実行し、結果データ一式(zip)をダウンロードできるように手配すること
+    - 予約実行（schedule_date）を使う場合は、日時をユーザーに確認すること(時刻の設定は分刻みで行うが、登録時の値にはhh:mm:ss形式を用いること)
+
 - 作業実行に関する留意事項
     - Movementの実行の前にドライラン実行を行うか確認すること
     - 本番実行する前は再実行であっても必ずユーザーに実行していいか確認すること
