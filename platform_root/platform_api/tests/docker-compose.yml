@@ -32,7 +32,7 @@ services:
     ports:
       - "0.0.0.0:3308:3306"
   unittest-keycloak:
-    image: quay.io/keycloak/keycloak:26.7
+    image: quay.io/keycloak/keycloak:26.8
     healthcheck:
       test: curl http://localhost:8080/auth/health
       interval: 3s

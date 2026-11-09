@@ -277,21 +277,19 @@ def add_audience_mapper_to_client(realm_name, client_id, audience_client_id, tok
         return {'added': False, 'skipped': False, 'error': str(e)}
 
 
-def add_basic_scope_to_client(realm_name, client_id, token):
-    """Add basic client scope to a specific client's defaultClientScopes
-
-    Keycloak 26+ includes 'sub' claim by default when basic scope is assigned.
-    This function adds the 'basic' scope to ensure backward compatibility.
+def add_default_client_scope_to_client(realm_name, client_id, scope_name, token):
+    """Add a client scope to a specific client's defaultClientScopes
 
     Args:
         realm_name (str): realm name
         client_id (str): client clientId (e.g., '_platform-api')
+        scope_name (str): client scope name (e.g., 'basic')
         token (str): admin access token
 
     Returns:
         dict: {'added': bool, 'skipped': bool, 'error': str or None}
     """
-    globals.logger.debug(f'Adding basic scope to client {client_id} in realm {realm_name}')
+    globals.logger.debug(f'Adding {scope_name} scope to client {client_id} in realm {realm_name}')
 
     api_url = "{}://{}:{}".format(os.environ['API_KEYCLOAK_PROTOCOL'], os.environ['API_KEYCLOAK_HOST'], os.environ['API_KEYCLOAK_PORT'])
 
@@ -339,13 +337,13 @@ def add_basic_scope_to_client(realm_name, client_id, token):
 
         existing_scopes = scopes_response.json()
 
-        # Check if basic scope already exists
+        # Check if the scope already exists
         for scope in existing_scopes:
-            if scope.get('name') == 'basic':
-                globals.logger.debug(f"basic scope already exists for client {client_id}")
+            if scope.get('name') == scope_name:
+                globals.logger.debug(f"{scope_name} scope already exists for client {client_id}")
                 return {'added': False, 'skipped': True, 'error': None}
 
-        # Get basic scope ID from realm
+        # Get the scope ID from realm
         realm_scopes_response = requests.get(
             f"{api_url}/auth/admin/realms/{realm_name}/client-scopes",
             headers=header_para,
@@ -357,33 +355,50 @@ def add_basic_scope_to_client(realm_name, client_id, token):
             return {'added': False, 'skipped': False, 'error': f'Failed to get realm scopes: {realm_scopes_response.status_code}'}
 
         realm_scopes = realm_scopes_response.json()
-        basic_scope_id = None
+        scope_id = None
         for scope in realm_scopes:
-            if scope.get('name') == 'basic':
-                basic_scope_id = scope.get('id')
+            if scope.get('name') == scope_name:
+                scope_id = scope.get('id')
                 break
 
-        if not basic_scope_id:
-            globals.logger.warning(f"basic scope not found in realm {realm_name}")
-            return {'added': False, 'skipped': False, 'error': 'basic scope not found in realm'}
+        if not scope_id:
+            globals.logger.warning(f"{scope_name} scope not found in realm {realm_name}")
+            return {'added': False, 'skipped': False, 'error': f'{scope_name} scope not found in realm'}
 
-        # Add basic scope to client's default scopes
+        # Add the scope to client's default scopes
         add_response = requests.put(
-            f"{api_url}/auth/admin/realms/{realm_name}/clients/{client_uuid}/default-client-scopes/{basic_scope_id}",
+            f"{api_url}/auth/admin/realms/{realm_name}/clients/{client_uuid}/default-client-scopes/{scope_id}",
             headers=header_para,
             timeout=(12, 600)
         )
 
         if add_response.status_code in [204]:
-            globals.logger.info(f"Successfully added basic scope to client {client_id}")
+            globals.logger.info(f"Successfully added {scope_name} scope to client {client_id}")
             return {'added': True, 'skipped': False, 'error': None}
         else:
-            globals.logger.error(f"Failed to add basic scope to client {client_id}: {add_response.status_code} {add_response.text}")
+            globals.logger.error(f"Failed to add {scope_name} scope to client {client_id}: {add_response.status_code} {add_response.text}")
             return {'added': False, 'skipped': False, 'error': f'HTTP {add_response.status_code}'}
 
     except Exception as e:
-        globals.logger.error(f"Exception while adding basic scope to client {client_id}: {e}")
+        globals.logger.error(f"Exception while adding {scope_name} scope to client {client_id}: {e}")
         return {'added': False, 'skipped': False, 'error': str(e)}
+
+
+def add_basic_scope_to_client(realm_name, client_id, token):
+    """Add basic client scope to a specific client's defaultClientScopes
+
+    Keycloak 26+ includes 'sub' claim by default when basic scope is assigned.
+    This function adds the 'basic' scope to ensure backward compatibility.
+
+    Args:
+        realm_name (str): realm name
+        client_id (str): client clientId (e.g., '_platform-api')
+        token (str): admin access token
+
+    Returns:
+        dict: {'added': bool, 'skipped': bool, 'error': str or None}
+    """
+    return add_default_client_scope_to_client(realm_name, client_id, "basic", token)
 
 
 def add_basic_scope_to_realm_clients(realm_name, token):

@@ -78,6 +78,10 @@ def __main():
         # Keycloakの起動を待つ
         migration_common.wait_until_keycloak_to_start()
 
+        # Keycloak 26.8.2以降、Admin APIを呼ぶサービスアカウントにkc-admin-api scopeが必要なため付与する
+        # Keycloak 26.8.2+ requires the kc-admin-api scope on service accounts that call the Admin API
+        migration_common.ensure_admin_api_client_scope()
+
         # get migrations directry name
         # migrationsのディレクトリ名を取得する
         migrations_path = os.path.join(os.path.dirname(__file__), MIGRATIONS_DIR_NAME)
