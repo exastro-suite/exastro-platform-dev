@@ -23,7 +23,7 @@ import traceback
 import globals
 from libs import queries_common
 
-from common_library.common import api_keycloak_server, api_keycloak_tokens
+from common_library.common import api_keycloak_server, api_keycloak_tokens, api_keycloak_clients, api_keycloak_realms
 
 WAIT_INTERVAL = 5
 
@@ -173,20 +173,16 @@ def wait_until_keycloak_to_start():
                 time.sleep(WAIT_INTERVAL)
                 continue
 
-            if informations.get("TOKEN_CHECK_CLIENT_CLIENTID") is not None \
-                    and informations.get("TOKEN_CHECK_CLIENT_SECRET") is not None:
+            use_service_account = informations.get("TOKEN_CHECK_CLIENT_CLIENTID") is not None \
+                and informations.get("TOKEN_CHECK_CLIENT_SECRET") is not None
 
+            if use_service_account:
                 token_response = api_keycloak_tokens.service_account_get_token(
                     'master',
                     informations.get("TOKEN_CHECK_CLIENT_CLIENTID"),
                     informations.get("TOKEN_CHECK_CLIENT_SECRET"))
             else:
-                token_response = api_keycloak_tokens.client_user_get_token(
-                    'master',
-                    'admin-cli',
-                    None,
-                    os.environ.get('KEYCLOAK_USER'),
-                    os.environ.get('KEYCLOAK_PASSWORD'))
+                token_response = __get_admin_cli_token()
 
             if token_response.status_code != 200:
                 globals.logger.debug(f'token_response.status_code:{token_response.status_code}')
@@ -197,6 +193,18 @@ def wait_until_keycloak_to_start():
             token = json.loads(token_response.text)["access_token"]
 
             serverinfo_response = api_keycloak_server.serverinfo(token)
+
+            # Keycloak 26.8.2+ rejects Admin API tokens without the kc-admin-api scope.
+            # The service account may not have the scope yet (it is added by ensure_admin_api_client_scope), so retry with admin-cli.
+            # Keycloak 26.8.2以降はkc-admin-api scopeのないトークンをAdmin APIで拒否する。
+            # サービスアカウントにはまだscopeが付与されていない場合があるため(ensure_admin_api_client_scopeで付与)、admin-cliで再試行する
+            if serverinfo_response.status_code == 401 and use_service_account:
+                globals.logger.debug('serverinfo returned 401 with service account token, retry with admin-cli')
+                token_response = __get_admin_cli_token()
+                if token_response.status_code == 200:
+                    token = json.loads(token_response.text)["access_token"]
+                    serverinfo_response = api_keycloak_server.serverinfo(token)
+
             if serverinfo_response.status_code != 200:
                 time.sleep(WAIT_INTERVAL)
                 continue
@@ -216,6 +224,73 @@ def wait_until_keycloak_to_start():
 
     globals.logger.info('KEYCLOAK STARTED')
     return
+
+
+def ensure_admin_api_client_scope():
+    """Add kc-admin-api client scope to the service account clients that call the Admin API
+
+        Keycloak 26.8.2+ rejects Admin API tokens without the kc-admin-api scope (401).
+        This runs before every migration (idempotent) because migrations of any version may call the Admin API
+        with the service account token.
+        Keycloak 26.8.2以降はkc-admin-api scopeのないトークンをAdmin APIで拒否する(401)。
+        どのバージョンのmigrationもサービスアカウントのトークンでAdmin APIを呼ぶ可能性があるため、migrationの前に毎回実行する(冪等)。
+        Ref: https://www.keycloak.org/docs/latest/upgrading/index.html#admin-rest-api-now-enforces-an-audience-check
+
+    Raises:
+        Exception: failed to add the scope
+    """
+    scope_name = "kc-admin-api"
+
+    with closing(connect_platform_db()) as conn:
+        informations = __get_platform_informations(conn)
+
+    platform_client_clientid = informations.get("TOKEN_CHECK_CLIENT_CLIENTID")
+    if platform_client_clientid is None:
+        # 初回インストール時は、クライアント作成時にテンプレートでscopeを付与する
+        # On initial install, the scope is assigned by the client template when the client is created
+        globals.logger.info(f'SKIP : add {scope_name} client scope : platform client not created yet')
+        return
+
+    token_response = __get_admin_cli_token()
+    if token_response.status_code != 200:
+        raise Exception(f"failed to get admin-cli token : {token_response.status_code} {token_response.text}")
+    token = json.loads(token_response.text)["access_token"]
+
+    # master realm: platform service account client / organization realms: organization service account client
+    targets = [("master", platform_client_clientid)]
+    targets += [(realm_name, f"{realm_name}-workspaces") for realm_name in api_keycloak_realms.get_organization_realms(token)]
+
+    failed = []
+    for realm_name, client_id in targets:
+        result = api_keycloak_clients.add_default_client_scope_to_client(realm_name, client_id, scope_name, token)
+        if result['added']:
+            globals.logger.info(f'add {scope_name} client scope : added : realm={realm_name} client={client_id}')
+        elif result['skipped']:
+            globals.logger.debug(f'add {scope_name} client scope : already exists : realm={realm_name} client={client_id}')
+        elif result.get('error') == 'Client not found':
+            # 作成途中・削除途中のオーガナイゼーションはクライアントが無いことがあるためスキップする
+            # Organizations being created or deleted may not have the client, so skip
+            globals.logger.warning(f'add {scope_name} client scope : client not found : realm={realm_name} client={client_id}')
+        else:
+            globals.logger.error(f'add {scope_name} client scope : failed : realm={realm_name} client={client_id} error={result.get("error")}')
+            failed.append(f'{realm_name}/{client_id}')
+
+    if failed:
+        raise Exception(f"failed to add {scope_name} client scope : {failed}")
+
+
+def __get_admin_cli_token():
+    """get master realm admin token via admin-cli
+
+    Returns:
+        Response: HTTP Response
+    """
+    return api_keycloak_tokens.client_user_get_token(
+        'master',
+        'admin-cli',
+        None,
+        os.environ.get('KEYCLOAK_USER'),
+        os.environ.get('KEYCLOAK_PASSWORD'))
 
 
 def connect_platform_db():

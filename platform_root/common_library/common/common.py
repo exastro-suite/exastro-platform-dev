@@ -627,7 +627,7 @@ def get_response_error_message(res):
     Returns:
         str: error message value
     """
-    # Ref: https://github.com/keycloak/keycloak/blob/26.7.0/integration/client-cli/admin-cli/src/main/java/org/keycloak/client/cli/util/HeadersBodyStatus.java#L50
+    # Ref: https://github.com/keycloak/keycloak/blob/26.8.0/integration/client-cli/admin-cli/src/main/java/org/keycloak/client/cli/util/HeadersBodyStatus.java#L50
     try:
         json_text = json.loads(res)
 

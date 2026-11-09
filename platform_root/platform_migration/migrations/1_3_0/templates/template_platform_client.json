@@ -101,7 +101,8 @@
         "profile",
         "roles",
         "email",
-        "basic"
+        "basic",
+        "kc-admin-api"
     ],
     "optionalClientScopes": [
         "address",
