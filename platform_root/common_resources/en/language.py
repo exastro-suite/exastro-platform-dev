@@ -653,6 +653,8 @@ class LanguageList:
     lang_array['400-00037'] = 'Not a specifiable value ({0})'
     lang_array['400-00038'] = 'The value is outside the range of specifiable values. (item: {0}, Minimum number: {1}, Maximum number: {2})'
     lang_array['400-00039'] = 'There is a difference in the URL origin for "ServiceNow API URL (Individual registration)" and "ServiceNow API URL (Bulk registration)".'
+    lang_array['400-00040'] = 'Notifications cannot be sent to a private IP address that is not registered in the notification-allowed host list. ({0})'
+    lang_array['400-00041'] = '{0} could not be found. ({1})'
     lang_array['400-11001'] = 'Request has been aborted.'
     lang_array['400-11002'] = 'Request body is invalid.'
     lang_array['400-22001'] = 'The specified generation AI service is not supported. (id:{0})'

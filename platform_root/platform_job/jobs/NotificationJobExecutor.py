@@ -33,7 +33,7 @@ from email.message import EmailMessage
 from email.utils import formatdate, formataddr, make_msgid
 
 from common_library.common.db import DBconnector
-from common_library.common import encrypt, const, common
+from common_library.common import encrypt, const, common, validation
 
 from libs import queries_notification
 
@@ -316,6 +316,10 @@ class NotificationJobExecutor(BaseJobExecutor):
         for destination_information in destination_informations:
             resp_webhook_text = None
             try:
+                allowed, reason = validation.is_webhook_host_allowed(urlparse(destination_information['url']).hostname)
+                if not allowed:
+                    raise Exception(f"destination host not allowed ({reason}): {destination_information['url']}")
+
                 resp_webhook = requests.post(
                     destination_information['url'],
                     json={
@@ -347,6 +351,7 @@ class NotificationJobExecutor(BaseJobExecutor):
                         ]
                     },
                     headers={"Content-type": "application/json"},
+                    allow_redirects=False,
                     timeout=(
                         self.job_config['extra_config']['teams_wf_connection_timeout'],
                         self.job_config['extra_config']['teams_wf_read_timeout'],
@@ -387,6 +392,10 @@ class NotificationJobExecutor(BaseJobExecutor):
         for destination_information in destination_informations:
             resp_webhook_text = None
             try:
+                allowed, reason = validation.is_webhook_host_allowed(urlparse(destination_information['webhook']).hostname)
+                if not allowed:
+                    raise Exception(f"destination host not allowed ({reason}): {destination_information['webhook']}")
+
                 resp_webhook = requests.post(
                     destination_information['webhook'],
                     json={
@@ -394,6 +403,7 @@ class NotificationJobExecutor(BaseJobExecutor):
                         "text": message_infomations.get("message").replace('\n', '<br/>')
                     },
                     headers={"Content-type": "application/json"},
+                    allow_redirects=False,
                     timeout=(
                         job_manager_config.JOBS[const.PROCESS_KIND_NOTIFICATION]['extra_config']['teams_connection_timeout'],
                         job_manager_config.JOBS[const.PROCESS_KIND_NOTIFICATION]['extra_config']['teams_read_timeout'],
@@ -439,12 +449,17 @@ class NotificationJobExecutor(BaseJobExecutor):
                 header.update(destination_information_header)
 
             try:
+                allowed, reason = validation.is_webhook_host_allowed(urlparse(destination_information['url']).hostname)
+                if not allowed:
+                    raise Exception(f"destination host not allowed ({reason}): {destination_information['url']}")
+
                 resp_webhook = requests.post(
                     destination_information['url'],
                     json={
                         "text": message_infomations.get("title") + "\n\n" + message_infomations.get("message")
                     },
                     headers=header,
+                    allow_redirects=False,
                     timeout=(
                         self.job_config['extra_config']['webhook_connection_timeout'],
                         self.job_config['extra_config']['webhook_read_timeout'],
@@ -484,11 +499,16 @@ class NotificationJobExecutor(BaseJobExecutor):
         for destination_information in destination_informations:
             resp_webhook_text = None
             try:
+                allowed, reason = validation.is_webhook_host_allowed(urlparse(destination_information['table_api_url']).hostname)
+                if not allowed:
+                    raise Exception(f"destination host not allowed ({reason}): {destination_information['table_api_url']}")
+
                 response = requests.post(
                     destination_information['table_api_url'],
                     json=json.loads(message_infomations.get("message", "{}")),
                     headers={"Content-type": "application/json", "Accept": "application/json"},
                     auth=(destination_information['servicenow_user'], destination_information['servicenow_password']),
+                    allow_redirects=False,
                     timeout=(
                         self.job_config['extra_config']['servicenow_connetion_timeout'],
                         self.job_config['extra_config']['servicenow_one_read_timeout'],
@@ -608,6 +628,11 @@ class NotificationJobExecutor(BaseJobExecutor):
 
         try:
             resp_webhook_text = None
+
+            allowed, reason = validation.is_webhook_host_allowed(urlparse(destination_information['batch_api_url']).hostname)
+            if not allowed:
+                raise Exception(f"destination host not allowed ({reason}): {destination_information['batch_api_url']}")
+
             globals.logger.debug("start requests.post")
             json_body = {
                 "batch_request_id": next(iter(rest_requests.keys())),
@@ -632,6 +657,7 @@ class NotificationJobExecutor(BaseJobExecutor):
                     destination_information["servicenow_user"],
                     destination_information["servicenow_password"],
                 ),
+                allow_redirects=False,
                 timeout=(
                     servicenow_connetion_timeout,
                     servicenow_batch_read_timeout,
