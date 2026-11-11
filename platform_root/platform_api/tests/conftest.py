@@ -20,6 +20,8 @@ import connexion
 import requests
 import json
 import subprocess
+import socket
+from unittest import mock
 
 from flask import request
 import logging
@@ -40,6 +42,67 @@ for env_var in ['no_proxy', 'NO_PROXY']:
     if hosts_to_add:
         new_value = ','.join([current_value] + hosts_to_add) if current_value else ','.join(hosts_to_add)
         os.environ[env_var] = new_value
+
+
+#: notification宛先url(Webhook/Teams/ServiceNow)のテスト用サンプルホスト名 -> 解決させたいダミーのグローバルIP
+MOCKED_DESTINATION_HOSTS = {
+    "example.com": "8.8.8.8",
+    "dev999999.service-now.com": "8.8.8.8",
+}
+
+
+@pytest.fixture(autouse=True)
+def mock_destination_host_resolution(mocker):
+    """notification宛先url(Webhook/Teams/ServiceNow)のホスト名解決をモック化
+
+    テスト用のサンプルURLに含まれるホスト名(dev999999.service-now.com等)は実在しないため、
+    SSRF対策(validation.is_webhook_host_allowed)の名前解決(socket.getaddrinfo)が
+    実DNSに依存しないよう、MOCKED_DESTINATION_HOSTSに列挙したホスト名のみグローバルIPに解決されるようモックする。
+    それ以外のホスト名(unittest-platform-db等、DB/Keycloak接続に必要なもの含む)は実際のsocket.getaddrinfoに
+    フォールバックする(socket.getaddrinfoをホスト名問わず広く上書きすると、テスト基盤自体のDB/Keycloak接続まで
+    巻き込んで壊れるため)。
+    全テストファイルに適用するため、個々のテストファイルではなくconftest.pyに定義している。
+    private/予約IPへの解決やDNS失敗を確認するテストでは、patch_getaddrinfo_forで個別に上書きする。
+
+    Args:
+        mocker (obj): mocker
+    """
+    real_getaddrinfo = socket.getaddrinfo
+
+    def fake_getaddrinfo(host, *args, **kwargs):
+        if host in MOCKED_DESTINATION_HOSTS:
+            ip = MOCKED_DESTINATION_HOSTS[host]
+            return [(socket.AF_INET, socket.SOCK_STREAM, 6, '', (ip, 0))]
+        return real_getaddrinfo(host, *args, **kwargs)
+
+    mocker.patch('socket.getaddrinfo', side_effect=fake_getaddrinfo)
+
+
+def patch_getaddrinfo_for(overrides):
+    """指定したホスト名のみ名前解決を上書きし、それ以外は実際のsocket.getaddrinfoにフォールバックするpatcherを返す
+
+    is_webhook_host_allowedは許可リスト取得のためにDB接続(unittest-platform-dbの名前解決)を行うため、
+    socket.getaddrinfoを全ホスト一括で上書きすると、DB接続自体が壊れてテストが失敗する。
+    そのため、テスト対象のホスト名のみを個別に差し替える。
+
+    Args:
+        overrides (dict): {hostname: [ip, ...]} で解決させたいIPのリストを指定、
+            または {hostname: 例外クラス/例外インスタンス} でDNS解決失敗を再現する
+
+    Returns:
+        unittest.mock._patch: mock.patchオブジェクト(with文で使用する)
+    """
+    real_getaddrinfo = socket.getaddrinfo
+
+    def fake_getaddrinfo(host, *args, **kwargs):
+        if host in overrides:
+            target = overrides[host]
+            if (isinstance(target, type) and issubclass(target, BaseException)) or isinstance(target, BaseException):
+                raise target
+            return [(socket.AF_INET, socket.SOCK_STREAM, 6, '', (ip, 0)) for ip in target]
+        return real_getaddrinfo(host, *args, **kwargs)
+
+    return mock.patch('socket.getaddrinfo', side_effect=fake_getaddrinfo)
 
 
 @pytest.fixture(scope='session')

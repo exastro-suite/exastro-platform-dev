@@ -14,10 +14,12 @@
 from unittest import mock
 from contextlib import closing
 from tests.common import request_parameters, test_common
+from tests.conftest import patch_getaddrinfo_for
 import ulid
 import json
+import socket
 
-from common_library.common import const, validation
+from common_library.common import const, validation, bl_common_service
 from libs import queries_notification
 from common_library.common.libs import queries_bl_notification
 from common_library.common import api_ita_admin_call, encrypt
@@ -28,6 +30,88 @@ from common_library.common.libs import queries_organization_options
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def test_is_webhook_host_allowed(connexion_client):
+    """validation.is_webhook_host_allowed test (SSRF prevention)
+
+    is_webhook_host_allowedはtuple[bool, str | None]を返す。
+    reasonは "not_found"(host未指定/DNS解決不可) または "private"(グローバル到達不可)。
+
+    Args:
+        connexion_client (_type_): _description_
+    """
+    # host None/empty -> not_found
+    assert validation.is_webhook_host_allowed(None) == (False, "not_found"), "host is None"
+    assert validation.is_webhook_host_allowed("") == (False, "not_found"), "host is empty"
+
+    # ip literal : public
+    assert validation.is_webhook_host_allowed("8.8.8.8") == (True, None), "ip literal : public"
+
+    # ip literal : loopback -> private
+    assert validation.is_webhook_host_allowed("127.0.0.1") == (False, "private"), "ip literal : loopback"
+
+    # ip literal : link-local (includes cloud metadata address 169.254.169.254)
+    assert validation.is_webhook_host_allowed("169.254.169.254") == (False, "private"), "ip literal : link-local (metadata)"
+
+    # ip literal : private (RFC1918)
+    assert validation.is_webhook_host_allowed("10.0.0.1") == (False, "private"), "ip literal : private"
+    assert validation.is_webhook_host_allowed("192.168.1.1") == (False, "private"), "ip literal : private (192.168/16)"
+    assert validation.is_webhook_host_allowed("172.16.0.1") == (False, "private"), "ip literal : private (172.16/12)"
+
+    # ip literal : shared address space (RFC6598 / CGN) ... not covered by is_private/is_reserved等だが is_global=False
+    assert validation.is_webhook_host_allowed("100.64.0.1") == (False, "private"), "ip literal : shared address space (CGN)"
+
+    # ip literal : multicast / reserved
+    assert validation.is_webhook_host_allowed("224.0.0.1") == (False, "private"), "ip literal : multicast"
+    assert validation.is_webhook_host_allowed("240.0.0.1") == (False, "private"), "ip literal : reserved"
+
+    # ip literal : ipv4-mapped ipv6 (metadata address encoded as ipv6)
+    assert validation.is_webhook_host_allowed("::ffff:169.254.169.254") == (False, "private"), "ip literal : ipv4-mapped ipv6 (metadata)"
+
+    # ip literal : unique local / link local ipv6
+    assert validation.is_webhook_host_allowed("fc00::1") == (False, "private"), "ip literal : ipv6 unique local"
+    assert validation.is_webhook_host_allowed("fe80::1") == (False, "private"), "ip literal : ipv6 link-local"
+
+    # hostname : resolves to public ip (既定モックにより8.8.8.8に解決される)
+    assert validation.is_webhook_host_allowed("example.com") == (True, None), "hostname : resolves to public ip"
+
+    # hostname : resolves to a private ip
+    with patch_getaddrinfo_for({"internal.example.test": ["127.0.0.1"]}):
+        assert validation.is_webhook_host_allowed("internal.example.test") == (False, "private"), "hostname : resolves to private ip"
+
+    # hostname : resolves to multiple addresses (public + private) -> いずれかがprivateならNG
+    with patch_getaddrinfo_for({"multi.example.test": ["8.8.8.8", "127.0.0.1"]}):
+        assert validation.is_webhook_host_allowed("multi.example.test") == (False, "private"), "hostname : resolves to mixed public/private ips"
+
+    # hostname : dns resolution failure -> not_found(fail closed)
+    with patch_getaddrinfo_for({"unresolvable.example.test": socket.gaierror}):
+        assert validation.is_webhook_host_allowed("unresolvable.example.test") == (False, "not_found"), "hostname : dns resolution failure"
+
+    # allow list : ip exact match bypasses private ip check
+    with mock.patch.object(bl_common_service, 'settings_system_config_list', return_value={"value": "127.0.0.1"}):
+        assert validation.is_webhook_host_allowed("127.0.0.1") == (True, None), "allow list : ip exact match"
+
+    # allow list : ip not in list is still blocked
+    with mock.patch.object(bl_common_service, 'settings_system_config_list', return_value={"value": "127.0.0.1"}):
+        assert validation.is_webhook_host_allowed("10.0.0.1") == (False, "private"), "allow list : ip not in list is still blocked"
+
+    # allow list : hostname match is case-insensitive and bypasses dns resolution entirely
+    with mock.patch.object(bl_common_service, 'settings_system_config_list', return_value={"value": "Internal.Example.Test"}), \
+            patch_getaddrinfo_for({"internal.example.test": socket.gaierror}):
+        assert validation.is_webhook_host_allowed("internal.example.test") == (True, None), "allow list : hostname match (case-insensitive)"
+        assert validation.is_webhook_host_allowed("INTERNAL.EXAMPLE.TEST") == (True, None), "allow list : hostname match (upper case input)"
+
+    # allow list : multiple entries (comma separated, with whitespace)
+    with mock.patch.object(bl_common_service, 'settings_system_config_list', return_value={"value": " 10.0.0.1 , 192.168.1.1 "}):
+        assert validation.is_webhook_host_allowed("10.0.0.1") == (True, None), "allow list : multiple entries (first)"
+        assert validation.is_webhook_host_allowed("192.168.1.1") == (True, None), "allow list : multiple entries (second)"
+        assert validation.is_webhook_host_allowed("172.16.0.1") == (False, "private"), "allow list : entry not listed is still blocked"
+
+    # allow list : not configured (config is None) -> private ip is blocked (安全側デフォルト)
+    with mock.patch.object(bl_common_service, 'settings_system_config_list', return_value=None):
+        assert validation.is_webhook_host_allowed("127.0.0.1") == (False, "private"), "allow list : not configured, private ip still blocked"
+        assert validation.is_webhook_host_allowed("8.8.8.8") == (True, None), "allow list : not configured, public ip still allowed"
 
 
 def test_notification_api(connexion_client):
@@ -648,6 +732,137 @@ def test_notifications_validate(connexion_client):
         retry_count_limit,
         'create')
     assert not validate.ok, "create notifications validate informations servicenow enable_batch is True, batch_count_limit max length + 1"
+
+    #
+    # validate informations url host (SSRF prevention)
+    #
+
+    # validate informations teams workflow host not allowed (loopback)
+    validate = validation.validate_destination_informations(
+        const.DESTINATION_KIND_TEAMS_WF,
+        [sample_data_information_teams_wf({"url": "http://127.0.0.1/"})],
+        enable_batch,
+        batch_period_seconds,
+        batch_count_limit,
+        True,
+        retry_count_limit,
+        'create')
+    assert not validate.ok, "create notifications validate informations teams workflow host not allowed (loopback)"
+    assert validate.message_id == '400-00040', "create notifications validate informations teams workflow host not allowed (loopback) : message_id (private ip)"
+
+    # validate informations teams workflow host not allowed (link-local / cloud metadata address)
+    validate = validation.validate_destination_informations(
+        const.DESTINATION_KIND_TEAMS_WF,
+        [sample_data_information_teams_wf({"url": "http://169.254.169.254/"})],
+        enable_batch,
+        batch_period_seconds,
+        batch_count_limit,
+        True,
+        retry_count_limit,
+        'create')
+    assert not validate.ok, "create notifications validate informations teams workflow host not allowed (link-local metadata)"
+
+    # validate informations webhook host not allowed (private network)
+    validate = validation.validate_destination_informations(
+        const.DESTINATION_KIND_WEBHOOK,
+        [sample_data_information_webhook({"url": "http://10.0.0.1/", "header": None})],
+        enable_batch,
+        batch_period_seconds,
+        batch_count_limit,
+        True,
+        retry_count_limit,
+        'create')
+    assert not validate.ok, "create notifications validate informations webhook host not allowed (private network)"
+
+    # validate informations webhook host not allowed (shared address space RFC6598 / CGN)
+    validate = validation.validate_destination_informations(
+        const.DESTINATION_KIND_WEBHOOK,
+        [sample_data_information_webhook({"url": "http://100.64.0.1/", "header": None})],
+        enable_batch,
+        batch_period_seconds,
+        batch_count_limit,
+        True,
+        retry_count_limit,
+        'create')
+    assert not validate.ok, "create notifications validate informations webhook host not allowed (shared address space)"
+
+    # validate informations webhook host not allowed (hostname resolves to a private ip)
+    with patch_getaddrinfo_for({"internal.example.test": ["127.0.0.1"]}):
+        validate = validation.validate_destination_informations(
+            const.DESTINATION_KIND_WEBHOOK,
+            [sample_data_information_webhook({"url": "http://internal.example.test/hooks", "header": None})],
+            enable_batch,
+            batch_period_seconds,
+            batch_count_limit,
+            True,
+            retry_count_limit,
+            'create')
+        assert not validate.ok, "create notifications validate informations webhook host not allowed (hostname resolves to private ip)"
+
+    # validate informations webhook host not allowed (hostname resolution failure)
+    with patch_getaddrinfo_for({"unresolvable.example.test": socket.gaierror}):
+        validate = validation.validate_destination_informations(
+            const.DESTINATION_KIND_WEBHOOK,
+            [sample_data_information_webhook({"url": "http://unresolvable.example.test/hooks", "header": None})],
+            enable_batch,
+            batch_period_seconds,
+            batch_count_limit,
+            True,
+            retry_count_limit,
+            'create')
+        assert not validate.ok, "create notifications validate informations webhook host not allowed (dns resolution failure)"
+        assert validate.message_id == '400-00041', "create notifications validate informations webhook host not allowed (dns resolution failure) : message_id (not_found)"
+
+    # validate informations webhook host allowed via system admin allow list (SSRF exception)
+    with mock.patch.object(bl_common_service, 'settings_system_config_list', return_value={"value": "10.0.0.1"}):
+        validate = validation.validate_destination_informations(
+            const.DESTINATION_KIND_WEBHOOK,
+            [sample_data_information_webhook({"url": "http://10.0.0.1/", "header": None})],
+            enable_batch,
+            batch_period_seconds,
+            batch_count_limit,
+            True,
+            retry_count_limit,
+            'create')
+        assert validate.ok, "create notifications validate informations webhook host allowed by admin allow list (ip)"
+
+    # validate informations webhook host allowed via system admin allow list (hostname, case-insensitive)
+    with mock.patch.object(bl_common_service, 'settings_system_config_list', return_value={"value": "Internal.Example.Test"}), \
+            patch_getaddrinfo_for({"internal.example.test": socket.gaierror}):
+        validate = validation.validate_destination_informations(
+            const.DESTINATION_KIND_WEBHOOK,
+            [sample_data_information_webhook({"url": "http://internal.example.test/hooks", "header": None})],
+            enable_batch,
+            batch_period_seconds,
+            batch_count_limit,
+            True,
+            retry_count_limit,
+            'create')
+        assert validate.ok, "create notifications validate informations webhook host allowed by admin allow list (hostname, bypasses dns resolution)"
+
+    # validate informations servicenow table_api_url host not allowed (loopback)
+    validate = validation.validate_destination_informations(
+        const.DESTINATION_KIND_SERVICENOW,
+        [sample_data_information_servicenow({"table_api_url": "http://127.0.0.1/api"})],
+        enable_batch,
+        batch_period_seconds,
+        batch_count_limit,
+        True,
+        retry_count_limit,
+        'create')
+    assert not validate.ok, "create notifications validate informations servicenow table_api_url host not allowed (loopback)"
+
+    # validate informations servicenow batch_api_url host not allowed (loopback)
+    validate = validation.validate_destination_informations(
+        const.DESTINATION_KIND_SERVICENOW,
+        [sample_data_information_servicenow({"batch_api_url": "http://127.0.0.1/api"})],
+        True,
+        batch_period_seconds,
+        batch_count_limit,
+        True,
+        retry_count_limit,
+        'create')
+    assert not validate.ok, "create notifications validate informations servicenow batch_api_url host not allowed (loopback)"
 
     #
     # validate conditions

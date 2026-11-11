@@ -50,7 +50,7 @@ def test_organization_api(connexion_client):
 
         # create organization
         # オーガナイゼーションを作成する
-        json_create_01 = sample_data_organization('organization-01')
+        json_create_01 = sample_data_organization(test_common.generate_organization_id())
 
         response = connexion_client.post(
             '/api/platform/organizations',
@@ -326,7 +326,7 @@ def test_organization_create(connexion_client):
             '/api/platform/organizations',
             content_type='application/json',
             headers=request_parameters.request_headers(),
-            json=sample_data_organization('organization-01'))
+            json=sample_data_organization(test_common.generate_organization_id()))
 
         assert response.status_code == 498, "create organization response code = maintenancemode"
 
@@ -348,14 +348,15 @@ def test_organization_create(connexion_client):
             '/api/platform/organizations',
             content_type='application/json',
             headers=request_parameters.request_headers(),
-            json=sample_data_organization('organization-01', {"name": "".ljust(const.length_organization_name + 1, "_")}))
+            json=sample_data_organization(test_common.generate_organization_id(), {"name": "".ljust(const.length_organization_name + 1, "_")}))
 
         assert response.status_code == 400, "create organization response code validate error"
 
     with test_common.requsts_mocker_default() as requests_mocker:
+        organization_id = test_common.generate_organization_id()
         requests_mocker.register_uri(
             requests_mock.POST,
-            re.compile(rf'^{test_common.ita_api_admin_origin()}/api/organizations/organization-01/ita/'),
+            re.compile(rf'^{test_common.ita_api_admin_origin()}/api/organizations/{organization_id}/ita/'),
             status_code=400,
             json={"result": "400-36003", "message": "Failed"})
 
@@ -363,7 +364,7 @@ def test_organization_create(connexion_client):
             '/api/platform/organizations',
             content_type='application/json',
             headers=request_parameters.request_headers(),
-            json=sample_data_organization('organization-01'))
+            json=sample_data_organization(organization_id))
 
         assert response.status_code == 400, "ITA API Error"
         assert response.json["result"] == "400-36003", "ITA API Error"
@@ -380,7 +381,7 @@ def test_organization_get(connexion_client):
     #   正常ルート確認
     #
     with test_common.requsts_mocker_default() as requests_mocker:
-        sample_data = sample_data_organization('organization-01')
+        sample_data = sample_data_organization(test_common.generate_organization_id())
         response_get_ita_data = {
             "optionsita": {
                 "drivers": {
@@ -1000,7 +1001,7 @@ def test_organization_update(connexion_client):
     #
     with test_common.requsts_mocker_default():
 
-        organization_id = (f"unittest-{ulid.new().str.lower()}")[0:const.length_organization_id]
+        organization_id = test_common.generate_organization_id()
         json_parameter = sample_data_organization(
             organization_id,
             {
@@ -1089,8 +1090,10 @@ def test_organization_update(connexion_client):
 
 
 def test_organization_list(connexion_client):
+    organization_id_01 = test_common.generate_organization_id()
+    organization_id_02 = test_common.generate_organization_id()
     response_get_ita_data = {
-        "organization-01": {
+        organization_id_01: {
             "optionsita": {
                 "drivers": {
                     "terraform_cloud_ep": True,
@@ -1108,7 +1111,7 @@ def test_organization_list(connexion_client):
                 }
             }
         },
-        "organization-02": {
+        organization_id_02: {
             "optionsita": {
                 "drivers": {
                     "terraform_cloud_ep": False,
@@ -1128,8 +1131,8 @@ def test_organization_list(connexion_client):
         }
     }
     sample_data = {
-        "organization-01": sample_data_organization('organization-01'),
-        "organization-02": sample_data_organization('organization-02'),
+        organization_id_01: sample_data_organization(organization_id_01),
+        organization_id_02: sample_data_organization(organization_id_02),
     }
 
     #
@@ -1152,16 +1155,16 @@ def test_organization_list(connexion_client):
     with test_common.requsts_mocker_default() as requests_mocker:
         requests_mocker.register_uri(
             requests_mock.GET,
-            re.compile(rf'^{test_common.ita_api_admin_origin()}/api/organizations/organization-01/ita/'),
+            re.compile(rf'^{test_common.ita_api_admin_origin()}/api/organizations/{organization_id_01}/ita/'),
             status_code=200,
-            json={"result": "000-00000", "message": "SUCCESS", "data": response_get_ita_data["organization-01"]})
+            json={"result": "000-00000", "message": "SUCCESS", "data": response_get_ita_data[organization_id_01]})
 
         # テスト用にデータを作成
         response = connexion_client.post(
             '/api/platform/organizations',
             content_type='application/json',
             headers=request_parameters.request_headers(),
-            json=sample_data["organization-01"])
+            json=sample_data[organization_id_01])
 
         assert response.status_code == 200, "create organization response code = 200"
 
@@ -1174,10 +1177,10 @@ def test_organization_list(connexion_client):
 
         assert response.status_code == 200, "get organization response code = 200"
         assert len(response.json['data']) == 1
-        assert response.json['data'][0]["id"] == sample_data["organization-01"]["id"]
-        assert response.json['data'][0]["name"] == sample_data["organization-01"]["name"]
+        assert response.json['data'][0]["id"] == sample_data[organization_id_01]["id"]
+        assert response.json['data'][0]["name"] == sample_data[organization_id_01]["name"]
         assert response.json['data'][0]["enabled"]
-        assert response.json['data'][0]["optionsIta"] == response_get_ita_data["organization-01"]["optionsita"]
+        assert response.json['data'][0]["optionsIta"] == response_get_ita_data[organization_id_01]["optionsita"]
 
     #
     #   2件正常確認
@@ -1185,21 +1188,21 @@ def test_organization_list(connexion_client):
     with test_common.requsts_mocker_default() as requests_mocker:
         requests_mocker.register_uri(
             requests_mock.GET,
-            re.compile(rf'^{test_common.ita_api_admin_origin()}/api/organizations/organization-01/ita/'),
+            re.compile(rf'^{test_common.ita_api_admin_origin()}/api/organizations/{organization_id_01}/ita/'),
             status_code=200,
-            json={"result": "000-00000", "message": "SUCCESS", "data": response_get_ita_data["organization-01"]})
+            json={"result": "000-00000", "message": "SUCCESS", "data": response_get_ita_data[organization_id_01]})
         requests_mocker.register_uri(
             requests_mock.GET,
-            re.compile(rf'^{test_common.ita_api_admin_origin()}/api/organizations/organization-02/ita/'),
+            re.compile(rf'^{test_common.ita_api_admin_origin()}/api/organizations/{organization_id_02}/ita/'),
             status_code=200,
-            json={"result": "000-00000", "message": "SUCCESS", "data": response_get_ita_data["organization-02"]})
+            json={"result": "000-00000", "message": "SUCCESS", "data": response_get_ita_data[organization_id_02]})
 
         # テスト用にデータを作成
         response = connexion_client.post(
             '/api/platform/organizations',
             content_type='application/json',
             headers=request_parameters.request_headers(),
-            json=sample_data["organization-02"])
+            json=sample_data[organization_id_02])
 
         assert response.status_code == 200, "create organization response code = 200"
 
@@ -1242,17 +1245,17 @@ def test_organization_list(connexion_client):
     #   ITA情報取得失敗
     #
     with test_common.requsts_mocker_default() as requests_mocker:
-        # organization-01のみエラー応答
+        # organization_id_01のみエラー応答
         requests_mocker.register_uri(
             requests_mock.GET,
-            re.compile(rf'^{test_common.ita_api_admin_origin()}/api/organizations/organization-01/ita/'),
+            re.compile(rf'^{test_common.ita_api_admin_origin()}/api/organizations/{organization_id_01}/ita/'),
             status_code=400,
             text="error test")
         requests_mocker.register_uri(
             requests_mock.GET,
-            re.compile(rf'^{test_common.ita_api_admin_origin()}/api/organizations/organization-02/ita/'),
+            re.compile(rf'^{test_common.ita_api_admin_origin()}/api/organizations/{organization_id_02}/ita/'),
             status_code=200,
-            json={"result": "000-00000", "message": "SUCCESS", "data": response_get_ita_data["organization-02"]})
+            json={"result": "000-00000", "message": "SUCCESS", "data": response_get_ita_data[organization_id_02]})
 
         # ITA情報取得失敗しても、応答するかを確認
         response = connexion_client.get(
@@ -1268,11 +1271,11 @@ def test_organization_list(connexion_client):
             assert response.json['data'][i]["id"] == sample_data[org_id]["id"]
             assert response.json['data'][i]["name"] == sample_data[org_id]["name"]
             assert response.json['data'][i]["enabled"]
-            if org_id == "organization-01":
-                # organization-01でITAエラー応答時、項目だけない状態となるか
+            if org_id == organization_id_01:
+                # organization_id_01でITAエラー応答時、項目だけない状態となるか
                 assert "optionsIta" not in response.json['data'][i]
             else:
-                # organization-01以外のITA正常応答時、応答内容が正しいか？
+                # organization_id_01以外のITA正常応答時、応答内容が正しいか？
                 assert response.json['data'][i]["optionsIta"] == response_get_ita_data[org_id]["optionsita"]
 
 
