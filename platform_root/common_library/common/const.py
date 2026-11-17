@@ -270,6 +270,10 @@ CONFIG_KEY_USER_EXPORT_IMPORT_EXP_DAYS = "platform.system.user_export_import.exp
 CONFIG_KEY_USER_EXPORT_IMPORT_CLEANUP_TIME = "platform.system.user_export_import.cleanup_time"
 # chunk size for upload/download
 CONFIG_KEY_CHUNK_SIZE = "platform.system.chunk_size"
+# 通知先(Webhook/Teams/ServiceNow)として許可するホスト一覧(ホスト名またはIPアドレス、カンマ区切り)
+# グローバルに到達可能でないアドレス(private/loopback/link-local/reserved/multicast/shared address space等)を
+# 通知先に指定したい場合は、ここに明示的に許可するホスト名またはIPアドレスを設定する(SSRF対策)
+CONFIG_KEY_WEBHOOK_ALLOWED_HOSTS = "platform.system.notification.webhook_allowed_hosts"
 
 # service account user type
 SERVICE_ACCOUNT_USER_TYPE_ATTRIBUTE_NAME = 'service_account_user_type'

@@ -34,3 +34,8 @@ Authorization: Basic {{org-user-id}} {{org-user-pw}}
 ### get user export import info(platform.system.user_export_import.cleanup_time) → NG(FORBIDDEN)
 GET {{base_org_url}}/api/{{org_id}}/platform/settings/common/platform.system.user_export_import.cleanup_time
 Authorization: Basic {{org-user-id}} {{org-user-pw}}
+
+### get notification allowed host(platform.system.notification.webhook_allowed_hosts) → NG(FORBIDDEN)
+GET {{base_org_url}}/api/{{org_id}}/platform/settings/common/platform.system.notification.webhook_allowed_hosts
+Authorization: Basic {{org-user-id}} {{org-user-pw}}
+

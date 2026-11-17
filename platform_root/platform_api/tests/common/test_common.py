@@ -250,6 +250,17 @@ class pymysql_cursor_mocked():
         return self.cursor.fetchone()
 
 
+def generate_organization_id():
+    """テスト用のランダムなorganization_idを生成する
+
+    Keycloakのrealm名として使われるため、テスト間でのid衝突を避けるためにランダムな値とする
+
+    Returns:
+        str: organization_id
+    """
+    return (f"unittest-{ulid.new().str.lower()}")[0:const.length_organization_id]
+
+
 def create_organization(connexion_client):
     """テスト用オーガナイゼーション作成
 
@@ -259,7 +270,7 @@ def create_organization(connexion_client):
     Returns:
         dict: created organization info
     """
-    organization_id = (f"unittest-{ulid.new().str.lower()}")[0:const.length_organization_id]
+    organization_id = generate_organization_id()
     json_parameter = test_organization_service_controller.sample_data_organization(organization_id)
 
     with requsts_mocker_default():

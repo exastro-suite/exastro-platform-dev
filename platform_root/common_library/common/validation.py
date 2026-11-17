@@ -14,11 +14,16 @@
 
 import re
 import json
+import socket
+import ipaddress
+from contextlib import closing
 from datetime import datetime
 import urllib.parse
 
 from common_library.common import common, multi_lang
 from common_library.common import bl_service_account_user
+from common_library.common import bl_common_service
+from common_library.common.db import DBconnector
 import common_library.common.const as const
 from email_validator import validate_email, EmailNotValidError
 
@@ -1306,6 +1311,13 @@ def validate_destination_informations(destination_kind, destination_info, enable
                     multi_lang.get_text('000-00214', "通知先Teams(Workflows) URL")
                 )
 
+            allowed, reason = is_webhook_host_allowed(urlparse.hostname)
+            if not allowed:
+                return _webhook_host_not_allowed_result(
+                    urlparse.hostname, reason,
+                    multi_lang.get_text('000-00214', "通知先Teams(Workflows) URL")
+                )
+
     if destination_kind == const.DESTINATION_KIND_TEAMS:
         # 廃止された通知方法のためエラー
         return result(
@@ -1343,6 +1355,13 @@ def validate_destination_informations(destination_kind, destination_info, enable
             except ValueError:
                 return result(
                     False, 400, '400-{}027'.format(MSG_FUNCTION_ID), 'URLの形式に誤りがあります。({0}）',
+                    multi_lang.get_text('000-00212', "通知先Webhook URL")
+                )
+
+            allowed, reason = is_webhook_host_allowed(urlparse.hostname)
+            if not allowed:
+                return _webhook_host_not_allowed_result(
+                    urlparse.hostname, reason,
                     multi_lang.get_text('000-00212', "通知先Webhook URL")
                 )
 
@@ -1385,6 +1404,13 @@ def validate_destination_informations(destination_kind, destination_info, enable
             except ValueError:
                 return result(
                     False, 400, '400-{}027'.format(MSG_FUNCTION_ID), 'URLの形式に誤りがあります。({0}）',
+                    multi_lang.get_text('000-00218', "通知先ServiceNow API URL (個別登録用)")
+                )
+
+            allowed, reason = is_webhook_host_allowed(table_api_urlparse.hostname)
+            if not allowed:
+                return _webhook_host_not_allowed_result(
+                    table_api_urlparse.hostname, reason,
                     multi_lang.get_text('000-00218', "通知先ServiceNow API URL (個別登録用)")
                 )
 
@@ -1438,6 +1464,13 @@ def validate_destination_informations(destination_kind, destination_info, enable
                 except ValueError:
                     return result(
                         False, 400, '400-{}027'.format(MSG_FUNCTION_ID), 'URLの形式に誤りがあります。({0}）',
+                        multi_lang.get_text('000-00221', "通知先ServiceNow API URL (一括登録用)")
+                    )
+
+                allowed, reason = is_webhook_host_allowed(batch_api_urlparse.hostname)
+                if not allowed:
+                    return _webhook_host_not_allowed_result(
+                        batch_api_urlparse.hostname, reason,
                         multi_lang.get_text('000-00221', "通知先ServiceNow API URL (一括登録用)")
                     )
 
@@ -2401,3 +2434,96 @@ def validate_lesson_bulk_items(lessons):
             )
 
     return result(True)
+
+
+def is_webhook_host_allowed(host):
+    """validate notification destination (Webhook/Teams/ServiceNow) host for SSRF prevention
+
+    以下の順でチェックする。
+    1. システム管理者が設定した許可リスト(ホスト名またはIPアドレス, system config)に合致する場合はOK
+    2. IPアドレス指定の場合、そのIPアドレスがグローバルに到達可能でない場合はNG
+    3. ホスト名指定の場合、名前解決した全IPアドレスについて、グローバルに到達可能でない場合はNG
+
+    Args:
+        host (str): destination url host (hostname or ip)
+
+    Returns:
+        tuple[bool, str | None]: (True, None)=OK
+            (False, "not_found")=host未指定、または名前解決できない(DNS未登録)
+            (False, "private")=IPアドレスがグローバルに到達可能でない(許可リスト対象外)
+    """
+    if not host:
+        return False, "not_found"
+
+    # ホストが許可リストにある場合はOK
+    allowed_hosts = _get_webhook_allowed_hosts()
+    if host.lower() in allowed_hosts:
+        return True, None
+
+    try:
+        # hostがIPアドレスか確認する、IPアドレスでない場合ValueErrorに飛ぶ
+        ip_list = [ipaddress.ip_address(host)]
+    except ValueError:
+        try:
+            # addr[4][0]はIPを示す、socket.getaddrinfo(DNS名前解決)の戻り値の仕様
+            ip_list = [ipaddress.ip_address(addr[4][0]) for addr in socket.getaddrinfo(host, None)]
+        except (socket.gaierror, UnicodeError):
+            return False, "not_found"
+
+    if all(not _is_restricted_ip(ip) or str(ip) in allowed_hosts for ip in ip_list):
+        return True, None
+
+    return False, "private"
+
+
+def _webhook_host_not_allowed_result(host, reason, field_name):
+    """is_webhook_host_allowedがNGだった場合のresultを、reasonに応じたメッセージで生成する
+
+    Args:
+        host (str): destination url host (hostname or ip)
+        reason (str): is_webhook_host_allowedが返したreason("not_found" or "private")
+        field_name (str): エラーメッセージに表示する項目名
+
+    Returns:
+        result: Validation result
+    """
+    if reason == "not_found":
+        return result(
+            False, 400, '400-{}041'.format(MSG_FUNCTION_ID), '{0}が見つかりません。({1}）',
+            host, field_name
+        )
+
+    return result(
+        False, 400, '400-{}040'.format(MSG_FUNCTION_ID), '通知許可ホストに登録されていないプライベートIPアドレスへ通知はできません。({0}）',
+        field_name
+    )
+
+
+def _is_restricted_ip(ip):
+    """check if ip address is not globally routable, or is a multicast address
+    (private/loopback/link-local/reserved/multicast/shared address space(RFC6598)等を包含)
+
+    is_globalはマルチキャストアドレスをTrue(グローバル)として扱うため、is_multicastを別途チェックする
+
+    Args:
+        ip (ipaddress.IPv4Address or ipaddress.IPv6Address): ip address
+
+    Returns:
+        bool: True=restricted / False=not restricted
+    """
+    return not ip.is_global or ip.is_multicast
+
+
+def _get_webhook_allowed_hosts():
+    """get notification destination allowed host list (hostname or ip, lower-cased) from platform.m_system_config
+
+    Returns:
+        list[str]: allowed host list (empty list if not configured)
+    """
+    with closing(DBconnector().connect_platformdb()) as conn:
+        config = bl_common_service.settings_system_config_list(conn, const.CONFIG_KEY_WEBHOOK_ALLOWED_HOSTS)
+
+    if config is None or config == '-':
+        return []
+
+    return [host.strip().lower() for host in config.get("value", "").split(",") if host.strip()]
