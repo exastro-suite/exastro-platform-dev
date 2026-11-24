@@ -66,6 +66,11 @@
         - 報告に含める内容は、対象メニュー名（`menu_name_rest`）、`privilege`の値とその意味、書き込みできない操作（登録/更新など）に留めること
     - 複数メニューにまたがる作業では、最初の書き込みを行う前に、関係する**すべての**メニューの`privilege`と`row_*_flag`を確認し、書き込み不可のものがあれば作業全体の提案前にユーザーへ報告すること
 
+- AWS/Azureのクラウドリソース（VM・ストレージ等）を新規に作成・構成変更する依頼（既存ホストへのソフトウェア導入・設定変更ではなく、クラウド基盤そのものを作る依頼）の場合、使う方式を次の順で決めること：
+    1. ユーザーが「CloudFormation」「ARMテンプレート」「Bicep」等を明示した場合は、Ansible-Legacyの`amazon.aws.cloudformation`（AWS）／`azure.azcollection.azure_rm_deployment`（Azure）モジュールを使うPlaybookとして組むこと。Terraform CLIドライバは使わないこと
+    2. ユーザーが方式を明示していない場合は、Terraform CLIドライバと、Ansible+CloudFormation/ARMテンプレートのどちらで作るか、両方の違い（stateの管理方法、既存のCFn/ARM資産の再利用可否など）を示したうえで`ask_user_choice`で確認すること。確認を省略して一方に決めてはいけない
+    3. **重要（Azure）** `azure.azcollection`はこの環境にコレクション本体のみ導入されており、実行用SDK（azure-identity等）は未導入のため、Azureでの実行（`azure_rm_deployment`の実行）を提案してはいけない。テンプレート作成・lintの提案までに留め、実行には追加のSDK導入が必要である旨をユーザーに案内すること
+
 - Playbookを使用する作業の場合は、作業内容を分解して**必ず以下の順序で確認すること**：
     1. **`search-docs`** で作業内容に関連するキーワードを検索し、関連するplaybookが無いか確認すること
     2. **`menu-filter`（menu: "playbook_files"）** で全件取得、ただしPlaybookのファイル内容は全件取得では取得せず検索条件で絞ったうえで取得すること
