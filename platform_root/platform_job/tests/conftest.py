@@ -26,6 +26,7 @@ from contextlib import closing
 import signal
 import inspect
 import base64
+import socket
 
 from importlib import import_module
 
@@ -47,6 +48,38 @@ for env_var in ['no_proxy', 'NO_PROXY']:
     if hosts_to_add:
         new_value = ','.join([current_value] + hosts_to_add) if current_value else ','.join(hosts_to_add)
         os.environ[env_var] = new_value
+
+
+#: notification宛先url(Webhook/Teams/ServiceNow)のテスト用ダミーホスト名 -> 解決させたいダミーのグローバルIP
+MOCKED_DESTINATION_HOSTS = {
+    "mocked.httpcode200.test": "8.8.8.8",
+    "mocked.httpcode500.test": "8.8.8.8",
+    "sn.dummy": "8.8.8.8",
+}
+
+
+@pytest.fixture(autouse=True)
+def mock_destination_host_resolution(mocker):
+    """notification宛先url(Webhook/Teams/ServiceNow)のホスト名解決をモック化
+
+    テスト用のダミーホスト名は実在しないため、SSRF対策(validation.is_webhook_host_allowed)の
+    名前解決(socket.getaddrinfo)が実DNSに依存しないよう、MOCKED_DESTINATION_HOSTSに列挙した
+    ホスト名のみグローバルIPに解決されるようモックする。
+    それ以外のホスト名(unittest-platform-db等、DB/Keycloak接続に必要なもの含む)は
+    実際のsocket.getaddrinfoにフォールバックする。
+
+    Args:
+        mocker (obj): mocker
+    """
+    real_getaddrinfo = socket.getaddrinfo
+
+    def fake_getaddrinfo(host, *args, **kwargs):
+        if host in MOCKED_DESTINATION_HOSTS:
+            ip = MOCKED_DESTINATION_HOSTS[host]
+            return [(socket.AF_INET, socket.SOCK_STREAM, 6, '', (ip, 0))]
+        return real_getaddrinfo(host, *args, **kwargs)
+
+    mocker.patch('socket.getaddrinfo', side_effect=fake_getaddrinfo)
 
 
 @pytest.fixture(scope="session", autouse=True)
